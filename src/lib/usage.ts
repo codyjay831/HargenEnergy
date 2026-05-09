@@ -1,5 +1,5 @@
 import { startOfWeek, endOfWeek } from "date-fns";
-import { BillableType, TimeEntry } from "@prisma/client";
+import { BillableType, TimeEntry } from "@/generated/prisma/client";
 
 export interface WeeklyUsage {
   includedMinutesThisWeek: number;

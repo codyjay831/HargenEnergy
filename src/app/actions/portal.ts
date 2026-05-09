@@ -2,7 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { RequestStatus, Urgency, AuthorType } from "@prisma/client";
+import { RequestStatus, Urgency, AuthorType } from "@/generated/prisma/client";
 import { revalidatePath } from "next/cache";
 import { sendInternalRequestAlert } from "@/lib/email";
 import { isUrgencyValue } from "@/lib/ui-enums";

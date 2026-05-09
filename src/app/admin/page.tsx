@@ -7,7 +7,12 @@ import {
   CheckCircle2,
   TrendingUp
 } from "lucide-react";
-import { RequestStatus, ClientStatus, BillableType, OverflowStatus } from "@prisma/client";
+import {
+  RequestStatus,
+  ClientStatus,
+  BillableType,
+  OverflowStatus,
+} from "@/generated/prisma/client";
 import { format, startOfWeek } from "date-fns";
 import { calculateWeeklyUsage } from "@/lib/usage";
 import { cn } from "@/lib/utils";

@@ -10,7 +10,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Urgency, OverflowStatus } from "@prisma/client";
+import { Urgency, OverflowStatus } from "@/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
 

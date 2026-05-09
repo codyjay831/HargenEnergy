@@ -2,7 +2,13 @@
 
 import { prisma } from "@/lib/prisma";
 import { requestHelpSchema, RequestHelpInput } from "@/lib/validations";
-import { PlanType, Urgency, ClientStatus, RequestStatus, OverflowStatus } from "@prisma/client";
+import {
+  PlanType,
+  Urgency,
+  ClientStatus,
+  RequestStatus,
+  OverflowStatus,
+} from "@/generated/prisma/client";
 import { 
   sendRequestConfirmation, 
   sendInternalRequestAlert, 

@@ -12,7 +12,7 @@ import { RequestCommentForm } from "@/components/forms/RequestCommentForm";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { calculateWeeklyUsage } from "@/lib/usage";
-import { OverflowStatus } from "@prisma/client";
+import { OverflowStatus } from "@/generated/prisma/client";
 import { startOfWeek } from "date-fns";
 
 export const dynamic = "force-dynamic";

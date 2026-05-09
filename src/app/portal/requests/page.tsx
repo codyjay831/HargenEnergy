@@ -14,7 +14,7 @@ import {
 import { PlusCircle } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { OverflowStatus } from "@prisma/client";
+import { OverflowStatus } from "@/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
 

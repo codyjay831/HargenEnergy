@@ -2,7 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { BillableType } from "@prisma/client";
+import { BillableType } from "@/generated/prisma/client";
 import { revalidatePath } from "next/cache";
 import { isBillableTypeValue } from "@/lib/ui-enums";
 
