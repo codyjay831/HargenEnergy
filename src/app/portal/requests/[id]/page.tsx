@@ -14,17 +14,16 @@ import { OverflowStatus } from "@/generated/prisma/client";
 export const dynamic = "force-dynamic";
 
 interface PortalRequestDetailPageProps {
-  params: {
-    id: string;
-  };
+  params: Promise<{ id: string }>;
 }
 
 export default async function PortalRequestDetailPage({ params }: PortalRequestDetailPageProps) {
-  const { id } = params;
+  const resolvedParams = await params;
+  const id = typeof resolvedParams?.id === "string" ? resolvedParams.id : undefined;
   const session = await auth();
   const clientId = session?.user?.clientId;
 
-  if (!clientId) {
+  if (!id || !clientId) {
     notFound();
   }
 

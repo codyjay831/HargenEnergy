@@ -18,13 +18,16 @@ import { startOfWeek } from "date-fns";
 export const dynamic = "force-dynamic";
 
 interface RequestDetailPageProps {
-  params: {
-    id: string;
-  };
+  params: Promise<{ id: string }>;
 }
 
 export default async function RequestDetailPage({ params }: RequestDetailPageProps) {
-  const { id } = params;
+  const resolvedParams = await params;
+  const id = typeof resolvedParams?.id === "string" ? resolvedParams.id : undefined;
+
+  if (!id) {
+    notFound();
+  }
 
   const request = await prisma.supportRequest.findUnique({
     where: { id },

@@ -14,13 +14,16 @@ import { calculateWeeklyUsage } from "@/lib/usage";
 export const dynamic = "force-dynamic";
 
 interface ClientDetailPageProps {
-  params: {
-    id: string;
-  };
+  params: Promise<{ id: string }>;
 }
 
 export default async function ClientDetailPage({ params }: ClientDetailPageProps) {
-  const { id } = params;
+  const resolvedParams = await params;
+  const id = typeof resolvedParams?.id === "string" ? resolvedParams.id : undefined;
+
+  if (!id) {
+    notFound();
+  }
 
   const client = await prisma.client.findUnique({
     where: { id },
