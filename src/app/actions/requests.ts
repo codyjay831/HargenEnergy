@@ -9,16 +9,17 @@ import {
   RequestStatus,
   OverflowStatus,
 } from "@/generated/prisma/client";
-import { 
-  sendRequestConfirmation, 
-  sendInternalRequestAlert, 
+import {
+  sendRequestConfirmation,
+  sendInternalRequestAlert,
   sendClientUpdateEmail,
   sendOverflowApprovalEmail,
   sendDeferredUpdateEmail,
-  sendOverflowApprovedEmail
+  sendOverflowApprovedEmail,
 } from "@/lib/email";
 import { auth } from "@/auth";
 import { isOverflowStatusValue, isRequestStatusValue } from "@/lib/ui-enums";
+import { checkRateLimit, getRateLimitIdentifier } from "@/lib/rate-limit";
 
 export async function submitRequestHelp(data: RequestHelpInput) {
   const validatedFields = requestHelpSchema.safeParse(data);
@@ -44,17 +45,30 @@ export async function submitRequestHelp(data: RequestHelpInput) {
     urgency,
     tools,
     takeOffPlate,
+    websiteUrlHoneypot,
   } = validatedFields.data;
 
+  // Honeypot: silently accept so automated tools cannot probe validation vs success.
+  if (websiteUrlHoneypot?.trim()) {
+    return { success: true };
+  }
+
+  const rateId = await getRateLimitIdentifier();
+  const intakeLimit = await checkRateLimit("public-intake", rateId);
+  if (!intakeLimit.allowed) {
+    return {
+      error: "Too many submissions from this network. Please try again later.",
+    };
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+
   try {
-    // 1. Find or create client
+    // Match existing lead/client by normalized email only (never companyName alone),
+    // so a coincidental company name cannot attach to another tenant.
     let client = await prisma.client.findFirst({
-      where: {
-        OR: [
-          { email: email },
-          { companyName: companyName }
-        ]
-      }
+      where: { email: normalizedEmail },
+      orderBy: { updatedAt: "desc" },
     });
 
     if (!client) {
@@ -62,7 +76,7 @@ export async function submitRequestHelp(data: RequestHelpInput) {
         data: {
           companyName,
           contactName: name,
-          email,
+          email: normalizedEmail,
           phone,
           website,
           serviceArea,
@@ -74,7 +88,6 @@ export async function submitRequestHelp(data: RequestHelpInput) {
       });
     }
 
-    // 2. Create support request
     const supportRequest = await prisma.supportRequest.create({
       data: {
         clientId: client.id,
@@ -87,8 +100,6 @@ export async function submitRequestHelp(data: RequestHelpInput) {
       },
     });
 
-    // 3. Send emails (don't await so the user doesn't wait, but handle errors)
-    // Actually, we should try to send them but not fail the whole process if they fail.
     try {
       await Promise.all([
         sendRequestConfirmation(email, companyName),
@@ -102,11 +113,10 @@ export async function submitRequestHelp(data: RequestHelpInput) {
           urgency,
           description: bottleneck,
           requestId: supportRequest.id,
-        })
+        }),
       ]);
     } catch (emailError) {
       console.error("Failed to send intake emails:", emailError);
-      // We don't return error here because the DB save was successful
     }
 
     return { success: true, requestId: supportRequest.id };
@@ -118,39 +128,51 @@ export async function submitRequestHelp(data: RequestHelpInput) {
 
 function mapPlanType(plan: string): PlanType {
   switch (plan) {
-    case "light": return PlanType.LIGHT;
-    case "core": return PlanType.CORE;
-    case "priority": return PlanType.PRIORITY;
-    default: return PlanType.LIGHT;
+    case "light":
+      return PlanType.LIGHT;
+    case "core":
+      return PlanType.CORE;
+    case "priority":
+      return PlanType.PRIORITY;
+    default:
+      return PlanType.LIGHT;
   }
 }
 
 function mapUrgency(urgency: string): Urgency {
   switch (urgency) {
-    case "normal": return Urgency.NORMAL;
-    case "this-week": return Urgency.THIS_WEEK;
-    case "urgent": return Urgency.URGENT;
-    case "ongoing": return Urgency.ONGOING;
-    default: return Urgency.NORMAL;
+    case "normal":
+      return Urgency.NORMAL;
+    case "this-week":
+      return Urgency.THIS_WEEK;
+    case "urgent":
+      return Urgency.URGENT;
+    case "ongoing":
+      return Urgency.ONGOING;
+    default:
+      return Urgency.NORMAL;
   }
 }
 
-export async function updateRequest(id: string, data: {
-  status?: RequestStatus;
-  needsInfo?: boolean;
-  internalNotes?: string | null;
-  clientVisibleUpdate?: string | null;
-  estimatedMinutes?: number | null;
-  overflowStatus?: OverflowStatus;
-  overflowReason?: string | null;
-  deferredUntil?: Date | null;
-  priorityRank?: number | null;
-  overflowApprovedAt?: Date | null;
-  overflowApprovedById?: string | null;
-  sendEmailUpdate?: boolean;
-  sendOverflowEmail?: boolean;
-  sendDeferredEmail?: boolean;
-}) {
+export async function updateRequest(
+  id: string,
+  data: {
+    status?: RequestStatus;
+    needsInfo?: boolean;
+    internalNotes?: string | null;
+    clientVisibleUpdate?: string | null;
+    estimatedMinutes?: number | null;
+    overflowStatus?: OverflowStatus;
+    overflowReason?: string | null;
+    deferredUntil?: Date | null;
+    priorityRank?: number | null;
+    overflowApprovedAt?: Date | null;
+    overflowApprovedById?: string | null;
+    sendEmailUpdate?: boolean;
+    sendOverflowEmail?: boolean;
+    sendDeferredEmail?: boolean;
+  },
+) {
   const session = await auth();
 
   if (!session?.user || session.user.role !== "ADMIN") {
@@ -161,13 +183,16 @@ export async function updateRequest(id: string, data: {
     return { error: "Invalid status." };
   }
 
-  if (data.overflowStatus !== undefined && !isOverflowStatusValue(data.overflowStatus)) {
+  if (
+    data.overflowStatus !== undefined &&
+    !isOverflowStatusValue(data.overflowStatus)
+  ) {
     return { error: "Invalid overflow status." };
   }
 
-  const { sendEmailUpdate, sendOverflowEmail, sendDeferredEmail, ...updateData } = data;
+  const { sendEmailUpdate, sendOverflowEmail, sendDeferredEmail, ...updateData } =
+    data;
 
-  // Handle overflow approval metadata
   if (updateData.overflowStatus === OverflowStatus.APPROVED) {
     updateData.overflowApprovedAt = new Date();
     updateData.overflowApprovedById = session.user.id;
@@ -183,39 +208,47 @@ export async function updateRequest(id: string, data: {
     const emailPromises = [];
 
     if (sendEmailUpdate && request.clientVisibleUpdate) {
-      emailPromises.push(sendClientUpdateEmail({
-        to: request.client.email,
-        requestTitle: request.title,
-        status: request.status,
-        needsInfo: request.needsInfo,
-        clientVisibleUpdate: request.clientVisibleUpdate,
-      }));
+      emailPromises.push(
+        sendClientUpdateEmail({
+          to: request.client.email,
+          requestTitle: request.title,
+          status: request.status,
+          needsInfo: request.needsInfo,
+          clientVisibleUpdate: request.clientVisibleUpdate,
+        }),
+      );
     }
 
     if (sendOverflowEmail) {
       if (request.overflowStatus === OverflowStatus.NEEDS_APPROVAL) {
-        emailPromises.push(sendOverflowApprovalEmail({
-          to: request.client.email,
-          requestTitle: request.title,
-          overflowReason: request.overflowReason,
-          clientVisibleUpdate: request.clientVisibleUpdate,
-        }));
+        emailPromises.push(
+          sendOverflowApprovalEmail({
+            to: request.client.email,
+            requestTitle: request.title,
+            overflowReason: request.overflowReason,
+            clientVisibleUpdate: request.clientVisibleUpdate,
+          }),
+        );
       } else if (request.overflowStatus === OverflowStatus.APPROVED) {
-        emailPromises.push(sendOverflowApprovedEmail({
-          to: request.client.email,
-          requestTitle: request.title,
-          clientVisibleUpdate: request.clientVisibleUpdate,
-        }));
+        emailPromises.push(
+          sendOverflowApprovedEmail({
+            to: request.client.email,
+            requestTitle: request.title,
+            clientVisibleUpdate: request.clientVisibleUpdate,
+          }),
+        );
       }
     }
 
     if (sendDeferredEmail && request.overflowStatus === OverflowStatus.DEFERRED) {
-      emailPromises.push(sendDeferredUpdateEmail({
-        to: request.client.email,
-        requestTitle: request.title,
-        deferredUntil: request.deferredUntil,
-        clientVisibleUpdate: request.clientVisibleUpdate,
-      }));
+      emailPromises.push(
+        sendDeferredUpdateEmail({
+          to: request.client.email,
+          requestTitle: request.title,
+          deferredUntil: request.deferredUntil,
+          clientVisibleUpdate: request.clientVisibleUpdate,
+        }),
+      );
     }
 
     if (emailPromises.length > 0) {
@@ -223,7 +256,11 @@ export async function updateRequest(id: string, data: {
         await Promise.all(emailPromises);
       } catch (emailError) {
         console.error("Failed to send notification emails:", emailError);
-        return { success: true, request, warning: "Update saved, but one or more email notifications failed." };
+        return {
+          success: true,
+          request,
+          warning: "Update saved, but one or more email notifications failed.",
+        };
       }
     }
 

@@ -31,7 +31,9 @@ export async function POST(req: Request) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error(`Webhook signature verification failed: ${message}`);
-    return new NextResponse(`Webhook Error: ${message}`, { status: 400 });
+    return new NextResponse("Webhook signature verification failed.", {
+      status: 400,
+    });
   }
 
   const session = event.data.object as Stripe.Checkout.Session;
@@ -113,6 +115,6 @@ export async function POST(req: Request) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error(`Webhook handler failed: ${message}`);
-    return new NextResponse(`Webhook Error: ${message}`, { status: 500 });
+    return new NextResponse("Webhook handler error.", { status: 500 });
   }
 }

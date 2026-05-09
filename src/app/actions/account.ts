@@ -18,9 +18,12 @@ export type ChangePasswordState = {
 
 const changePasswordSchema = z
   .object({
-    currentPassword: z.string().min(1, "Current password is required"),
+    currentPassword: z
+      .string()
+      .min(1, "Current password is required")
+      .max(2048, "Current password is too long."),
     password: passwordSchema,
-    confirmPassword: z.string(),
+    confirmPassword: z.string().max(72, "Confirmation is too long."),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",

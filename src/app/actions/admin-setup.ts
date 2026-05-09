@@ -1,5 +1,15 @@
 "use server";
 
+/**
+ * First-admin bootstrap at /setup/admin.
+ *
+ * Operational: use a high-entropy ADMIN_SETUP_TOKEN, complete setup once, then
+ * remove ADMIN_SETUP_TOKEN from the production environment so this surface
+ * cannot be retried or leaked from config backups.
+ *
+ * Never log the setup token or compare result details.
+ */
+
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
@@ -7,6 +17,7 @@ import { timingSafeEqual } from "node:crypto";
 
 import { prisma } from "@/lib/prisma";
 import { passwordSchema } from "@/lib/validations";
+import { checkRateLimit, getRateLimitIdentifier } from "@/lib/rate-limit";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -15,11 +26,14 @@ const GENERIC_UNAVAILABLE = "Setup is unavailable right now. Please try again la
 
 const setupSchema = z
   .object({
-    setupToken: z.string().min(1, "Setup token is required"),
+    setupToken: z
+      .string()
+      .min(1, "Setup token is required")
+      .max(256, "Setup token is too long."),
     name: z.string().trim().min(1, "Name is required").max(120),
     email: z.string().email("Invalid email address").transform((v) => v.trim().toLowerCase()),
     password: passwordSchema,
-    confirmPassword: z.string(),
+    confirmPassword: z.string().max(72, "Confirmation is too long."),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
@@ -32,8 +46,8 @@ export type AdminSetupState = {
 };
 
 function safeTokenEqual(provided: string, expected: string): boolean {
-  const a = Buffer.from(provided);
-  const b = Buffer.from(expected);
+  const a = Buffer.from(provided, "utf8");
+  const b = Buffer.from(expected, "utf8");
   if (a.length !== b.length) {
     return false;
   }
@@ -97,16 +111,23 @@ export async function createFirstAdminAction(
 
   const { setupToken, name, email, password } = parsed.data;
 
+  const rateId = await getRateLimitIdentifier();
+  const setupLimit = await checkRateLimit("admin-setup", rateId);
+  if (!setupLimit.allowed) {
+    return { error: GENERIC_UNAVAILABLE };
+  }
+
+  const existingAdmins = await prisma.user.count({ where: { role: "ADMIN" } });
+  if (existingAdmins > 0) {
+    return { error: GENERIC_INVALID };
+  }
+
   if (!safeTokenEqual(setupToken, expectedToken)) {
     return { error: GENERIC_INVALID };
   }
 
   let createdRedirect = false;
   try {
-    const existingAdmins = await prisma.user.count({ where: { role: "ADMIN" } });
-    if (existingAdmins > 0) {
-      return { error: "Admin setup is already complete." };
-    }
 
     const passwordHash = await bcrypt.hash(password, 12);
 
@@ -141,7 +162,7 @@ export async function createFirstAdminAction(
     createdRedirect = true;
   } catch (error) {
     if (error instanceof Error && error.message === "ADMIN_ALREADY_EXISTS") {
-      return { error: "Admin setup is already complete." };
+      return { error: GENERIC_INVALID };
     }
     if (!isProd) {
       console.error("[Admin Setup] Error creating first admin:", error);

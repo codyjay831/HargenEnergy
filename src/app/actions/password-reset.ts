@@ -8,6 +8,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { passwordSchema } from "@/lib/validations";
+import { checkRateLimit, getRateLimitIdentifier } from "@/lib/rate-limit";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -32,15 +33,19 @@ export type ResetPasswordState = {
 const forgotSchema = z.object({
   email: z
     .string()
+    .max(254, "Email must be at most 254 characters.")
     .email("Invalid email address")
     .transform((v) => v.trim().toLowerCase()),
 });
 
 const resetSchema = z
   .object({
-    token: z.string().min(1, "Reset token is required"),
+    token: z
+      .string()
+      .min(1, "Reset token is required")
+      .max(128, "Reset token is too long."),
     password: passwordSchema,
-    confirmPassword: z.string(),
+    confirmPassword: z.string().max(72, "Confirmation is too long."),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
@@ -72,6 +77,12 @@ export async function requestPasswordResetAction(
       kind: "success",
       message: GENERIC_FORGOT_SUCCESS,
     };
+  }
+
+  const rateId = await getRateLimitIdentifier();
+  const resetReqLimit = await checkRateLimit("password-reset-request", rateId);
+  if (!resetReqLimit.allowed) {
+    return { kind: "success", message: GENERIC_FORGOT_SUCCESS };
   }
 
   const { email } = parsed.data;
@@ -161,6 +172,15 @@ export async function resetPasswordAction(
       error: "Please fix the highlighted fields.",
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
+  }
+
+  const rateId = await getRateLimitIdentifier();
+  const resetCompleteLimit = await checkRateLimit(
+    "password-reset-complete",
+    rateId,
+  );
+  if (!resetCompleteLimit.allowed) {
+    return { error: "Could not update password. Please try again later." };
   }
 
   const { token, password } = parsed.data;

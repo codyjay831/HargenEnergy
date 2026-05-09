@@ -73,6 +73,7 @@ export function RequestHelpForm() {
       urgency: formData.get("urgency") as RequestHelpInput["urgency"],
       tools: formData.get("tools") as string,
       takeOffPlate: formData.get("takeOffPlate") as string,
+      websiteUrlHoneypot: String(formData.get("websiteUrlHoneypot") ?? ""),
     };
 
     const result = await submitRequestHelp(data);
@@ -101,7 +102,23 @@ export function RequestHelpForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
+    <form onSubmit={handleSubmit} className="relative space-y-8">
+      {/* Honeypot: hidden from view; bots often populate all inputs. */}
+      <div
+        className="absolute -left-[9999px] h-px w-px overflow-hidden"
+        aria-hidden="true"
+      >
+        <label htmlFor="websiteUrlHoneypot">Company website URL</label>
+        <input
+          type="text"
+          id="websiteUrlHoneypot"
+          name="websiteUrlHoneypot"
+          tabIndex={-1}
+          autoComplete="off"
+          defaultValue=""
+        />
+      </div>
+
       {error && (
         <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-md text-sm">
           {error}

@@ -3,12 +3,20 @@
 import { signIn, signOut } from "@/auth";
 import { AuthError } from "next-auth";
 
+import { checkRateLimit, getRateLimitIdentifier } from "@/lib/rate-limit";
+
 const isProd = process.env.NODE_ENV === "production";
 
 export async function authenticate(
   prevState: string | undefined,
   formData: FormData,
 ) {
+  const rateId = await getRateLimitIdentifier();
+  const loginLimit = await checkRateLimit("login", rateId);
+  if (!loginLimit.allowed) {
+    return "Invalid email or password.";
+  }
+
   try {
     await signIn("credentials", formData);
   } catch (error) {
