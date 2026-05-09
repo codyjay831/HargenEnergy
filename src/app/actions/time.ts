@@ -1,0 +1,79 @@
+"use server";
+
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+import { BillableType } from "@prisma/client";
+import { revalidatePath } from "next/cache";
+
+export async function createTimeEntry(data: {
+  clientId: string;
+  supportRequestId?: string;
+  date: Date;
+  minutes: number;
+  description: string;
+  billableType: BillableType;
+}) {
+  const session = await auth();
+
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { error: "Unauthorized. Admin access required." };
+  }
+
+  if (data.minutes <= 0) {
+    return { error: "Minutes must be a positive integer." };
+  }
+
+  if (!data.description) {
+    return { error: "Description is required." };
+  }
+
+  try {
+    const timeEntry = await prisma.timeEntry.create({
+      data: {
+        clientId: data.clientId,
+        supportRequestId: data.supportRequestId || null,
+        date: data.date,
+        minutes: data.minutes,
+        description: data.description,
+        billableType: data.billableType,
+        createdById: session.user.id,
+      },
+    });
+
+    revalidatePath("/admin/time");
+    revalidatePath(`/admin/clients/${data.clientId}`);
+    if (data.supportRequestId) {
+      revalidatePath(`/admin/requests/${data.supportRequestId}`);
+    }
+
+    return { success: true, timeEntry };
+  } catch (error) {
+    console.error("Error creating time entry:", error);
+    return { error: "Failed to create time entry." };
+  }
+}
+
+export async function deleteTimeEntry(id: string) {
+  const session = await auth();
+
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { error: "Unauthorized. Admin access required." };
+  }
+
+  try {
+    const timeEntry = await prisma.timeEntry.delete({
+      where: { id },
+    });
+
+    revalidatePath("/admin/time");
+    revalidatePath(`/admin/clients/${timeEntry.clientId}`);
+    if (timeEntry.supportRequestId) {
+      revalidatePath(`/admin/requests/${timeEntry.supportRequestId}`);
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting time entry:", error);
+    return { error: "Failed to delete time entry." };
+  }
+}

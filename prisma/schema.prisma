@@ -1,0 +1,191 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  engineType = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  CLIENT
+}
+
+enum ClientStatus {
+  LEAD
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
+
+enum PlanType {
+  LIGHT
+  CORE
+  PRIORITY
+  CUSTOM
+}
+
+enum Urgency {
+  NORMAL
+  THIS_WEEK
+  URGENT
+  ONGOING
+}
+
+enum RequestStatus {
+  NEW
+  REVIEWED
+  IN_PROGRESS
+  NEEDS_INFO
+  WAITING_ON_CUSTOMER
+  WAITING_ON_THIRD_PARTY
+  COMPLETE
+  CANCELLED
+}
+
+enum BillableType {
+  INCLUDED
+  OVERFLOW
+  NON_BILLABLE
+}
+
+enum OverflowStatus {
+  NOT_NEEDED
+  NEEDS_APPROVAL
+  APPROVED
+  DECLINED
+  DEFERRED
+}
+
+enum AuthorType {
+  ADMIN
+  CLIENT
+  SYSTEM
+}
+
+model User {
+  id           String      @id @default(cuid())
+  name         String?
+  email        String      @unique
+  passwordHash String
+  role         Role        @default(CLIENT)
+  clientId     String?
+  client       Client?     @relation(fields: [clientId], references: [id])
+  timeEntries  TimeEntry[] @relation("TimeEntryCreator")
+  approvedOverflows SupportRequest[] @relation("OverflowApprover")
+  comments     RequestComment[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model Client {
+  id                 String           @id @default(cuid())
+  companyName        String
+  contactName        String
+  email              String
+  phone              String?
+  website            String?
+  serviceArea        String?
+  role               String?
+  currentTools       String?
+  status             ClientStatus     @default(LEAD)
+  planType           PlanType         @default(LIGHT)
+  weeklyHours        Float            @default(0)
+  stripeCustomerId   String?
+  stripeSubscriptionId String?
+  subscriptionStatus String?
+  subscriptionCurrentPeriodEnd DateTime?
+  notes              String?
+  users              User[]
+  requests           SupportRequest[]
+  timeEntries        TimeEntry[]
+  attachments        Attachment[]
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+}
+
+model SupportRequest {
+  id                  String        @id @default(cuid())
+  clientId            String
+  client              Client        @relation(fields: [clientId], references: [id])
+  title               String
+  requestType         String?
+  supportNeeded       String?
+  description         String
+  mostHelpful         String?
+  urgency             Urgency       @default(NORMAL)
+  status              RequestStatus @default(NEW)
+  needsInfo           Boolean       @default(false)
+  clientVisibleUpdate String?
+  internalNotes       String?
+  estimatedMinutes    Int?
+  overflowStatus      OverflowStatus @default(NOT_NEEDED)
+  overflowReason      String?
+  overflowApprovedAt  DateTime?
+  overflowApprovedById String?
+  overflowApprovedBy   User?          @relation("OverflowApprover", fields: [overflowApprovedById], references: [id])
+  deferredUntil       DateTime?
+  priorityRank        Int?
+  completedAt         DateTime?
+  timeEntries         TimeEntry[]
+  attachments         Attachment[]
+  comments            RequestComment[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+}
+
+model RequestComment {
+  id               String         @id @default(cuid())
+  supportRequestId String
+  supportRequest   SupportRequest @relation(fields: [supportRequestId], references: [id])
+  authorUserId     String?
+  authorUser       User?          @relation(fields: [authorUserId], references: [id])
+  authorType       AuthorType
+  body             String
+  isInternal       Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model TimeEntry {
+  id               String         @id @default(cuid())
+  clientId         String
+  client           Client         @relation(fields: [clientId], references: [id])
+  supportRequestId String?
+  supportRequest   SupportRequest? @relation(fields: [supportRequestId], references: [id])
+  date             DateTime       @default(now())
+  minutes          Int
+  description      String
+  billableType     BillableType   @default(INCLUDED)
+  createdById      String?
+  createdBy        User?          @relation("TimeEntryCreator", fields: [createdById], references: [id])
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model Attachment {
+  id               String          @id @default(cuid())
+  clientId         String
+  client           Client          @relation(fields: [clientId], references: [id])
+  supportRequestId String?
+  supportRequest   SupportRequest? @relation(fields: [supportRequestId], references: [id])
+  fileName         String
+  fileUrl          String
+  fileType         String
+  uploadedById     String?
+  createdAt        DateTime        @default(now())
+}
+
+model SubscriptionPlan {
+  id                 String   @id @default(cuid())
+  name               String
+  weeklyHours        Float
+  monthlyPriceCents  Int?
+  stripePriceId      String?
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+}
