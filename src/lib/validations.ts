@@ -17,3 +17,14 @@ export const requestHelpSchema = z.object({
 });
 
 export type RequestHelpInput = z.infer<typeof requestHelpSchema>;
+
+export const passwordSchema = z
+  .string()
+  .min(12, "Password must be at least 12 characters long")
+  .refine((value) => /[A-Za-z]/.test(value), {
+    message: "Password must contain at least one letter",
+  })
+  .refine((value) => /\d/.test(value), {
+    message: "Password must contain at least one number",
+  });
+

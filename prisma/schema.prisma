@@ -79,8 +79,21 @@ model User {
   timeEntries  TimeEntry[] @relation("TimeEntryCreator")
   approvedOverflows SupportRequest[] @relation("OverflowApprover")
   comments     RequestComment[]
+  passwordResetTokens PasswordResetToken[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 model Client {

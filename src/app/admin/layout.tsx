@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { 
-  LayoutDashboard, 
-  Users, 
-  ClipboardList, 
-  Clock, 
-  CreditCard, 
+import {
+  LayoutDashboard,
+  Users,
+  ClipboardList,
+  Clock,
+  CreditCard,
+  UserCog,
 } from "lucide-react";
 import { LogoutButton } from "@/components/layout/LogoutButton";
 import { auth } from "@/auth";
@@ -18,6 +19,7 @@ const sidebarItems = [
   { name: "Support Requests", href: "/admin/requests", icon: ClipboardList },
   { name: "Time Tracking", href: "/admin/time", icon: Clock },
   { name: "Billing", href: "/admin/billing", icon: CreditCard },
+  { name: "Account", href: "/admin/account", icon: UserCog },
 ];
 
 export default async function AdminLayout({

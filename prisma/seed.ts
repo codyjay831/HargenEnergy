@@ -1,3 +1,18 @@
+/**
+ * Optional manual seed utility.
+ *
+ * This script is NOT part of the routine production build. The preferred way
+ * to bootstrap the first admin in production is the secure `/setup/admin`
+ * route guarded by `ADMIN_SETUP_TOKEN`.
+ *
+ * This file is kept only as an emergency / local-development convenience to
+ * upsert an admin user when `ADMIN_EMAIL` and `ADMIN_PASSWORD` are present.
+ * It exits with a non-error status (skip) when those vars are missing so it
+ * can be safely invoked from automation without blocking deploys.
+ *
+ * Run manually with:
+ *   npm run prisma:seed
+ */
 import { PrismaClient, Role } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
@@ -7,17 +22,8 @@ import "dotenv/config";
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
-    throw new Error("DATABASE_URL is required to seed the database.");
-  }
-
-  let prisma: PrismaClient;
-
-  if (databaseUrl.startsWith("prisma://") || databaseUrl.startsWith("prisma+postgres://")) {
-    prisma = new PrismaClient({ accelerateUrl: databaseUrl });
-  } else {
-    const pool = new pg.Pool({ connectionString: databaseUrl });
-    const adapter = new PrismaPg(pool);
-    prisma = new PrismaClient({ adapter });
+    console.warn("[seed] DATABASE_URL is missing. Skipping seed.");
+    return;
   }
 
   const adminEmail = process.env.ADMIN_EMAIL?.trim();
@@ -25,11 +31,27 @@ async function main() {
   const adminName = (process.env.ADMIN_NAME ?? "").trim() || null;
 
   if (!adminEmail || !adminPassword) {
-    console.error("ADMIN_EMAIL and ADMIN_PASSWORD environment variables are required.");
-    process.exit(1);
+    console.warn(
+      "[seed] ADMIN_EMAIL / ADMIN_PASSWORD not set. Skipping admin upsert. " +
+        "Use /setup/admin in production to create the first admin.",
+    );
+    return;
   }
 
-  const passwordHash = await bcrypt.hash(adminPassword, 10);
+  let prisma: PrismaClient;
+
+  if (
+    databaseUrl.startsWith("prisma://") ||
+    databaseUrl.startsWith("prisma+postgres://")
+  ) {
+    prisma = new PrismaClient({ accelerateUrl: databaseUrl });
+  } else {
+    const pool = new pg.Pool({ connectionString: databaseUrl });
+    const adapter = new PrismaPg(pool);
+    prisma = new PrismaClient({ adapter });
+  }
+
+  const passwordHash = await bcrypt.hash(adminPassword, 12);
 
   try {
     await prisma.user.upsert({
@@ -47,9 +69,11 @@ async function main() {
       },
     });
 
-    console.log("Admin user upserted (single row by email; password hash refreshed).");
+    console.log(
+      "[seed] Admin user upserted (single row by email; password hash refreshed).",
+    );
   } catch (error) {
-    console.error("Error during seeding:", error);
+    console.error("[seed] Error during seeding:", error);
     throw error;
   } finally {
     await prisma.$disconnect();

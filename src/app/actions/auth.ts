@@ -3,6 +3,8 @@
 import { signIn, signOut } from "@/auth";
 import { AuthError } from "next-auth";
 
+const isProd = process.env.NODE_ENV === "production";
+
 export async function authenticate(
   prevState: string | undefined,
   formData: FormData,
@@ -10,30 +12,31 @@ export async function authenticate(
   try {
     await signIn("credentials", formData);
   } catch (error) {
+    if (error instanceof Error && error.message === "NEXT_REDIRECT") {
+      throw error;
+    }
+
     if (error instanceof AuthError) {
-      if (process.env.NODE_ENV === "development") {
+      if (!isProd) {
         console.error("[Auth Action] AuthError:", error.type, error.message);
       }
       switch (error.type) {
         case "CredentialsSignin":
           return "Invalid email or password.";
         case "CallbackRouteError":
-          return "Authentication service error. Please check server logs.";
+          return "Authentication service unavailable. Please try again shortly.";
         default:
-          return "Something went wrong with authentication.";
+          return "Authentication service unavailable. Please try again shortly.";
       }
     }
-    
-    // Next.js redirect throws an error, we should rethrow it
-    if (error instanceof Error && error.message === "NEXT_REDIRECT") {
-      throw error;
+
+    if (!isProd) {
+      console.error("[Auth Action] Unexpected error:", error);
+    } else {
+      console.warn("[Auth Action] Unexpected sign-in error.");
     }
 
-    if (process.env.NODE_ENV === "development") {
-      console.error("[Auth Action] Unexpected error:", error);
-    }
-    
-    return "An unexpected error occurred. Please try again.";
+    return "Authentication service unavailable. Please try again shortly.";
   }
 }
 

@@ -245,6 +245,48 @@ export async function sendDeferredUpdateEmail(data: {
   }
 }
 
+export async function sendPasswordResetEmail(data: {
+  to: string;
+  resetUrl: string;
+  expiresInMinutes: number;
+}) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  const { resend } = config;
+
+  try {
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: data.to,
+      subject: "Reset your Hargen Energy password",
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          <h2 style="color: #0f172a;">Reset your password</h2>
+          <p>We received a request to reset the password for your Hargen Energy account.</p>
+          <p>Click the button below to choose a new password.</p>
+          <p style="margin: 28px 0;">
+            <a href="${data.resetUrl}" style="background: #0f172a; color: white; padding: 12px 22px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Reset password</a>
+          </p>
+          <p style="font-size: 14px; color: #64748b;">This link expires in ${data.expiresInMinutes} minutes and can only be used once.</p>
+          <p style="font-size: 14px; color: #64748b;">If you did not request a password reset, you can safely ignore this email.</p>
+          <p style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 14px; color: #64748b;">
+            Hargen Energy Solar Ops Desk<br />
+            Flexible Solar Operations Support
+          </p>
+        </div>
+      `,
+    });
+    return { success: true };
+  } catch (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("Error sending password reset email:", error);
+    } else {
+      console.warn("[Email] Password reset email could not be delivered.");
+    }
+    return { error: "Failed to send password reset email." };
+  }
+}
+
 export async function sendOverflowApprovedEmail(data: {
   to: string;
   requestTitle: string;
