@@ -15,14 +15,14 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { updateRequest } from "@/app/actions/requests";
-import { OverflowStatus } from "@prisma/client";
+import { OVERFLOW_STATUSES, type OverflowStatusValue } from "@/lib/ui-enums";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface OverflowPrioritizationFormProps {
   request: {
     id: string;
-    overflowStatus: OverflowStatus;
+    overflowStatus: OverflowStatusValue;
     overflowReason: string | null;
     deferredUntil: Date | null;
     priorityRank: number | null;
@@ -32,7 +32,9 @@ interface OverflowPrioritizationFormProps {
 export function OverflowPrioritizationForm({ request }: OverflowPrioritizationFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [overflowStatus, setOverflowStatus] = useState<OverflowStatus>(request.overflowStatus);
+  const [overflowStatus, setOverflowStatus] = useState<OverflowStatusValue>(
+    request.overflowStatus
+  );
   const [sendOverflowEmail, setSendOverflowEmail] = useState(false);
   const [sendDeferredEmail, setSendDeferredEmail] = useState(false);
 
@@ -70,16 +72,23 @@ export function OverflowPrioritizationForm({ request }: OverflowPrioritizationFo
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-2">
         <Label htmlFor="overflowStatus">Overflow Status</Label>
-        <Select value={overflowStatus} onValueChange={(v) => setOverflowStatus(v as OverflowStatus)}>
+        <Select
+          value={overflowStatus}
+          onValueChange={(v) => setOverflowStatus(v as OverflowStatusValue)}
+        >
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={OverflowStatus.NOT_NEEDED}>No overflow needed</SelectItem>
-            <SelectItem value={OverflowStatus.NEEDS_APPROVAL}>Needs overflow approval</SelectItem>
-            <SelectItem value={OverflowStatus.APPROVED}>Overflow approved</SelectItem>
-            <SelectItem value={OverflowStatus.DECLINED}>Overflow declined</SelectItem>
-            <SelectItem value={OverflowStatus.DEFERRED}>Deferred to later support block</SelectItem>
+            <SelectItem value={OVERFLOW_STATUSES.NOT_NEEDED}>No overflow needed</SelectItem>
+            <SelectItem value={OVERFLOW_STATUSES.NEEDS_APPROVAL}>
+              Needs overflow approval
+            </SelectItem>
+            <SelectItem value={OVERFLOW_STATUSES.APPROVED}>Overflow approved</SelectItem>
+            <SelectItem value={OVERFLOW_STATUSES.DECLINED}>Overflow declined</SelectItem>
+            <SelectItem value={OVERFLOW_STATUSES.DEFERRED}>
+              Deferred to later support block
+            </SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -122,10 +131,21 @@ export function OverflowPrioritizationForm({ request }: OverflowPrioritizationFo
             id="sendOverflowEmail" 
             checked={sendOverflowEmail} 
             onCheckedChange={(checked) => setSendOverflowEmail(!!checked)}
-            disabled={overflowStatus !== OverflowStatus.NEEDS_APPROVAL && overflowStatus !== OverflowStatus.APPROVED}
+            disabled={
+              overflowStatus !== OVERFLOW_STATUSES.NEEDS_APPROVAL &&
+              overflowStatus !== OVERFLOW_STATUSES.APPROVED
+            }
           />
           <div className="grid gap-1.5 leading-none">
-            <Label htmlFor="sendOverflowEmail" className={cn("cursor-pointer", (overflowStatus !== OverflowStatus.NEEDS_APPROVAL && overflowStatus !== OverflowStatus.APPROVED) && "opacity-50")}>
+            <Label
+              htmlFor="sendOverflowEmail"
+              className={cn(
+                "cursor-pointer",
+                overflowStatus !== OVERFLOW_STATUSES.NEEDS_APPROVAL &&
+                  overflowStatus !== OVERFLOW_STATUSES.APPROVED &&
+                  "opacity-50"
+              )}
+            >
               Send overflow notification email
             </Label>
             <p className="text-[10px] text-muted-foreground">
@@ -139,10 +159,16 @@ export function OverflowPrioritizationForm({ request }: OverflowPrioritizationFo
             id="sendDeferredEmail" 
             checked={sendDeferredEmail} 
             onCheckedChange={(checked) => setSendDeferredEmail(!!checked)}
-            disabled={overflowStatus !== OverflowStatus.DEFERRED}
+            disabled={overflowStatus !== OVERFLOW_STATUSES.DEFERRED}
           />
           <div className="grid gap-1.5 leading-none">
-            <Label htmlFor="sendDeferredEmail" className={cn("cursor-pointer", overflowStatus !== OverflowStatus.DEFERRED && "opacity-50")}>
+            <Label
+              htmlFor="sendDeferredEmail"
+              className={cn(
+                "cursor-pointer",
+                overflowStatus !== OVERFLOW_STATUSES.DEFERRED && "opacity-50"
+              )}
+            >
               Send deferred update email
             </Label>
             <p className="text-[10px] text-muted-foreground">

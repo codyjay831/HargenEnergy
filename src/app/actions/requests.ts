@@ -12,6 +12,7 @@ import {
   sendOverflowApprovedEmail
 } from "@/lib/email";
 import { auth } from "@/auth";
+import { isOverflowStatusValue, isRequestStatusValue } from "@/lib/ui-enums";
 
 export async function submitRequestHelp(data: RequestHelpInput) {
   const validatedFields = requestHelpSchema.safeParse(data);
@@ -148,6 +149,14 @@ export async function updateRequest(id: string, data: {
 
   if (!session?.user || session.user.role !== "ADMIN") {
     return { error: "Unauthorized. Admin access required." };
+  }
+
+  if (data.status !== undefined && !isRequestStatusValue(data.status)) {
+    return { error: "Invalid status." };
+  }
+
+  if (data.overflowStatus !== undefined && !isOverflowStatusValue(data.overflowStatus)) {
+    return { error: "Invalid overflow status." };
   }
 
   const { sendEmailUpdate, sendOverflowEmail, sendDeferredEmail, ...updateData } = data;

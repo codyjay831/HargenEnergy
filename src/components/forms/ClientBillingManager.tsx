@@ -2,31 +2,42 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import { PlanType } from "@prisma/client";
+import {
+  SUPPORT_PLANS,
+  type ClientPlanType,
+  type SupportPlanType,
+} from "@/lib/billing-options";
 import { createCheckoutSession } from "@/app/actions/stripe";
 import { CreditCard, Loader2 } from "lucide-react";
 
+function initialCheckoutPlan(plan: ClientPlanType): SupportPlanType {
+  const match = SUPPORT_PLANS.find((p) => p.value === plan);
+  return match ? match.value : "LIGHT";
+}
+
 interface ClientBillingManagerProps {
   clientId: string;
-  currentPlan: PlanType;
+  currentPlan: ClientPlanType;
   subscriptionStatus: string | null;
   stripeCustomerId: string | null;
 }
 
-export function ClientBillingManager({ 
-  clientId, 
-  currentPlan, 
+export function ClientBillingManager({
+  clientId,
+  currentPlan,
   subscriptionStatus,
-  stripeCustomerId
+  stripeCustomerId,
 }: ClientBillingManagerProps) {
-  const [plan, setPlan] = useState<PlanType>(currentPlan);
+  const [plan, setPlan] = useState<SupportPlanType>(() =>
+    initialCheckoutPlan(currentPlan)
+  );
   const [isLoading, setIsLoading] = useState(false);
 
   const handleCreateCheckout = async () => {
@@ -37,7 +48,8 @@ export function ClientBillingManager({
         window.location.href = result.url;
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Failed to create checkout session.";
+      const message =
+        error instanceof Error ? error.message : "Failed to create checkout session.";
       alert(message);
     } finally {
       setIsLoading(false);
@@ -50,28 +62,26 @@ export function ClientBillingManager({
     <div className="space-y-6">
       <div className="space-y-2">
         <label className="text-sm font-medium">Support Block / Plan</label>
-        <Select 
-          value={plan} 
-          onValueChange={(v) => setPlan(v as PlanType)}
+        <Select
+          value={plan}
+          onValueChange={(v) => setPlan(v as SupportPlanType)}
           disabled={isActive || isLoading}
         >
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={PlanType.LIGHT}>Light Support (2 hrs/wk)</SelectItem>
-            <SelectItem value={PlanType.CORE}>Core Support (5 hrs/wk)</SelectItem>
-            <SelectItem value={PlanType.PRIORITY}>Priority Support (10 hrs/wk)</SelectItem>
+            {SUPPORT_PLANS.map((p) => (
+              <SelectItem key={p.value} value={p.value}>
+                {p.label} ({p.weeklyHours} hrs/wk)
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
 
       {!isActive ? (
-        <Button 
-          className="w-full" 
-          onClick={handleCreateCheckout}
-          disabled={isLoading}
-        >
+        <Button className="w-full" onClick={handleCreateCheckout} disabled={isLoading}>
           {isLoading ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
@@ -85,9 +95,7 @@ export function ClientBillingManager({
             <span className="h-2 w-2 bg-green-500 rounded-full mr-2" />
             Active Subscription
           </p>
-          <p className="text-xs text-green-600 mt-1">
-            Plan: {currentPlan}
-          </p>
+          <p className="text-xs text-green-600 mt-1">Plan: {currentPlan}</p>
         </div>
       )}
 

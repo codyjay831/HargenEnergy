@@ -13,7 +13,6 @@ async function main() {
   let prisma: PrismaClient;
 
   if (databaseUrl.startsWith("prisma://") || databaseUrl.startsWith("prisma+postgres://")) {
-    // @ts-expect-error - accelerateUrl is required for Prisma Postgres scheme with client engine
     prisma = new PrismaClient({ accelerateUrl: databaseUrl });
   } else {
     const pool = new pg.Pool({ connectionString: databaseUrl });

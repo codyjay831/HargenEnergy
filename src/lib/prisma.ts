@@ -1,3 +1,5 @@
+import "server-only";
+
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
@@ -23,7 +25,6 @@ function getPrismaClient() {
   if (databaseUrl.startsWith("prisma://") || databaseUrl.startsWith("prisma+postgres://")) {
     // In Prisma 7, the engineType = "client" requires accelerateUrl for these schemes
     return new PrismaClient({
-      // @ts-expect-error - accelerateUrl is expected when engineType is client
       accelerateUrl: databaseUrl,
       log:
         process.env.NODE_ENV === "development"

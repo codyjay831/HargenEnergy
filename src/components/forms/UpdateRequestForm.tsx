@@ -15,12 +15,12 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { updateRequest } from "@/app/actions/requests";
-import { RequestStatus } from "@prisma/client";
+import { REQUEST_STATUS_VALUES, type RequestStatusValue } from "@/lib/ui-enums";
 
 interface UpdateRequestFormProps {
   request: {
     id: string;
-    status: RequestStatus;
+    status: RequestStatusValue;
     needsInfo: boolean;
     internalNotes: string | null;
     clientVisibleUpdate: string | null;
@@ -31,7 +31,7 @@ interface UpdateRequestFormProps {
 export function UpdateRequestForm({ request }: UpdateRequestFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [status, setStatus] = useState<RequestStatus>(request.status);
+  const [status, setStatus] = useState<RequestStatusValue>(request.status);
   const [needsInfo, setNeedsInfo] = useState(request.needsInfo);
   const [sendEmailUpdate, setSendEmailUpdate] = useState(false);
 
@@ -69,12 +69,15 @@ export function UpdateRequestForm({ request }: UpdateRequestFormProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
           <Label htmlFor="status">Status</Label>
-          <Select value={status} onValueChange={(v) => setStatus(v as RequestStatus)}>
+          <Select
+            value={status}
+            onValueChange={(v) => setStatus(v as RequestStatusValue)}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {Object.values(RequestStatus).map((s) => (
+              {REQUEST_STATUS_VALUES.map((s) => (
                 <SelectItem key={s} value={s}>
                   {s.replace("_", " ")}
                 </SelectItem>

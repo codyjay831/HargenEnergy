@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { BillableType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { isBillableTypeValue } from "@/lib/ui-enums";
 
 export async function createTimeEntry(data: {
   clientId: string;
@@ -11,13 +12,19 @@ export async function createTimeEntry(data: {
   date: Date;
   minutes: number;
   description: string;
-  billableType: BillableType;
+  billableType: string;
 }) {
   const session = await auth();
 
   if (!session?.user || session.user.role !== "ADMIN") {
     return { error: "Unauthorized. Admin access required." };
   }
+
+  if (!isBillableTypeValue(data.billableType)) {
+    return { error: "Invalid billable type." };
+  }
+
+  const billableType: BillableType = data.billableType;
 
   if (data.minutes <= 0) {
     return { error: "Minutes must be a positive integer." };
@@ -35,7 +42,7 @@ export async function createTimeEntry(data: {
         date: data.date,
         minutes: data.minutes,
         description: data.description,
-        billableType: data.billableType,
+        billableType,
         createdById: session.user.id,
       },
     });

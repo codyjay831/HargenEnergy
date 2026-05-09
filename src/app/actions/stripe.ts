@@ -7,19 +7,35 @@ import { PlanType } from "@prisma/client";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000";
 
-const PRICE_IDS = {
+const CHECKOUT_PLAN_TYPES: readonly PlanType[] = [
+  PlanType.LIGHT,
+  PlanType.CORE,
+  PlanType.PRIORITY,
+];
+
+function parseCheckoutPlanType(raw: string): PlanType {
+  const match = CHECKOUT_PLAN_TYPES.find((p) => p === raw);
+  if (!match) {
+    throw new Error("Invalid plan type.");
+  }
+  return match;
+}
+
+const PRICE_IDS: Record<PlanType, string | null | undefined> = {
   [PlanType.LIGHT]: process.env.STRIPE_LIGHT_PRICE_ID,
   [PlanType.CORE]: process.env.STRIPE_CORE_PRICE_ID,
   [PlanType.PRIORITY]: process.env.STRIPE_PRIORITY_PRICE_ID,
   [PlanType.CUSTOM]: null,
 };
 
-export async function createCheckoutSession(clientId: string, planType: PlanType) {
+export async function createCheckoutSession(clientId: string, planTypeRaw: string) {
   const session = await auth();
 
   if (!session?.user || session.user.role !== "ADMIN") {
     throw new Error("Unauthorized. Admin access required.");
   }
+
+  const planType = parseCheckoutPlanType(planTypeRaw);
 
   const stripe = getStripe();
 

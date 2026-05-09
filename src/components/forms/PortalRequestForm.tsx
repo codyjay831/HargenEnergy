@@ -13,7 +13,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
-import { Urgency } from "@prisma/client";
+import { URGENCY_OPTIONS, type UrgencyValue } from "@/lib/ui-enums";
 import { submitPortalRequest } from "@/app/actions/portal";
 import { Loader2, AlertCircle } from "lucide-react";
 
@@ -32,7 +32,7 @@ export function PortalRequestForm() {
       title: formData.get("title") as string,
       supportNeeded: formData.get("supportNeeded") as string,
       description: formData.get("description") as string,
-      urgency: formData.get("urgency") as Urgency,
+      urgency: formData.get("urgency") as UrgencyValue,
       customerName: formData.get("customerName") as string,
       utilityAhj: formData.get("utilityAhj") as string,
       toolsContext: formData.get("toolsContext") as string,
@@ -76,15 +76,16 @@ export function PortalRequestForm() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="urgency">Urgency</Label>
-            <Select name="urgency" defaultValue={Urgency.NORMAL}>
+            <Select name="urgency" defaultValue="NORMAL">
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={Urgency.NORMAL}>Normal support</SelectItem>
-                <SelectItem value={Urgency.THIS_WEEK}>This week</SelectItem>
-                <SelectItem value={Urgency.URGENT}>Urgent / Stuck job</SelectItem>
-                <SelectItem value={Urgency.ONGOING}>Ongoing recurring support</SelectItem>
+                {URGENCY_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

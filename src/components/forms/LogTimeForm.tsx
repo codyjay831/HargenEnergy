@@ -12,7 +12,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
-import { BillableType } from "@prisma/client";
+import { BILLABLE_TYPES, type BillableTypeValue } from "@/lib/ui-enums";
 import { createTimeEntry } from "@/app/actions/time";
 import { Loader2 } from "lucide-react";
 
@@ -28,7 +28,7 @@ export function LogTimeForm({ clientId, supportRequestId, isOverflowApproved, on
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [minutes, setMinutes] = useState("");
   const [description, setDescription] = useState("");
-  const [billableType, setBillableType] = useState<BillableType>(BillableType.INCLUDED);
+  const [billableType, setBillableType] = useState<BillableTypeValue>(BILLABLE_TYPES.INCLUDED);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,18 +88,18 @@ export function LogTimeForm({ clientId, supportRequestId, isOverflowApproved, on
         <Label htmlFor="billableType">Billable Type</Label>
         <Select 
           value={billableType} 
-          onValueChange={(v) => setBillableType(v as BillableType)}
+          onValueChange={(v) => setBillableType(v as BillableTypeValue)}
         >
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={BillableType.INCLUDED}>Included in support block</SelectItem>
-            <SelectItem value={BillableType.OVERFLOW}>Overflow time</SelectItem>
-            <SelectItem value={BillableType.NON_BILLABLE}>Non-billable</SelectItem>
+            <SelectItem value={BILLABLE_TYPES.INCLUDED}>Included in support block</SelectItem>
+            <SelectItem value={BILLABLE_TYPES.OVERFLOW}>Overflow time</SelectItem>
+            <SelectItem value={BILLABLE_TYPES.NON_BILLABLE}>Non-billable</SelectItem>
           </SelectContent>
         </Select>
-        {billableType === BillableType.OVERFLOW && !isOverflowApproved && (
+        {billableType === BILLABLE_TYPES.OVERFLOW && !isOverflowApproved && (
           <p className="text-[10px] text-orange-600 font-medium italic">
             Note: Overflow has not been explicitly approved for this request.
           </p>

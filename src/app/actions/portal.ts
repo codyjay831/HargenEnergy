@@ -5,12 +5,13 @@ import { prisma } from "@/lib/prisma";
 import { RequestStatus, Urgency, AuthorType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { sendInternalRequestAlert } from "@/lib/email";
+import { isUrgencyValue } from "@/lib/ui-enums";
 
 export async function submitPortalRequest(data: {
   title: string;
   supportNeeded: string;
   description: string;
-  urgency: Urgency;
+  urgency: string;
   customerName?: string;
   utilityAhj?: string;
   toolsContext?: string;
@@ -22,6 +23,12 @@ export async function submitPortalRequest(data: {
   if (!session?.user || !clientId) {
     return { error: "Unauthorized. Client access required." };
   }
+
+  if (!isUrgencyValue(data.urgency)) {
+    return { error: "Invalid urgency." };
+  }
+
+  const urgency: Urgency = data.urgency;
 
   try {
     const client = await prisma.client.findUnique({
@@ -49,7 +56,7 @@ Desired Outcome: ${data.desiredOutcome || "N/A"}
         title: data.title,
         supportNeeded: data.supportNeeded,
         description: fullDescription,
-        urgency: data.urgency,
+        urgency,
         status: RequestStatus.NEW,
       },
     });
@@ -63,7 +70,7 @@ Desired Outcome: ${data.desiredOutcome || "N/A"}
         phone: client.phone,
         supportNeeded: data.supportNeeded,
         plan: client.planType,
-        urgency: data.urgency,
+        urgency,
         description: fullDescription,
         requestId: supportRequest.id,
       });
