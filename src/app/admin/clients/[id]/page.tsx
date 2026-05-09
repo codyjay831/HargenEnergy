@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Building2, User, Mail, Phone, Globe, MapPin, CreditCard, Clock } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, safeExternalHref } from "@/lib/utils";
 import { ClientBillingManager } from "@/components/forms/ClientBillingManager";
 import { LogTimeForm } from "@/components/forms/LogTimeForm";
 import { calculateWeeklyUsage } from "@/lib/usage";
@@ -101,17 +101,24 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
                     </div>
                   </div>
                 )}
-                {client.website && (
-                  <div className="flex items-start gap-3">
-                    <Globe className="h-4 w-4 text-muted-foreground mt-1" />
-                    <div>
-                      <a href={client.website} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary hover:underline">
-                        {client.website.replace(/^https?:\/\//, "")}
-                      </a>
-                      <p className="text-xs text-muted-foreground">Website</p>
+                {client.website && (() => {
+                  const href = safeExternalHref(client.website);
+                  return (
+                    <div className="flex items-start gap-3">
+                      <Globe className="h-4 w-4 text-muted-foreground mt-1" />
+                      <div>
+                        {href ? (
+                          <a href={href} target="_blank" rel="noopener noreferrer nofollow" className="text-sm font-medium text-primary hover:underline">
+                            {client.website.replace(/^https?:\/\//, "")}
+                          </a>
+                        ) : (
+                          <span className="text-sm font-medium text-slate-700">{client.website}</span>
+                        )}
+                        <p className="text-xs text-muted-foreground">Website</p>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
                 {client.serviceArea && (
                   <div className="flex items-start gap-3">
                     <MapPin className="h-4 w-4 text-muted-foreground mt-1" />

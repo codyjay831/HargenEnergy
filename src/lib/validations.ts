@@ -20,6 +20,18 @@ export const requestHelpSchema = z.object({
     .optional(),
   website: trimmedString
     .max(500, "Website must be at most 500 characters.")
+    .refine(
+      (v) => {
+        if (!v) return true;
+        try {
+          const u = new URL(v);
+          return u.protocol === "http:" || u.protocol === "https:";
+        } catch {
+          return false;
+        }
+      },
+      { message: "Website must be a valid http(s) URL." },
+    )
     .optional(),
   serviceArea: trimmedString
     .max(500, "Service area must be at most 500 characters.")

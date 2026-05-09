@@ -148,15 +148,21 @@ export async function checkRateLimit(
 }
 
 /**
- * Best-effort client IP for rate limiting (Vercel, common proxies).
+ * Best-effort client IP for rate limiting.
+ *
+ * Header trust model:
+ *   - `x-forwarded-for` (first hop): set by Vercel and most managed platforms;
+ *     attacker-supplied values are appended after the platform-set client IP,
+ *     so the leftmost segment is the platform-attested source IP.
+ *   - `x-real-ip`: set by Vercel / common proxies; safe fallback.
+ *   - `cf-connecting-ip`: ONLY trusted when `RATE_LIMIT_TRUST_CF_IP=1`. When the
+ *     app is not actually behind Cloudflare, an attacker can supply this header
+ *     to mint a unique rate-limit identifier per request and bypass the limiter.
  */
 export async function getRateLimitIdentifier(): Promise<string> {
   try {
     const h = await headers();
-    const cf = h.get("cf-connecting-ip")?.trim();
-    if (cf) {
-      return `ip:${cf}`;
-    }
+
     const forwarded = h.get("x-forwarded-for");
     if (forwarded) {
       const first = forwarded.split(",")[0]?.trim();
@@ -164,9 +170,17 @@ export async function getRateLimitIdentifier(): Promise<string> {
         return `ip:${first}`;
       }
     }
+
     const realIp = h.get("x-real-ip")?.trim();
     if (realIp) {
       return `ip:${realIp}`;
+    }
+
+    if (process.env.RATE_LIMIT_TRUST_CF_IP === "1") {
+      const cf = h.get("cf-connecting-ip")?.trim();
+      if (cf) {
+        return `ip:${cf}`;
+      }
     }
   } catch {
     // headers() unavailable (e.g. some static contexts)

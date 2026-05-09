@@ -10,7 +10,7 @@ import { OverflowPrioritizationForm } from "@/components/forms/OverflowPrioritiz
 import { LogTimeForm } from "@/components/forms/LogTimeForm";
 import { RequestCommentForm } from "@/components/forms/RequestCommentForm";
 import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, safeExternalHref } from "@/lib/utils";
 import { calculateWeeklyUsage } from "@/lib/usage";
 import { OverflowStatus } from "@/generated/prisma/client";
 import { startOfWeek } from "date-fns";
@@ -299,17 +299,24 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
                   </div>
                 </div>
               )}
-              {request.client.website && (
-                <div className="flex items-start gap-3">
-                  <Globe className="h-4 w-4 text-muted-foreground mt-1" />
-                  <div>
-                    <a href={request.client.website} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary hover:underline">
-                      {request.client.website.replace(/^https?:\/\//, "")}
-                    </a>
-                    <p className="text-xs text-muted-foreground">Website</p>
+              {request.client.website && (() => {
+                const href = safeExternalHref(request.client.website);
+                return (
+                  <div className="flex items-start gap-3">
+                    <Globe className="h-4 w-4 text-muted-foreground mt-1" />
+                    <div>
+                      {href ? (
+                        <a href={href} target="_blank" rel="noopener noreferrer nofollow" className="text-sm font-medium text-primary hover:underline">
+                          {request.client.website.replace(/^https?:\/\//, "")}
+                        </a>
+                      ) : (
+                        <span className="text-sm font-medium text-slate-700">{request.client.website}</span>
+                      )}
+                      <p className="text-xs text-muted-foreground">Website</p>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
               {request.client.serviceArea && (
                 <div className="flex items-start gap-3">
                   <MapPin className="h-4 w-4 text-muted-foreground mt-1" />
