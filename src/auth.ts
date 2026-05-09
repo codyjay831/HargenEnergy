@@ -16,12 +16,36 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
 
         if (parsedCredentials.success) {
           const { email, password } = parsedCredentials.data;
-          const user = await prisma.user.findUnique({ where: { email } });
-          if (!user) return null;
           
-          const passwordsMatch = await bcrypt.compare(password, user.passwordHash);
+          try {
+            const user = await prisma.user.findUnique({ where: { email } });
+            
+            if (!user) {
+              if (process.env.NODE_ENV === "development") {
+                console.log(`[Auth] User not found: ${email}`);
+              }
+              return null;
+            }
+            
+            const passwordsMatch = await bcrypt.compare(password, user.passwordHash);
 
-          if (passwordsMatch) return user;
+            if (passwordsMatch) {
+              return user;
+            } else {
+              if (process.env.NODE_ENV === "development") {
+                console.log(`[Auth] Password mismatch for: ${email}`);
+              }
+            }
+          } catch (error) {
+            if (process.env.NODE_ENV === "development") {
+              console.error("[Auth] Database error during authorize:", error);
+            }
+            throw error;
+          }
+        } else {
+          if (process.env.NODE_ENV === "development") {
+            console.log("[Auth] Invalid credentials format:", parsedCredentials.error.format());
+          }
         }
 
         return null;

@@ -19,6 +19,20 @@ function getPrismaClient() {
     });
   }
 
+  // If using Prisma Postgres or Accelerate (prisma+postgres:// or prisma://)
+  if (databaseUrl.startsWith("prisma://") || databaseUrl.startsWith("prisma+postgres://")) {
+    // In Prisma 7, the engineType = "client" requires accelerateUrl for these schemes
+    return new PrismaClient({
+      // @ts-expect-error - accelerateUrl is expected when engineType is client
+      accelerateUrl: databaseUrl,
+      log:
+        process.env.NODE_ENV === "development"
+          ? ["query", "error", "warn"]
+          : ["error"],
+    });
+  }
+
+  // Otherwise use the pg adapter for normal PostgreSQL
   const pool = new pg.Pool({ connectionString: databaseUrl });
   const adapter = new PrismaPg(pool);
 

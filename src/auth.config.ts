@@ -9,7 +9,12 @@ export const authConfig = {
       const isLoggedIn = !!auth?.user;
       const isAdminRoute = nextUrl.pathname.startsWith("/admin");
       const isPortalRoute = nextUrl.pathname.startsWith("/portal");
+      const isLoginPage = nextUrl.pathname === "/login";
       
+      if (process.env.NODE_ENV === "development") {
+        console.log(`[Auth Config] Path: ${nextUrl.pathname}, LoggedIn: ${isLoggedIn}, Role: ${auth?.user?.role}`);
+      }
+
       if (isAdminRoute) {
         if (isLoggedIn && auth.user.role === "ADMIN") return true;
         return false; // Redirect to login
@@ -18,6 +23,13 @@ export const authConfig = {
       if (isPortalRoute) {
         if (isLoggedIn) return true;
         return false; // Redirect to login
+      }
+
+      if (isLoginPage && isLoggedIn) {
+        if (auth.user.role === "ADMIN") {
+          return Response.redirect(new URL("/admin", nextUrl));
+        }
+        return Response.redirect(new URL("/portal", nextUrl));
       }
 
       return true;
