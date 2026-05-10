@@ -120,14 +120,34 @@ export async function importOutreachCSV(csvContent: string) {
 
     try {
       // Duplicate detection
-      let existing = await prisma.outreachCompany.findFirst({
-        where: {
-          OR: [
-            website ? { website: { contains: website.replace(/^https?:\/\/(www\.)?/, ""), mode: "insensitive" } } : {},
-            { name: { equals: name, mode: "insensitive" }, city: { equals: city, mode: "insensitive" } }
-          ].filter(cond => Object.keys(cond).length > 0)
-        }
-      });
+      const conditions: any[] = [];
+      
+      if (website) {
+        conditions.push({ 
+          website: { 
+            contains: website.replace(/^https?:\/\/(www\.)?/, ""), 
+            mode: "insensitive" 
+          } 
+        });
+      }
+      
+      if (name && city) {
+        conditions.push({
+          AND: [
+            { name: { equals: name, mode: "insensitive" } },
+            { city: { equals: city, mode: "insensitive" } }
+          ]
+        });
+      } else if (name) {
+        conditions.push({ name: { equals: name, mode: "insensitive" } });
+      }
+
+      let existing = null;
+      if (conditions.length > 0) {
+        existing = await prisma.outreachCompany.findFirst({
+          where: { OR: conditions }
+        });
+      }
 
       if (existing) {
         // Update existing
