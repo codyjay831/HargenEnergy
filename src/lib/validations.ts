@@ -110,3 +110,30 @@ export const passwordSchema = z
   .refine((value) => /\d/.test(value), {
     message: "Password must contain at least one number",
   });
+
+export const outreachCompanySchema = z.object({
+  name: trimmedString
+    .min(1, "Company name is required")
+    .max(200, "Company name must be at most 200 characters."),
+  website: trimmedString
+    .max(500, "Website must be at most 500 characters.")
+    .optional()
+    .nullable(),
+  city: trimmedString.max(100).optional().nullable(),
+  county: trimmedString.max(100).optional().nullable(),
+  state: trimmedString.max(100).optional().nullable(),
+  serviceArea: trimmedString.max(500).optional().nullable(),
+  businessType: z.string().optional().nullable(),
+  companySizeEstimate: trimmedString.max(100).optional().nullable(),
+  leadSource: trimmedString.max(100).optional().nullable(),
+  sourceQuery: trimmedString.max(500).optional().nullable(),
+  sourceUrl: trimmedString.max(1000).optional().nullable(),
+  status: z.string().optional(),
+  interestLevel: z.number().min(0).max(5).optional(),
+  fitScore: z.number().min(0).max(5).optional(),
+  notes: trimmedString.max(10000).optional().nullable(),
+  painTags: z.array(z.string()).optional(),
+  doNotContact: z.boolean().optional(),
+});
+
+export type OutreachCompanyInput = z.infer<typeof outreachCompanySchema>;

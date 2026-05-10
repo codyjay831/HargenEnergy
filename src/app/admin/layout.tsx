@@ -6,6 +6,7 @@ import {
   Clock,
   CreditCard,
   UserCog,
+  Megaphone,
 } from "lucide-react";
 import { LogoutButton } from "@/components/layout/LogoutButton";
 import { auth } from "@/auth";
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic";
 
 const sidebarItems = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+  { name: "Outreach", href: "/admin/outreach", icon: Megaphone },
   { name: "Clients", href: "/admin/clients", icon: Users },
   { name: "Support Requests", href: "/admin/requests", icon: ClipboardList },
   { name: "Time Tracking", href: "/admin/time", icon: Clock },

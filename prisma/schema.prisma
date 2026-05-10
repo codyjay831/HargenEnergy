@@ -82,6 +82,7 @@ model User {
   approvedOverflows SupportRequest[] @relation("OverflowApprover")
   comments     RequestComment[]
   passwordResetTokens PasswordResetToken[]
+  outreachActivities OutreachActivity[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 }
@@ -204,4 +205,138 @@ model SubscriptionPlan {
   stripePriceId      String?
   active             Boolean  @default(true)
   createdAt          DateTime @default(now())
+}
+
+enum OutreachCompanyStatus {
+  LEAD_FOUND
+  CONTACTED
+  FOLLOW_UP_NEEDED
+  REPLIED
+  INTERESTED
+  CALL_BOOKED
+  TRIAL_OFFERED
+  WON
+  NO_RESPONSE
+  NOT_INTERESTED
+  BAD_FIT
+  DO_NOT_CONTACT
+}
+
+enum OutreachChannel {
+  EMAIL
+  WEBSITE_FORM
+  LINKEDIN
+  FACEBOOK
+  PHONE
+  TEXT
+  IN_PERSON
+  OTHER
+}
+
+enum OutreachActivityType {
+  MESSAGE_SENT
+  REPLY_RECEIVED
+  FOLLOW_UP_SENT
+  CALL_BOOKED
+  CALL_COMPLETED
+  PROPOSAL_SENT
+  DECLINED
+  NOTE
+}
+
+enum BusinessType {
+  SOLAR_INSTALLER
+  ELECTRICAL_CONTRACTOR
+  ROOFING_SOLAR
+  BATTERY_INSTALLER
+  SOLAR_SERVICE_COMPANY
+  OTHER
+}
+
+model OutreachCompany {
+  id                 String                @id @default(cuid())
+  name               String
+  website            String?
+  city               String?
+  county             String?
+  state              String?
+  serviceArea        String?
+  businessType       BusinessType?         @default(OTHER)
+  companySizeEstimate String?
+  leadSource         String?
+  sourceQuery        String?
+  sourceUrl          String?
+  status             OutreachCompanyStatus @default(LEAD_FOUND)
+  interestLevel      Int?                  @default(0) // 1-5 scale
+  fitScore           Int?                  @default(0) // 1-5 scale
+  notes              String?
+  painTags           String[]              @default([])
+  doNotContact       Boolean               @default(false)
+  enrichmentData     Json?                 // For AI findings
+  contacts           OutreachContact[]
+  activities         OutreachActivity[]
+  lastContactedAt    DateTime?
+  nextFollowUpAt     DateTime?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@index([status])
+  @@index([state, city])
+}
+
+model OutreachContact {
+  id                 String           @id @default(cuid())
+  companyId          String
+  company            OutreachCompany  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name               String
+  roleTitle          String?
+  email              String?
+  phone              String?
+  linkedinUrl        String?
+  facebookUrl        String?
+  companyFacebookUrl String?
+  websiteContactFormUrl String?
+  preferredChannel   OutreachChannel?
+  isPrimary          Boolean          @default(false)
+  notes              String?
+  activities         OutreachActivity[]
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([companyId])
+}
+
+model OutreachActivity {
+  id                 String               @id @default(cuid())
+  companyId          String
+  company            OutreachCompany      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contactId          String?
+  contact            OutreachContact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  date               DateTime             @default(now())
+  channel            OutreachChannel
+  activityType       OutreachActivityType
+  templateUsed       String?
+  messageSnapshot    String?
+  notes              String?
+  responseSummary    String?
+  outcome            String?
+  nextFollowUpAt     DateTime?
+  createdById        String?
+  createdBy          User?                @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt          DateTime             @default(now())
+
+  @@index([companyId])
+  @@index([date])
+}
+
+model OutreachTemplate {
+  id           String          @id @default(cuid())
+  name         String
+  channel      OutreachChannel
+  templateType String?         // e.g., "First Outreach", "Follow-up"
+  subject      String?
+  body         String
+  isActive     Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 }
