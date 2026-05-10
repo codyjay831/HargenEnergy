@@ -11,7 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { OutreachCompanyStatus } from "@/generated/prisma/client";
-import { Calendar, AlertCircle, Clock } from "lucide-react";
+import { Calendar, Clock, Megaphone } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -104,7 +104,7 @@ export default async function OutreachFollowUpsPage() {
         <p className="text-muted-foreground text-sm">Stay on top of your outreach and never miss a reply.</p>
       </div>
 
-      {renderTable(overdue, "Overdue", <AlertCircle className="h-5 w-5 text-red-600" />, "text-red-600")}
+      {renderTable(overdue, "Overdue", <Clock className="h-5 w-5 text-red-600" />, "text-red-600")}
       {renderTable(today, "Due Today", <Clock className="h-5 w-5 text-amber-600" />, "text-amber-600")}
       {renderTable(upcoming, "Upcoming", <Calendar className="h-5 w-5 text-blue-600" />, "text-blue-600")}
     </div>

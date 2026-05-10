@@ -7,17 +7,16 @@ import { buttonVariants, Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   ArrowLeft, 
-  Building2, 
+  Users, 
   User, 
   Mail, 
   Phone, 
   Globe, 
   MapPin, 
   Calendar,
-  History,
+  Clock,
   Plus,
   Copy,
-  ExternalLink
 } from "lucide-react";
 import { cn, safeExternalHref } from "@/lib/utils";
 import { OutreachActivityForm } from "@/components/forms/OutreachActivityForm";
@@ -81,7 +80,7 @@ export default async function OutreachCompanyDetailPage({ params }: OutreachComp
               rel="noopener noreferrer"
               className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
             >
-              <ExternalLink className="h-4 w-4 mr-2" />
+              <Globe className="h-4 w-4 mr-2" />
               Visit Website
             </a>
           )}
@@ -98,7 +97,7 @@ export default async function OutreachCompanyDetailPage({ params }: OutreachComp
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <div className="flex items-start gap-3">
-                  <Building2 className="h-4 w-4 text-muted-foreground mt-1" />
+                  <Users className="h-4 w-4 text-muted-foreground mt-1" />
                   <div>
                     <p className="text-sm font-medium">{company.name}</p>
                     <p className="text-xs text-muted-foreground">Company Name</p>
@@ -136,7 +135,7 @@ export default async function OutreachCompanyDetailPage({ params }: OutreachComp
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <History className="h-4 w-4 text-muted-foreground mt-1" />
+                  <Clock className="h-4 w-4 text-muted-foreground mt-1" />
                   <div>
                     <p className="text-sm font-medium">
                       {company.lastContactedAt 

@@ -6,7 +6,7 @@ import {
   MessageSquare, 
   Calendar, 
   CheckCircle2,
-  AlertCircle,
+  Clock,
   Search,
   FileUp,
   FileDown,
@@ -140,7 +140,7 @@ export default async function OutreachDashboard() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-primary" />
+              <Clock className="h-5 w-5 text-primary" />
               Recent Activity
             </CardTitle>
           </CardHeader>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Mail, Phone, Linkedin, Trash2, User } from "lucide-react";
+import { Plus, Mail, Phone, Globe, Trash2, User } from "lucide-react";
 import { addOutreachContact, deleteOutreachContact } from "@/app/actions/outreach";
 import { useRouter } from "next/navigation";
 import {
@@ -165,7 +165,7 @@ export function OutreachContactList({ companyId, initialContacts }: OutreachCont
                         rel="noopener noreferrer"
                         className="text-primary hover:underline"
                       >
-                        <Linkedin className="h-3 w-3" />
+                        <Globe className="h-3 w-3" />
                       </a>
                     )}
                   </div>

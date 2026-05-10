@@ -10,7 +10,7 @@ import {
   Plus, 
   Check, 
   ExternalLink, 
-  Star,
+  CheckCircle2,
   ArrowLeft
 } from "lucide-react";
 import { searchContractors, getPlaceDetails, createOutreachCompany } from "@/app/actions/outreach";
@@ -146,7 +146,7 @@ export default function ContractorFinderPage() {
                     {result.rating ? (
                       <div className="flex items-center gap-1">
                         <span className="text-sm font-medium">{result.rating}</span>
-                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                        <CheckCircle2 className="h-3 w-3 text-amber-400" />
                         <span className="text-xs text-muted-foreground">({result.userRatingsTotal})</span>
                       </div>
                     ) : (

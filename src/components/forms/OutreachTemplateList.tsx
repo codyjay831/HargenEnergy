@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Copy, Check, Mail, MessageSquare, Facebook, Linkedin } from "lucide-react";
+import { Copy, Check, Mail, MessageSquare, Globe } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface OutreachTemplateListProps {
