@@ -1,6 +1,10 @@
 import { z } from "zod";
 
+import { isUrgencyValue } from "@/lib/ui-enums";
+
 const trimmedString = z.string().trim();
+
+const phoneCharsRegex = /^[\d\s+().-]{7,40}$/;
 
 export const requestHelpSchema = z.object({
   companyName: trimmedString
@@ -17,6 +21,10 @@ export const requestHelpSchema = z.object({
     .max(254, "Email must be at most 254 characters."),
   phone: trimmedString
     .max(40, "Phone must be at most 40 characters.")
+    .refine((v) => !v || phoneCharsRegex.test(v), {
+      message:
+        "Phone may only include digits, spaces, +, -, parentheses, and periods (at least 7 characters if provided).",
+    })
     .optional(),
   website: trimmedString
     .max(500, "Website must be at most 500 characters.")
@@ -56,6 +64,41 @@ export const requestHelpSchema = z.object({
 });
 
 export type RequestHelpInput = z.infer<typeof requestHelpSchema>;
+
+const portalMetadataString = trimmedString.max(500).optional();
+
+export const portalSubmitRequestSchema = z
+  .object({
+    title: trimmedString
+      .min(1, "Title is required.")
+      .max(200, "Title must be at most 200 characters."),
+    supportNeeded: trimmedString
+      .min(1, "Support needed is required.")
+      .max(500, "Support needed must be at most 500 characters."),
+    description: trimmedString
+      .min(1, "Description is required.")
+      .max(8000, "Description must be at most 8000 characters."),
+    urgency: trimmedString.min(1).max(32),
+    customerName: portalMetadataString,
+    utilityAhj: portalMetadataString,
+    toolsContext: portalMetadataString,
+    desiredOutcome: portalMetadataString,
+  })
+  .refine((data) => isUrgencyValue(data.urgency), {
+    message: "Invalid urgency.",
+    path: ["urgency"],
+  });
+
+export type PortalSubmitRequestInput = z.infer<typeof portalSubmitRequestSchema>;
+
+export const portalAddCommentSchema = z.object({
+  requestId: trimmedString.min(1).max(128),
+  body: trimmedString
+    .min(1, "Message is required.")
+    .max(10_000, "Message must be at most 10000 characters."),
+});
+
+export type PortalAddCommentInput = z.infer<typeof portalAddCommentSchema>;
 
 export const passwordSchema = z
   .string()

@@ -7,6 +7,10 @@ import bcrypt from "bcryptjs";
 
 const isProd = process.env.NODE_ENV === "production";
 
+/** bcrypt cost-12 hash of `__timing_pad__` — compared when email is unknown to reduce timing skew vs wrong-password path. */
+const LOGIN_DUMMY_PASSWORD_HASH =
+  "$2b$12$3EmpU5w7F36D6vG8TvftLu5spg5zn32epCtFabJyFaHiLB0VMRzBq";
+
 if (isProd && !process.env.AUTH_SECRET) {
   throw new Error("AUTH_SECRET is required in production.");
 }
@@ -36,18 +40,13 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
           const user = await prisma.user.findUnique({ where: { email } });
 
           if (!user) {
-            if (!isProd) {
-              console.log(`[Auth] User not found: ${email}`);
-            }
+            await bcrypt.compare(password, LOGIN_DUMMY_PASSWORD_HASH);
             return null;
           }
 
           const passwordsMatch = await bcrypt.compare(password, user.passwordHash);
 
           if (!passwordsMatch) {
-            if (!isProd) {
-              console.log(`[Auth] Password mismatch for: ${email}`);
-            }
             return null;
           }
 

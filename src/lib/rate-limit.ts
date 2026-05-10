@@ -23,7 +23,9 @@ export type RateLimitBucket =
   | "password-reset-request"
   | "password-reset-complete"
   | "public-intake"
-  | "admin-setup";
+  | "admin-setup"
+  | "portal-request-submit"
+  | "portal-comment";
 
 const BUCKET_CONFIG: Record<
   RateLimitBucket,
@@ -34,6 +36,10 @@ const BUCKET_CONFIG: Record<
   "password-reset-complete": { max: 20, windowSec: 60 * 60 },
   "public-intake": { max: 15, windowSec: 60 * 60 },
   "admin-setup": { max: 15, windowSec: 60 * 60 },
+  /** Authenticated client portal: new support requests (keyed by user id). */
+  "portal-request-submit": { max: 25, windowSec: 60 * 60 },
+  /** Authenticated client portal: comments on requests (keyed by user id). */
+  "portal-comment": { max: 120, windowSec: 60 * 60 },
 };
 
 let redisClient: Redis | null = null;
