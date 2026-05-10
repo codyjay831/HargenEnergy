@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { 
   searchContractors, 
-  searchBingContractors, 
   searchPermitStack, 
   getPlaceDetails, 
   createOutreachCompany 
@@ -41,7 +40,7 @@ export default function ContractorFinderPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [activeSource, setActiveSource] = useState("google");
   const [results, setResults] = useState<any[]>([]);
-  const [counts, setCounts] = useState<Record<string, number>>({ google: 0, bing: 0, permitstack: 0 });
+  const [counts, setCounts] = useState<Record<string, number>>({ google: 0, permitstack: 0 });
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const router = useRouter();
@@ -55,8 +54,6 @@ export default function ContractorFinderPage() {
     
     if (activeSource === "google") {
       result = await searchContractors(query);
-    } else if (activeSource === "bing") {
-      result = await searchBingContractors(query);
     } else {
       result = await searchPermitStack(query);
     }
@@ -90,9 +87,6 @@ export default function ContractorFinderPage() {
         companyData.sourceUrl = `https://www.google.com/maps/place/?q=place_id:${result.placeId}`;
         companyData.notes = `Google Rating: ${result.rating} (${result.userRatingsTotal} reviews)\nAddress: ${result.address}`;
       }
-    } else if (activeSource === "bing") {
-      companyData.website = result.website;
-      companyData.notes = `Bing Result\nAddress: ${result.address}\nPhone: ${result.phone}`;
     } else if (activeSource === "permitstack") {
       companyData.notes = `PermitStack Result\nRecent Permits: ${result.permitCount}\nLast Permit Date: ${result.lastPermitDate}\nAddress: ${result.address}`;
     }
@@ -118,19 +112,16 @@ export default function ContractorFinderPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-bold">Contractor Finder</h1>
-          <p className="text-muted-foreground text-sm">Search for solar contractors using Google Places.</p>
+          <p className="text-muted-foreground text-sm">Search for solar contractors using Google Places or PermitStack.</p>
         </div>
       </div>
 
       <Card>
         <CardContent className="pt-6">
           <Tabs value={activeSource} onValueChange={setActiveSource} className="space-y-6">
-            <TabsList className="grid grid-cols-3 w-full max-w-md">
+            <TabsList className="grid grid-cols-2 w-full max-w-sm">
               <TabsTrigger value="google" className="text-xs">
                 Google {counts.google > 0 && `(${counts.google})`}
-              </TabsTrigger>
-              <TabsTrigger value="bing" className="text-xs">
-                Bing {counts.bing > 0 && `(${counts.bing})`}
               </TabsTrigger>
               <TabsTrigger value="permitstack" className="text-xs">
                 PermitStack {counts.permitstack > 0 && `(${counts.permitstack})`}

@@ -275,46 +275,6 @@ export async function searchContractors(query: string) {
   }
 }
 
-export async function searchBingContractors(query: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
-  }
-
-  const apiKey = process.env.BING_MAPS_API_KEY;
-  if (!apiKey) {
-    return { error: "Bing Maps API key not configured." };
-  }
-
-  try {
-    const response = await fetch(
-      `https://dev.virtualearth.net/REST/v1/LocalSearch/?query=${encodeURIComponent(query)}&key=${apiKey}`
-    );
-    const data = await response.json();
-
-    if (data.statusCode !== 200) {
-      return { error: `Bing API error: ${data.statusDescription}` };
-    }
-
-    const results = data.resourceSets[0].resources.map((resource: any) => ({
-      placeId: resource.id,
-      name: resource.name,
-      address: resource.address.formattedAddress,
-      rating: null, // Bing LocalSearch doesn't always provide ratings in the same way
-      userRatingsTotal: 0,
-      city: resource.address.locality,
-      state: resource.address.adminDistrict,
-      website: resource.website,
-      phone: resource.phoneNumber,
-    }));
-
-    return { success: true, results, count: results.length };
-  } catch (error) {
-    console.error("Error searching Bing contractors:", error);
-    return { error: "Failed to search Bing contractors." };
-  }
-}
-
 export async function searchPermitStack(query: string) {
   const session = await auth();
   if (!session?.user || session.user.role !== "ADMIN") {
@@ -327,14 +287,22 @@ export async function searchPermitStack(query: string) {
   }
 
   try {
-    // PermitStack search (mocking the endpoint based on typical permit data APIs)
     const response = await fetch(
-      `https://api.permitstack.com/v1/contractors/search?q=${encodeURIComponent(query)}&api_key=${apiKey}`
+      `https://api.permitstack.com/v1/contractors/search?q=${encodeURIComponent(query)}`,
+      {
+        headers: {
+          "X-API-Key": apiKey
+        }
+      }
     );
     const data = await response.json();
 
     if (!response.ok) {
       return { error: `PermitStack error: ${data.message || response.statusText}` };
+    }
+
+    if (!data.contractors || !Array.isArray(data.contractors)) {
+      return { success: true, results: [], count: 0 };
     }
 
     const results = data.contractors.map((c: any) => ({
@@ -596,7 +564,8 @@ export async function enrichWithYelp(companyId: string) {
     const company = await prisma.outreachCompany.findUnique({ where: { id: companyId } });
     if (!company) return { error: "Company not found." };
 
-    const response = await fetch(
+    // 1. Search for the business to get ID and basic info
+    const searchResponse = await fetch(
       `https://api.yelp.com/v3/businesses/search?term=${encodeURIComponent(company.name)}&location=${encodeURIComponent(`${company.city || ""}, ${company.state || ""}`)}&limit=1`,
       {
         headers: {
@@ -605,22 +574,50 @@ export async function enrichWithYelp(companyId: string) {
       }
     );
 
-    const data = await response.json();
-    if (!response.ok) return { error: `Yelp error: ${data.error?.description || response.statusText}` };
+    const searchData = await searchResponse.json();
+    if (!searchResponse.ok) return { error: `Yelp Search error: ${searchData.error?.description || searchResponse.statusText}` };
 
-    const biz = data.businesses?.[0];
+    const biz = searchData.businesses?.[0];
     if (!biz) return { error: "No matching business found on Yelp." };
+
+    // 2. Fetch the most recent reviews for this business
+    let latestReview = "";
+    try {
+      const reviewsResponse = await fetch(
+        `https://api.yelp.com/v3/businesses/${biz.id}/reviews?limit=3&sort_by=newest`,
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+          },
+        }
+      );
+      if (reviewsResponse.ok) {
+        const reviewsData = await reviewsResponse.json();
+        if (reviewsData.reviews && reviewsData.reviews.length > 0) {
+          const firstReview = reviewsData.reviews[0];
+          latestReview = `\nMost Recent Review (${firstReview.rating} stars): "${firstReview.text.replace(/\n/g, " ")}"`;
+        }
+      }
+    } catch (reviewError) {
+      console.warn("Failed to fetch Yelp reviews:", reviewError);
+    }
+
+    const isClosed = biz.is_closed;
+    const statusText = isClosed ? "PERMANENTLY CLOSED" : "Active";
+    const yelpNote = `Yelp Status: ${statusText}\nYelp Rating: ${biz.rating} (${biz.review_count} reviews)${latestReview}`;
 
     await prisma.outreachCompany.update({
       where: { id: companyId },
       data: {
-        notes: company.notes ? `${company.notes}\n\nYelp Rating: ${biz.rating} (${biz.review_count} reviews)` : `Yelp Rating: ${biz.rating} (${biz.review_count} reviews)`,
-        interestLevel: Math.round(biz.rating) || company.interestLevel,
+        notes: company.notes ? `${company.notes}\n\n${yelpNote}` : yelpNote,
+        interestLevel: isClosed ? 0 : (Math.round(biz.rating) || company.interestLevel),
+        doNotContact: isClosed ? true : company.doNotContact,
+        status: isClosed ? OutreachCompanyStatus.BAD_FIT : company.status,
       }
     });
 
     revalidatePath(`/admin/outreach/companies/${companyId}`);
-    return { success: true, message: "Updated company details from Yelp." };
+    return { success: true, message: `Updated from Yelp. Status: ${statusText}` };
   } catch (error) {
     console.error("Error enriching with Yelp:", error);
     return { error: "Failed to enrich with Yelp." };
