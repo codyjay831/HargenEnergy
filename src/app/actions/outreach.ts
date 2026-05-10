@@ -323,12 +323,24 @@ export async function enrichCompanyWithAI(companyId: string) {
     if (!company) return { error: "Company not found." };
 
     let websiteContent = "";
-    if (company.website) {
+    if (company.website && (company.website.startsWith("http://") || company.website.startsWith("https://"))) {
       try {
-        const res = await fetch(company.website, { signal: AbortSignal.timeout(5000) });
-        const html = await res.text();
-        // Simple HTML to text (strip tags)
-        websiteContent = html.replace(/<[^>]*>?/gm, ' ').slice(0, 10000);
+        const res = await fetch(company.website, { 
+          signal: AbortSignal.timeout(8000),
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+          }
+        });
+        if (res.ok) {
+          const html = await res.text();
+          // Simple HTML to text (strip tags)
+          websiteContent = html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "")
+                               .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, "")
+                               .replace(/<[^>]*>?/gm, ' ')
+                               .replace(/\s+/g, ' ')
+                               .trim()
+                               .slice(0, 8000);
+        }
       } catch (e) {
         console.warn(`Could not fetch website ${company.website}:`, e);
       }
@@ -353,16 +365,23 @@ export async function enrichCompanyWithAI(companyId: string) {
       - fitScore: 1-5 (how well they fit Hargen Energy's services)
       - summary: brief 1-2 sentence summary of the company
       
-      Only return the JSON.
+      IMPORTANT: Only return the JSON object. Do not include any other text or markdown formatting.
     `;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
     
-    // Clean JSON from response
-    const jsonStr = text.replace(/```json\n?|\n?```/g, "").trim();
-    const enrichment = JSON.parse(jsonStr);
+    // Robust JSON extraction
+    let enrichment;
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("No JSON found in response");
+      enrichment = JSON.parse(jsonMatch[0]);
+    } catch (e) {
+      console.error("Failed to parse AI response:", text);
+      return { error: "AI returned invalid data format. Please try again." };
+    }
 
     // Update company with enrichment data
     await prisma.outreachCompany.update({
