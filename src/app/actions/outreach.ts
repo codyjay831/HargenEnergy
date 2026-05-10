@@ -347,6 +347,7 @@ export async function enrichCompanyWithAI(companyId: string) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
+    // Using gemini-1.5-flash-latest for better compatibility
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `
@@ -368,7 +369,14 @@ export async function enrichCompanyWithAI(companyId: string) {
       IMPORTANT: Only return the JSON object. Do not include any other text or markdown formatting.
     `;
 
-    const result = await model.generateContent(prompt);
+    let result;
+    try {
+      result = await model.generateContent(prompt);
+    } catch (apiError: any) {
+      console.error("Gemini API Error:", apiError);
+      return { error: `Gemini API Error: ${apiError.message || "Unknown error"}` };
+    }
+    
     const response = await result.response;
     const text = response.text();
     
