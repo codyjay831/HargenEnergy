@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Plus, Mail, Phone, Globe, Trash2, User } from "lucide-react";
 import { addOutreachContact, deleteOutreachContact } from "@/app/actions/outreach";
 import { useRouter } from "next/navigation";
@@ -62,12 +63,14 @@ export function OutreachContactList({ companyId, initialContacts }: OutreachCont
     <div className="space-y-4">
       <div className="flex justify-end">
         <Dialog open={isAdding} onOpenChange={setIsAdding}>
-          <DialogTrigger asChild>
-            <Button size="sm" variant="outline">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Contact
-            </Button>
-          </DialogTrigger>
+          <DialogTrigger
+            render={
+              <Button size="sm" variant="outline">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Contact
+              </Button>
+            }
+          />
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Contact</DialogTitle>
