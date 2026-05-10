@@ -340,6 +340,41 @@ export async function sendPasswordResetEmail(data: {
   }
 }
 
+/** Best-effort security notice when the account password was changed (in-app or via reset). */
+export async function sendPasswordChangedNotificationEmail(data: { to: string }) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  const { resend } = config;
+
+  try {
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: data.to,
+      subject: "Your Hargen Energy password was changed",
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          <h2 style="color: #0f172a;">Password changed</h2>
+          <p>The password for your Hargen Energy account was just updated.</p>
+          <p>If you made this change, no further action is needed.</p>
+          <p style="font-size: 14px; color: #b91c1c;">If you did not change your password, contact your administrator or support immediately so your account can be secured.</p>
+          <p style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 14px; color: #64748b;">
+            Hargen Energy Solar Ops Desk<br />
+            Flexible Solar Operations Support
+          </p>
+        </div>
+      `,
+    });
+    return { success: true };
+  } catch (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("Error sending password-changed notification:", error);
+    } else {
+      console.warn("[Email] Password-changed notification could not be delivered.");
+    }
+    return { error: "Failed to send password-changed notification." };
+  }
+}
+
 export async function sendOverflowApprovedEmail(data: {
   to: string;
   requestTitle: string;

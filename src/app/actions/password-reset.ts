@@ -7,7 +7,10 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { prisma } from "@/lib/prisma";
 import { setPasswordSessionStampMs } from "@/lib/password-session-stamp";
-import { sendPasswordResetEmail } from "@/lib/email";
+import {
+  sendPasswordChangedNotificationEmail,
+  sendPasswordResetEmail,
+} from "@/lib/email";
 import { passwordSchema } from "@/lib/validations";
 import { checkRateLimit, getRateLimitIdentifier } from "@/lib/rate-limit";
 
@@ -228,6 +231,28 @@ export async function resetPasswordAction(
 
     success = true;
     await setPasswordSessionStampMs(record.userId, passwordChangedAt.getTime());
+
+    const notifyUser = await prisma.user.findUnique({
+      where: { id: record.userId },
+      select: { email: true },
+    });
+    if (notifyUser?.email) {
+      const notifyResult = await sendPasswordChangedNotificationEmail({
+        to: notifyUser.email,
+      });
+      if ("error" in notifyResult && notifyResult.error) {
+        if (!isProd) {
+          console.warn(
+            "[Password Reset] Password-changed notification failed:",
+            notifyResult.error,
+          );
+        } else {
+          console.warn(
+            "[Password Reset] Password-changed notification could not be sent.",
+          );
+        }
+      }
+    }
   } catch (error) {
     if (error instanceof Error && error.message === "RESET_TOKEN_INVALID") {
       return { error: GENERIC_RESET_INVALID };

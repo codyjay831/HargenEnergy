@@ -7,6 +7,7 @@ import bcrypt from "bcryptjs";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { setPasswordSessionStampMs } from "@/lib/password-session-stamp";
+import { sendPasswordChangedNotificationEmail } from "@/lib/email";
 import { passwordSchema } from "@/lib/validations";
 
 const isProd = process.env.NODE_ENV === "production";
@@ -78,6 +79,22 @@ export async function changeOwnPasswordAction(
       data: { passwordHash, passwordChangedAt },
     });
     await setPasswordSessionStampMs(user.id, passwordChangedAt.getTime());
+
+    const notifyResult = await sendPasswordChangedNotificationEmail({
+      to: user.email,
+    });
+    if ("error" in notifyResult && notifyResult.error) {
+      if (!isProd) {
+        console.warn(
+          "[Account] Password-changed notification failed:",
+          notifyResult.error,
+        );
+      } else {
+        console.warn(
+          "[Account] Password-changed notification could not be sent.",
+        );
+      }
+    }
 
     revalidatePath("/admin/account");
     return { success: "Password updated successfully." };
