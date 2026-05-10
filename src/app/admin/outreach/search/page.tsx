@@ -11,9 +11,18 @@ import {
   Check, 
   ExternalLink, 
   CheckCircle2,
-  ArrowLeft
+  ArrowLeft,
+  Globe,
+  MapPin,
+  FileText
 } from "lucide-react";
-import { searchContractors, getPlaceDetails, createOutreachCompany } from "@/app/actions/outreach";
+import { 
+  searchContractors, 
+  searchBingContractors, 
+  searchPermitStack, 
+  getPlaceDetails, 
+  createOutreachCompany 
+} from "@/app/actions/outreach";
 import { 
   Table, 
   TableBody, 
@@ -23,13 +32,16 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export default function ContractorFinderPage() {
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [activeSource, setActiveSource] = useState("google");
   const [results, setResults] = useState<any[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({ google: 0, bing: 0, permitstack: 0 });
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const router = useRouter();
@@ -39,9 +51,19 @@ export default function ContractorFinderPage() {
     if (!query) return;
 
     setIsSearching(true);
-    const result = await searchContractors(query);
+    let result;
+    
+    if (activeSource === "google") {
+      result = await searchContractors(query);
+    } else if (activeSource === "bing") {
+      result = await searchBingContractors(query);
+    } else {
+      result = await searchPermitStack(query);
+    }
+
     if (result.success) {
       setResults(result.results);
+      setCounts(prev => ({ ...prev, [activeSource]: result.count || 0 }));
     } else {
       alert(result.error);
     }
@@ -51,26 +73,31 @@ export default function ContractorFinderPage() {
   const handleSave = async (result: any) => {
     setLoadingId(result.placeId);
     
-    // Get more details (website, phone)
-    const detailsResult = await getPlaceDetails(result.placeId);
-    if (!detailsResult.success) {
-      alert(detailsResult.error);
-      setLoadingId(null);
-      return;
-    }
-
-    const place = detailsResult.place;
-    
-    const saveResult = await createOutreachCompany({
-      name: place.name,
-      website: place.website,
+    let companyData: any = {
+      name: result.name,
       city: result.city,
       state: result.state,
-      leadSource: "Google Places",
+      leadSource: activeSource.charAt(0).toUpperCase() + activeSource.slice(1),
       sourceQuery: query,
-      sourceUrl: `https://www.google.com/maps/place/?q=place_id:${result.placeId}`,
-      notes: `Google Rating: ${result.rating} (${result.userRatingsTotal} reviews)\nAddress: ${result.address}`,
-    });
+    };
+
+    if (activeSource === "google") {
+      // Get more details (website, phone)
+      const detailsResult = await getPlaceDetails(result.placeId);
+      if (detailsResult.success) {
+        const place = detailsResult.place;
+        companyData.website = place.website;
+        companyData.sourceUrl = `https://www.google.com/maps/place/?q=place_id:${result.placeId}`;
+        companyData.notes = `Google Rating: ${result.rating} (${result.userRatingsTotal} reviews)\nAddress: ${result.address}`;
+      }
+    } else if (activeSource === "bing") {
+      companyData.website = result.website;
+      companyData.notes = `Bing Result\nAddress: ${result.address}\nPhone: ${result.phone}`;
+    } else if (activeSource === "permitstack") {
+      companyData.notes = `PermitStack Result\nRecent Permits: ${result.permitCount}\nLast Permit Date: ${result.lastPermitDate}\nAddress: ${result.address}`;
+    }
+    
+    const saveResult = await createOutreachCompany(companyData);
 
     if (saveResult.success) {
       setSavedIds(prev => new Set(prev).add(result.placeId));
@@ -97,21 +124,39 @@ export default function ContractorFinderPage() {
 
       <Card>
         <CardContent className="pt-6">
-          <form onSubmit={handleSearch} className="flex gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="e.g. solar contractors in Sacramento, CA" 
-                className="pl-10"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
-            <Button type="submit" disabled={isSearching}>
-              {isSearching ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              Search
-            </Button>
-          </form>
+          <Tabs value={activeSource} onValueChange={setActiveSource} className="space-y-6">
+            <TabsList className="grid grid-cols-3 w-full max-w-md">
+              <TabsTrigger value="google" className="text-xs">
+                Google {counts.google > 0 && `(${counts.google})`}
+              </TabsTrigger>
+              <TabsTrigger value="bing" className="text-xs">
+                Bing {counts.bing > 0 && `(${counts.bing})`}
+              </TabsTrigger>
+              <TabsTrigger value="permitstack" className="text-xs">
+                PermitStack {counts.permitstack > 0 && `(${counts.permitstack})`}
+              </TabsTrigger>
+            </TabsList>
+
+            <form onSubmit={handleSearch} className="flex gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  placeholder={
+                    activeSource === "permitstack" 
+                      ? "e.g. Sacramento, CA" 
+                      : "e.g. solar contractors in Sacramento, CA"
+                  }
+                  className="pl-10"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </div>
+              <Button type="submit" disabled={isSearching}>
+                {isSearching ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                Search
+              </Button>
+            </form>
+          </Tabs>
         </CardContent>
       </Card>
 
@@ -122,7 +167,7 @@ export default function ContractorFinderPage() {
               <TableRow>
                 <TableHead>Company</TableHead>
                 <TableHead>Location</TableHead>
-                <TableHead>Rating</TableHead>
+                <TableHead>{activeSource === "permitstack" ? "Permits" : "Rating"}</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
@@ -143,7 +188,12 @@ export default function ContractorFinderPage() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    {result.rating ? (
+                    {activeSource === "permitstack" ? (
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">{result.permitCount} permits</span>
+                        <span className="text-[10px] text-muted-foreground">Last: {result.lastPermitDate}</span>
+                      </div>
+                    ) : result.rating ? (
                       <div className="flex items-center gap-1">
                         <span className="text-sm font-medium">{result.rating}</span>
                         <CheckCircle2 className="h-3 w-3 text-amber-400" />

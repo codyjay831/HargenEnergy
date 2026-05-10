@@ -22,7 +22,7 @@ import { cn, safeExternalHref } from "@/lib/utils";
 import { OutreachActivityForm } from "@/components/forms/OutreachActivityForm";
 import { OutreachContactList } from "@/components/forms/OutreachContactList";
 import { OutreachTemplateList } from "@/components/forms/OutreachTemplateList";
-import { AIEnrichmentButton } from "@/components/forms/AIEnrichmentButton";
+import { EnrichmentTools } from "@/components/forms/EnrichmentTools";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +72,6 @@ export default async function OutreachCompanyDetailPage({ params }: OutreachComp
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <AIEnrichmentButton companyId={company.id} />
           {company.website && (
             <a 
               href={safeExternalHref(company.website) || "#"} 
@@ -220,6 +219,8 @@ export default async function OutreachCompanyDetailPage({ params }: OutreachComp
 
         {/* Right Column: Actions & Templates */}
         <div className="space-y-8">
+          <EnrichmentTools companyId={company.id} />
+
           <Card className="border-primary/20 bg-primary/5">
             <CardHeader>
               <CardTitle className="text-base">Log New Activity</CardTitle>

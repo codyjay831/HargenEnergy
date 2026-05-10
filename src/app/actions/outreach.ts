@@ -268,10 +268,91 @@ export async function searchContractors(query: string) {
       ...parseAddress(place.formatted_address)
     }));
 
-    return { success: true, results };
+    return { success: true, results, count: results.length };
   } catch (error) {
     console.error("Error searching contractors:", error);
     return { error: "Failed to search contractors." };
+  }
+}
+
+export async function searchBingContractors(query: string) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { error: "Unauthorized. Admin access required." };
+  }
+
+  const apiKey = process.env.BING_MAPS_API_KEY;
+  if (!apiKey) {
+    return { error: "Bing Maps API key not configured." };
+  }
+
+  try {
+    const response = await fetch(
+      `https://dev.virtualearth.net/REST/v1/LocalSearch/?query=${encodeURIComponent(query)}&key=${apiKey}`
+    );
+    const data = await response.json();
+
+    if (data.statusCode !== 200) {
+      return { error: `Bing API error: ${data.statusDescription}` };
+    }
+
+    const results = data.resourceSets[0].resources.map((resource: any) => ({
+      placeId: resource.id,
+      name: resource.name,
+      address: resource.address.formattedAddress,
+      rating: null, // Bing LocalSearch doesn't always provide ratings in the same way
+      userRatingsTotal: 0,
+      city: resource.address.locality,
+      state: resource.address.adminDistrict,
+      website: resource.website,
+      phone: resource.phoneNumber,
+    }));
+
+    return { success: true, results, count: results.length };
+  } catch (error) {
+    console.error("Error searching Bing contractors:", error);
+    return { error: "Failed to search Bing contractors." };
+  }
+}
+
+export async function searchPermitStack(query: string) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { error: "Unauthorized. Admin access required." };
+  }
+
+  const apiKey = process.env.PERMITSTACK_API_KEY;
+  if (!apiKey) {
+    return { error: "PermitStack API key not configured." };
+  }
+
+  try {
+    // PermitStack search (mocking the endpoint based on typical permit data APIs)
+    const response = await fetch(
+      `https://api.permitstack.com/v1/contractors/search?q=${encodeURIComponent(query)}&api_key=${apiKey}`
+    );
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { error: `PermitStack error: ${data.message || response.statusText}` };
+    }
+
+    const results = data.contractors.map((c: any) => ({
+      placeId: c.id,
+      name: c.name,
+      address: c.address,
+      rating: null,
+      userRatingsTotal: 0,
+      city: c.city,
+      state: c.state,
+      permitCount: c.recent_permit_count,
+      lastPermitDate: c.last_permit_date,
+    }));
+
+    return { success: true, results, count: results.length };
+  } catch (error) {
+    console.error("Error searching PermitStack:", error);
+    return { error: "Failed to search PermitStack." };
   }
 }
 
@@ -426,6 +507,163 @@ export async function enrichCompanyWithAI(companyId: string) {
   } catch (error) {
     console.error("Error enriching company with AI:", error);
     return { error: "Failed to enrich company." };
+  }
+}
+
+export async function enrichWithApollo(companyId: string) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { error: "Unauthorized. Admin access required." };
+  }
+
+  const apiKey = process.env.APOLLO_API_KEY;
+  if (!apiKey) {
+    return { error: "Apollo API key not configured." };
+  }
+
+  try {
+    const company = await prisma.outreachCompany.findUnique({ where: { id: companyId } });
+    if (!company) return { error: "Company not found." };
+
+    const domain = company.website ? company.website.replace(/^https?:\/\/(www\.)?/, "").split("/")[0] : null;
+
+    const response = await fetch("https://api.apollo.io/v1/people/search", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+      },
+      body: JSON.stringify({
+        api_key: apiKey,
+        q_organization_domains: domain,
+        organization_name: domain ? undefined : company.name,
+        person_titles: ["owner", "founder", "ceo", "president", "operations", "manager"],
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) return { error: `Apollo error: ${data.message || response.statusText}` };
+
+    const people = data.people || [];
+    let addedCount = 0;
+
+    for (const person of people) {
+      const name = `${person.first_name} ${person.last_name}`;
+      const email = person.email;
+      const phone = person.phone_numbers?.[0]?.sanitized_number;
+      const role = person.title;
+      const linkedin = person.linkedin_url;
+
+      const exists = await prisma.outreachContact.findFirst({
+        where: { companyId, OR: [{ email: email || undefined }, { name }] }
+      });
+
+      if (!exists) {
+        await prisma.outreachContact.create({
+          data: {
+            companyId,
+            name,
+            email,
+            phone,
+            roleTitle: role,
+            linkedinUrl: linkedin,
+          }
+        });
+        addedCount++;
+      }
+    }
+
+    revalidatePath(`/admin/outreach/companies/${companyId}`);
+    return { success: true, message: `Found and added ${addedCount} contacts from Apollo.` };
+  } catch (error) {
+    console.error("Error enriching with Apollo:", error);
+    return { error: "Failed to enrich with Apollo." };
+  }
+}
+
+export async function enrichWithYelp(companyId: string) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { error: "Unauthorized. Admin access required." };
+  }
+
+  const apiKey = process.env.YELP_API_KEY;
+  if (!apiKey) {
+    return { error: "Yelp API key not configured." };
+  }
+
+  try {
+    const company = await prisma.outreachCompany.findUnique({ where: { id: companyId } });
+    if (!company) return { error: "Company not found." };
+
+    const response = await fetch(
+      `https://api.yelp.com/v3/businesses/search?term=${encodeURIComponent(company.name)}&location=${encodeURIComponent(`${company.city || ""}, ${company.state || ""}`)}&limit=1`,
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+      }
+    );
+
+    const data = await response.json();
+    if (!response.ok) return { error: `Yelp error: ${data.error?.description || response.statusText}` };
+
+    const biz = data.businesses?.[0];
+    if (!biz) return { error: "No matching business found on Yelp." };
+
+    await prisma.outreachCompany.update({
+      where: { id: companyId },
+      data: {
+        notes: company.notes ? `${company.notes}\n\nYelp Rating: ${biz.rating} (${biz.review_count} reviews)` : `Yelp Rating: ${biz.rating} (${biz.review_count} reviews)`,
+        interestLevel: Math.round(biz.rating) || company.interestLevel,
+      }
+    });
+
+    revalidatePath(`/admin/outreach/companies/${companyId}`);
+    return { success: true, message: "Updated company details from Yelp." };
+  } catch (error) {
+    console.error("Error enriching with Yelp:", error);
+    return { error: "Failed to enrich with Yelp." };
+  }
+}
+
+export async function checkLicenseStatus(companyId: string) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { error: "Unauthorized. Admin access required." };
+  }
+
+  const apiKey = process.env.TRADES_API_KEY;
+  if (!apiKey) {
+    return { error: "TradesAPI key not configured." };
+  }
+
+  try {
+    const company = await prisma.outreachCompany.findUnique({ where: { id: companyId } });
+    if (!company) return { error: "Company not found." };
+
+    const response = await fetch(
+      `https://api.tradesapi.com/v1/license/search?q=${encodeURIComponent(company.name)}&state=${company.state || ""}&api_key=${apiKey}`
+    );
+    const data = await response.json();
+
+    if (!response.ok) return { error: `TradesAPI error: ${data.message || response.statusText}` };
+
+    const license = data.licenses?.[0];
+    if (!license) return { error: "No license found for this company." };
+
+    await prisma.outreachCompany.update({
+      where: { id: companyId },
+      data: {
+        notes: company.notes ? `${company.notes}\n\nLicense: ${license.number} (${license.status})` : `License: ${license.number} (${license.status})`,
+      }
+    });
+
+    revalidatePath(`/admin/outreach/companies/${companyId}`);
+    return { success: true, message: `License verified: ${license.status}` };
+  } catch (error) {
+    console.error("Error checking license status:", error);
+    return { error: "Failed to check license status." };
   }
 }
 
