@@ -58,7 +58,7 @@ export function OutreachActivityForm({ companyId, contacts }: OutreachActivityFo
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label className="text-xs">Channel</Label>
-          <Select value={channel} onValueChange={setChannel}>
+          <Select value={channel} onValueChange={(val) => val && setChannel(val)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="Select channel" />
             </SelectTrigger>
@@ -75,7 +75,7 @@ export function OutreachActivityForm({ companyId, contacts }: OutreachActivityFo
         </div>
         <div className="space-y-2">
           <Label className="text-xs">Type</Label>
-          <Select value={activityType} onValueChange={setActivityType}>
+          <Select value={activityType} onValueChange={(val) => val && setActivityType(val)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="Select type" />
             </SelectTrigger>
@@ -92,7 +92,7 @@ export function OutreachActivityForm({ companyId, contacts }: OutreachActivityFo
 
       <div className="space-y-2">
         <Label className="text-xs">Contact (Optional)</Label>
-        <Select value={contactId} onValueChange={setContactId}>
+        <Select value={contactId} onValueChange={(val) => val && setContactId(val)}>
           <SelectTrigger className="h-8 text-xs">
             <SelectValue placeholder="Select contact" />
           </SelectTrigger>
