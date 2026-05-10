@@ -23,8 +23,8 @@ export function Footer() {
             <Link href="/" className="text-sm font-semibold">
               Hargen Energy LLC
             </Link>
-            <p className="mt-2 text-xs text-muted-foreground leading-relaxed max-w-[220px]">
-              Solar operations support for residential solar companies.
+            <p className="mt-2 text-xs text-muted-foreground leading-relaxed max-w-[240px]">
+              Flexible solar operations support for residential companies. We help keep office work moving so your team can stay focused on sales, installs, and customers.
             </p>
           </div>
 
@@ -73,7 +73,7 @@ export function Footer() {
             © {new Date().getFullYear()} Hargen Energy LLC. All rights reserved.
           </p>
           <p className="text-xs text-muted-foreground">
-            Support for solar companies — not solar sales to homeowners.
+            Built for solar companies, not solar sales to homeowners.
           </p>
         </div>
 

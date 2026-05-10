@@ -18,12 +18,12 @@ const steps = [
   {
     title: "Choose a weekly support block",
     icon: Layers,
-    description: "Select the level of support that matches your needs: 2, 5, or 10 hours per week. No long-term contracts—you can adjust your support level as your volume changes."
+    description: "Pick a weekly block that fits: 2, 5, or 10 hours per week. No long-term contract. If volume changes, we adjust the plan with you."
   },
   {
     title: "We prioritize the highest-impact work",
     icon: BarChart2,
-    description: "We don't just work through a list; we focus on the tasks that will get jobs moving the fastest. If you have a job stuck at a specific stage, that's where we start."
+    description: "We work the list in order of impact. If a job is stuck at one stage, that is usually where we start. The goal is to get crews and cash moving again."
   },
   {
     title: "Work is tracked clearly",

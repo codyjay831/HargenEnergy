@@ -46,7 +46,13 @@ export function Navbar() {
           >
             Login
           </Link>
-          <Link href="/request-help" className={cn(buttonVariants({ size: "sm" }))}>
+          <Link
+            href="/request-help"
+            className={cn(
+              buttonVariants({ size: "sm" }),
+              "bg-amber-500 hover:bg-amber-600 text-white border-transparent focus-visible:ring-amber-300"
+            )}
+          >
             Request Support
           </Link>
 
@@ -76,7 +82,7 @@ export function Navbar() {
                 </Link>
                 <Link
                   href="/request-help"
-                  className={cn(buttonVariants(), "mt-2 w-full")}
+                  className={cn(buttonVariants(), "mt-2 w-full bg-amber-500 hover:bg-amber-600 text-white border-transparent")}
                 >
                   Request Support
                 </Link>

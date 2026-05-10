@@ -195,9 +195,9 @@ export function RequestHelpForm() {
               <SelectValue placeholder="Select a support block" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="light">Light Support — 2 hours/week</SelectItem>
-              <SelectItem value="core">Core Support — 5 hours/week</SelectItem>
-              <SelectItem value="priority">Priority Support — 10 hours/week</SelectItem>
+              <SelectItem value="light">Light Support (2 hours per week)</SelectItem>
+              <SelectItem value="core">Core Support (5 hours per week)</SelectItem>
+              <SelectItem value="priority">Priority Support (10 hours per week)</SelectItem>
               <SelectItem value="not-sure">Not sure yet</SelectItem>
               <SelectItem value="one-time">One-time / overflow help</SelectItem>
             </SelectContent>

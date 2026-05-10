@@ -21,7 +21,7 @@ export default function AboutPage() {
               Hargen Energy LLC was founded on a simple observation: residential solar companies often have great sales teams and great installation crews, but their back-office operations struggle to keep up.
             </p>
             <p>
-              The result is &quot;stuck&quot; jobs, frustrated homeowners, and cash flow bottlenecks. Most companies don&apos;t need a full-time operations manager or another expensive salary—they need flexible, professional support that understands the solar industry.
+              The result is &quot;stuck&quot; jobs, frustrated homeowners, and cash flow bottlenecks. Most companies do not need another full-time operations salary on the books. They need flexible, professional help from people who know solar paperwork and follow-up.
             </p>
             <p>
               That&apos;s where we come in. We aren&apos;t a generic virtual assistant service. We are solar operations specialists who know how to navigate utility portals, track down permits, and keep a CRM organized.

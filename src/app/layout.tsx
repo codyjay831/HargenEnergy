@@ -14,7 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Hargen Energy | Solar Operations Support Desk",
-  description: "Flexible solar operations support for residential solar companies. Back-office help without hiring full-time.",
+  description:
+    "Flexible back-office support for residential solar companies. Permits, utilities, customer updates, CRM cleanup, and stuck jobs. Add capacity without hiring another full-time office role.",
 };
 
 export default function RootLayout({
