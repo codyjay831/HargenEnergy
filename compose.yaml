@@ -1,0 +1,17 @@
+# Local development Postgres only — not for production.
+services:
+  hargen-postgres:
+    image: postgres:16
+    container_name: hargen-postgres
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: hargen
+      POSTGRES_PASSWORD: hargen_dev_password
+      POSTGRES_DB: hargen_dev
+    volumes:
+      - hargen_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  hargen_postgres_data:
+    name: hargen_postgres_data
