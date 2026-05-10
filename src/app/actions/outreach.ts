@@ -347,8 +347,8 @@ export async function enrichCompanyWithAI(companyId: string) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Using gemini-3-flash as gemini-1.5-flash is no longer available in this project
-    const model = genAI.getGenerativeModel({ model: "gemini-3-flash" });
+    // Using gemini-2.5-flash as gemini-3-flash returned a 404
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `
       Analyze the following information about a solar company and extract contact info and potential business pain points.
