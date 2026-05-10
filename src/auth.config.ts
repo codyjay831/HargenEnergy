@@ -1,5 +1,23 @@
 import type { NextAuthConfig } from "next-auth";
 
+import {
+  getPasswordSessionStampMs,
+  setPasswordSessionStampMs,
+} from "./lib/password-session-stamp";
+
+function passwordStampMsFromUser(user: {
+  passwordChangedAt?: Date | string | null;
+  createdAt?: Date | string | null;
+}): number {
+  const p = user.passwordChangedAt;
+  if (p instanceof Date) return p.getTime();
+  if (typeof p === "string" && p.length > 0) return new Date(p).getTime();
+  const c = user.createdAt;
+  if (c instanceof Date) return c.getTime();
+  if (typeof c === "string" && c.length > 0) return new Date(c).getTime();
+  return Date.now();
+}
+
 export const authConfig = {
   pages: {
     signIn: "/login",
@@ -34,11 +52,39 @@ export const authConfig = {
 
       return true;
     },
-    jwt({ token, user }) {
+    async jwt({ token, user }) {
       if (user) {
-        token.id = user.id;
-        token.role = user.role;
-        token.clientId = (user as { clientId?: string | null }).clientId;
+        const u = user as {
+          id: string;
+          role?: string;
+          clientId?: string | null;
+          passwordChangedAt?: Date | string | null;
+          createdAt?: Date | string | null;
+        };
+        token.id = u.id;
+        token.role = u.role;
+        token.clientId = u.clientId ?? null;
+        const stampMs = passwordStampMsFromUser(u);
+        token.passwordChangedAt = stampMs;
+        await setPasswordSessionStampMs(u.id, stampMs);
+        return token;
+      }
+
+      if (token?.id) {
+        if (token.passwordChangedAt == null) {
+          return null;
+        }
+        const stamped =
+          typeof token.passwordChangedAt === "number"
+            ? token.passwordChangedAt
+            : parseInt(String(token.passwordChangedAt), 10);
+        if (Number.isNaN(stamped)) {
+          return null;
+        }
+        const latest = await getPasswordSessionStampMs(token.id as string);
+        if (latest != null && latest > stamped) {
+          return null;
+        }
       }
       return token;
     },

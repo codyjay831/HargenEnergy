@@ -56,6 +56,8 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
             name: user.name,
             role: user.role,
             clientId: user.clientId,
+            passwordChangedAt: user.passwordChangedAt,
+            createdAt: user.createdAt,
           };
         } catch (error) {
           if (!isProd) {
@@ -74,6 +76,8 @@ declare module "next-auth" {
   interface User {
     role?: string;
     clientId?: string | null;
+    passwordChangedAt?: Date;
+    createdAt?: Date;
   }
   interface Session {
     user: {
@@ -81,5 +85,15 @@ declare module "next-auth" {
       role: string;
       clientId?: string | null;
     } & DefaultSession["user"];
+  }
+}
+
+declare module "@auth/core/jwt" {
+  interface JWT {
+    id?: string;
+    role?: string;
+    clientId?: string | null;
+    /** Epoch ms of `User.passwordChangedAt` when the JWT was issued. */
+    passwordChangedAt?: number;
   }
 }

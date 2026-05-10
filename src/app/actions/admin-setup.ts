@@ -16,6 +16,7 @@ import bcrypt from "bcryptjs";
 import { timingSafeEqual } from "node:crypto";
 
 import { prisma } from "@/lib/prisma";
+import { setPasswordSessionStampMs } from "@/lib/password-session-stamp";
 import { passwordSchema } from "@/lib/validations";
 import { checkRateLimit, getRateLimitIdentifier } from "@/lib/rate-limit";
 
@@ -145,6 +146,7 @@ export async function createFirstAdminAction(
             name,
             role: "ADMIN",
             passwordHash,
+            passwordChangedAt: new Date(),
           },
         });
       } else {
@@ -154,10 +156,22 @@ export async function createFirstAdminAction(
             name,
             passwordHash,
             role: "ADMIN",
+            passwordChangedAt: new Date(),
           },
         });
       }
     });
+
+    const stampedUser = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true, passwordChangedAt: true },
+    });
+    if (stampedUser) {
+      await setPasswordSessionStampMs(
+        stampedUser.id,
+        stampedUser.passwordChangedAt.getTime(),
+      );
+    }
 
     createdRedirect = true;
   } catch (error) {

@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 
 import { prisma } from "@/lib/prisma";
+import { setPasswordSessionStampMs } from "@/lib/password-session-stamp";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { passwordSchema } from "@/lib/validations";
 import { checkRateLimit, getRateLimitIdentifier } from "@/lib/rate-limit";
@@ -197,6 +198,7 @@ export async function resetPasswordAction(
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const passwordChangedAt = new Date();
 
     await prisma.$transaction(async (tx) => {
       const fresh = await tx.passwordResetToken.findUnique({
@@ -207,7 +209,7 @@ export async function resetPasswordAction(
       }
       await tx.user.update({
         where: { id: fresh.userId },
-        data: { passwordHash },
+        data: { passwordHash, passwordChangedAt },
       });
       await tx.passwordResetToken.update({
         where: { tokenHash },
@@ -225,6 +227,7 @@ export async function resetPasswordAction(
     });
 
     success = true;
+    await setPasswordSessionStampMs(record.userId, passwordChangedAt.getTime());
   } catch (error) {
     if (error instanceof Error && error.message === "RESET_TOKEN_INVALID") {
       return { error: GENERIC_RESET_INVALID };

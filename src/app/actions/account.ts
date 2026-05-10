@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { setPasswordSessionStampMs } from "@/lib/password-session-stamp";
 import { passwordSchema } from "@/lib/validations";
 
 const isProd = process.env.NODE_ENV === "production";
@@ -71,10 +72,12 @@ export async function changeOwnPasswordAction(
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const passwordChangedAt = new Date();
     await prisma.user.update({
       where: { id: user.id },
-      data: { passwordHash },
+      data: { passwordHash, passwordChangedAt },
     });
+    await setPasswordSessionStampMs(user.id, passwordChangedAt.getTime());
 
     revalidatePath("/admin/account");
     return { success: "Password updated successfully." };

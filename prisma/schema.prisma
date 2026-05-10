@@ -73,6 +73,8 @@ model User {
   name         String?
   email        String      @unique
   passwordHash String
+  /** Monotonic-ish marker: sessions minted with an older stamp are invalid after password change/reset. */
+  passwordChangedAt DateTime @default(now())
   role         Role        @default(CLIENT)
   clientId     String?
   client       Client?     @relation(fields: [clientId], references: [id])

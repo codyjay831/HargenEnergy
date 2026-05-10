@@ -54,20 +54,27 @@ async function main() {
   const passwordHash = await bcrypt.hash(adminPassword, 12);
 
   try {
-    await prisma.user.upsert({
+    const row = await prisma.user.upsert({
       where: { email: adminEmail },
       create: {
         email: adminEmail,
         name: adminName,
         passwordHash,
+        passwordChangedAt: new Date(),
         role: Role.ADMIN,
       },
       update: {
         name: adminName,
         role: Role.ADMIN,
         passwordHash,
+        passwordChangedAt: new Date(),
       },
     });
+
+    const { setPasswordSessionStampMs } = await import(
+      "../src/lib/password-session-stamp",
+    );
+    await setPasswordSessionStampMs(row.id, row.passwordChangedAt.getTime());
 
     console.log(
       "[seed] Admin user upserted (single row by email; password hash refreshed).",
