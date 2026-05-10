@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
@@ -12,25 +15,40 @@ const navItems = [
   { name: "About", href: "/about" },
 ];
 
+function navLinkClass(href: string, pathname: string | null) {
+  const active =
+    pathname === href ||
+    (href !== "/" && pathname?.startsWith(href));
+  return cn(
+    "px-3 py-1.5 text-sm rounded-md transition-colors",
+    active
+      ? "text-stone-900 font-medium bg-amber-50/90 border border-amber-200/60"
+      : "text-stone-600 hover:text-stone-900 hover:bg-stone-100/80"
+  );
+}
+
 export function Navbar() {
+  const pathname = usePathname();
+
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b border-stone-200/90 bg-white/90 backdrop-blur-md supports-[backdrop-filter]:bg-white/75">
       <div className="max-w-6xl mx-auto px-6 flex h-14 items-center justify-between">
 
-        {/* Brand + desktop nav */}
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2.5">
-            <span className="text-[0.9375rem] font-semibold tracking-tight">Hargen Energy</span>
-            <span className="hidden text-xs text-muted-foreground/60 border-l border-border pl-2.5 sm:block">
+            <span className="text-[0.9375rem] font-semibold tracking-tight text-stone-900">
+              Hargen Energy
+            </span>
+            <span className="hidden text-xs text-stone-500 border-l border-stone-200 pl-2.5 sm:block">
               Solar Ops Desk
             </span>
           </Link>
-          <nav className="hidden md:flex items-center">
+          <nav className="hidden md:flex items-center gap-0.5">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded-md hover:bg-muted/50 transition-colors"
+                className={navLinkClass(item.href, pathname)}
               >
                 {item.name}
               </Link>
@@ -38,11 +56,10 @@ export function Navbar() {
           </nav>
         </div>
 
-        {/* Desktop actions */}
         <div className="flex items-center gap-1">
           <Link
             href="/login"
-            className="hidden md:block px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded-md hover:bg-muted/50 transition-colors"
+            className="hidden md:block px-3 py-1.5 text-sm text-stone-600 hover:text-stone-900 rounded-md hover:bg-stone-100/80 transition-colors"
           >
             Login
           </Link>
@@ -56,7 +73,6 @@ export function Navbar() {
             Request Support
           </Link>
 
-          {/* Mobile menu */}
           <Sheet>
             <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden ml-1" />}>
               <Menu className="h-4 w-4" />
@@ -68,15 +84,20 @@ export function Navbar() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="text-sm font-medium px-3 py-2 rounded-md hover:bg-muted transition-colors"
+                    className={cn(
+                      "text-sm font-medium px-3 py-2 rounded-md transition-colors",
+                      pathname === item.href || pathname?.startsWith(item.href)
+                        ? "bg-amber-50 text-stone-900 border border-amber-200/60"
+                        : "hover:bg-stone-100 text-stone-800"
+                    )}
                   >
                     {item.name}
                   </Link>
                 ))}
-                <hr className="my-3" />
+                <hr className="my-3 border-stone-200" />
                 <Link
                   href="/login"
-                  className="text-sm font-medium px-3 py-2 rounded-md hover:bg-muted transition-colors"
+                  className="text-sm font-medium px-3 py-2 rounded-md hover:bg-stone-100 transition-colors text-stone-700"
                 >
                   Login
                 </Link>

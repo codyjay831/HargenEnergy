@@ -2,6 +2,12 @@ import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
+  marketingCardBase as cardBase,
+  marketingCardHover as cardHover,
+  marketingChipNeutral as chipNeutral,
+  marketingShell,
+} from "@/components/marketing/marketing-styles";
+import {
   FileText,
   Clock,
   MessageSquare,
@@ -10,20 +16,6 @@ import {
   Users,
   ChevronRight,
 } from "lucide-react";
-
-// ---------------------------------------------------------------------------
-// Design tokens: shared card language (no rainbow / no fake dashboard)
-// ---------------------------------------------------------------------------
-
-const cardBase =
-  "rounded-xl border border-stone-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05),0_4px_16px_rgba(15,23,42,0.05)]";
-
-const cardHover =
-  "motion-safe:transition-all motion-safe:duration-200 motion-safe:hover:-translate-y-1 hover:border-amber-200/70 hover:shadow-[0_8px_32px_rgba(15,23,42,0.10),0_2px_8px_rgba(15,23,42,0.05)]";
-
-/** Restrained chip: neutral + amber border only */
-const chipNeutral =
-  "inline-flex text-[0.6875rem] font-medium text-stone-600 bg-stone-50 border border-stone-200 rounded-md px-2 py-0.5";
 
 // ---------------------------------------------------------------------------
 // Data
@@ -195,7 +187,7 @@ export default function Home() {
         <div aria-hidden className="pointer-events-none absolute -top-32 right-1/4 w-[30rem] h-[30rem] rounded-full bg-amber-200/20 blur-3xl" />
         <div aria-hidden className="pointer-events-none absolute top-1/2 -right-16 w-64 h-64 rounded-full bg-orange-100/25 blur-2xl" />
 
-        <div className="relative max-w-6xl mx-auto px-6 py-16 lg:py-24">
+        <div className={cn("relative py-16 lg:py-24", marketingShell)}>
           <div className="grid grid-cols-1 gap-12 lg:grid-cols-[1fr_460px] lg:gap-14 items-start">
 
             {/* Left */}
@@ -276,7 +268,7 @@ export default function Home() {
 
       {/* ── Problem ──────────────────────────────────────────────────────── */}
       <section id="problem" className="border-b" style={{ background: "linear-gradient(180deg, #FAFAF8 0%, #F5F4F1 100%)" }}>
-        <div className="max-w-6xl mx-auto px-6 py-16 lg:py-20">
+        <div className={cn("py-16 lg:py-20", marketingShell)}>
           <div className="max-w-2xl mb-10">
             <h2 className="font-heading text-[1.75rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] leading-snug text-stone-950">
               Solar jobs rarely get stuck in the field.<br className="hidden sm:block" />
@@ -306,7 +298,7 @@ export default function Home() {
 
       {/* ── Services ─────────────────────────────────────────────────────── */}
       <section id="services" className="border-b bg-white">
-        <div className="max-w-6xl mx-auto px-6 py-16 lg:py-20">
+        <div className={cn("py-16 lg:py-20", marketingShell)}>
           <div className="flex items-end justify-between gap-6 flex-wrap mb-10">
             <h2 className="font-heading text-[1.75rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] leading-snug max-w-md text-stone-950">
               Support for the work that keeps projects moving.
@@ -354,7 +346,7 @@ export default function Home() {
 
       {/* ── How it works ─────────────────────────────────────────────────── */}
       <section id="how-it-works" className="border-b" style={{ background: "linear-gradient(180deg, #F5F4F1 0%, #F0EEE9 100%)" }}>
-        <div className="max-w-6xl mx-auto px-6 py-16 lg:py-20">
+        <div className={cn("py-16 lg:py-20", marketingShell)}>
           <div className="mb-8 sm:mb-10">
             <h2 className="font-heading text-[1.75rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-stone-950">
               Simple support process.
@@ -401,7 +393,7 @@ export default function Home() {
 
       {/* ── Pricing ──────────────────────────────────────────────────────── */}
       <section id="pricing" className="border-b bg-white">
-        <div className="max-w-6xl mx-auto px-6 py-16 lg:py-20">
+        <div className={cn("py-16 lg:py-20", marketingShell)}>
           <div className="mb-10">
             <h2 className="font-heading text-[1.75rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-stone-950">
               Flexible support blocks.
@@ -482,7 +474,7 @@ export default function Home() {
           style={{ background: "radial-gradient(ellipse 500px 400px at 105% -10%, rgba(251,191,36,0.06), transparent 60%)" }}
         />
 
-        <div className="relative max-w-6xl mx-auto px-6 py-16 lg:py-20">
+        <div className={cn("relative py-16 lg:py-20", marketingShell)}>
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_auto] lg:gap-20 items-start">
 
             <div className="max-w-md">

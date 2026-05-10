@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,6 +16,8 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { submitRequestHelp } from "@/app/actions/requests";
 import { RequestHelpInput } from "@/lib/validations";
+import { cn } from "@/lib/utils";
+import { marketingAmberCta } from "@/components/marketing/marketing-styles";
 
 const supportOptions = [
   { id: "quote", label: "Quote building / proposal support" },
@@ -89,13 +91,19 @@ export function RequestHelpForm() {
 
   if (isSubmitted) {
     return (
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="pt-10 pb-10 text-center">
-          <h3 className="text-2xl font-bold mb-4">Request Received</h3>
-          <p className="text-muted-foreground mb-8">
-            Request received. Hargen Energy will review your solar operations support request and follow up about the best next step.
+      <Card className="rounded-xl border border-amber-200/80 bg-amber-50/40 shadow-sm">
+        <CardContent className="px-6 py-10 text-center sm:px-10">
+          <h3 className="font-heading text-xl font-semibold text-stone-900">Request received</h3>
+          <p className="mt-3 text-sm text-stone-600 leading-relaxed">
+            We will review your note and follow up with the best next step, usually within one business day.
           </p>
-          <Button onClick={() => setIsSubmitted(false)}>Send Another Request</Button>
+          <Button
+            variant="outline"
+            className="mt-8 border-stone-200"
+            onClick={() => setIsSubmitted(false)}
+          >
+            Send another request
+          </Button>
         </CardContent>
       </Card>
     );
@@ -237,7 +245,11 @@ export function RequestHelpForm() {
         />
       </div>
 
-      <Button type="submit" className="w-full h-12 text-lg" disabled={isSubmitting}>
+      <Button
+        type="submit"
+        className={cn(buttonVariants(), "h-12 w-full text-base font-medium", marketingAmberCta)}
+        disabled={isSubmitting}
+      >
         {isSubmitting ? "Sending..." : "Request Solar Ops Support"}
       </Button>
       

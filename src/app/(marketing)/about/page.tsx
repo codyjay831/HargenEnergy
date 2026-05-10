@@ -1,89 +1,110 @@
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  marketingShell,
+  marketingSectionY,
+  marketingCardBase,
+  marketingCardHover,
+  marketingH1,
+  marketingH2,
+  marketingLead,
+  marketingAmberCta,
+} from "@/components/marketing/marketing-styles";
 
 export default function AboutPage() {
   return (
-    <div className="py-20">
-      <div className="container px-4 mx-auto">
-        <div className="max-w-3xl mb-16">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl mb-6">
-            About Hargen Energy
-          </h1>
-          <p className="text-xl text-muted-foreground">
-            We are a specialized solar operations support desk built specifically for residential solar contractors.
-          </p>
+    <div>
+      <section
+        className={cn("border-b border-stone-200/80 bg-white", marketingSectionY)}
+        style={{
+          background:
+            "radial-gradient(ellipse 100% 50% at 50% -15%, #FFF0CC 0%, #ffffff 58%)",
+        }}
+      >
+        <div className={cn(marketingShell)}>
+          <div className="max-w-2xl">
+            <h1 className={marketingH1}>About Hargen Energy</h1>
+            <p className={cn(marketingLead, "mt-4")}>
+              Solar operations support for residential contractors. Real people doing permit follow-up, utility paperwork, customer updates, CRM cleanup, and the jobs that stall between install milestones.
+            </p>
+          </div>
         </div>
+      </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-start">
-          <div className="space-y-6 text-lg leading-relaxed text-slate-700">
+      <section
+        className={cn(
+          marketingSectionY,
+          "border-b border-stone-200/80 bg-[linear-gradient(180deg,#FAFAF8_0%,#F5F4F1_100%)]"
+        )}
+      >
+        <div className={cn(marketingShell, "grid grid-cols-1 gap-10 lg:grid-cols-[1fr_380px] lg:gap-14")}>
+          <div className="space-y-5 text-[0.9375rem] leading-relaxed text-stone-700">
             <p>
-              Hargen Energy LLC was founded on a simple observation: residential solar companies often have great sales teams and great installation crews, but their back-office operations struggle to keep up.
+              Hargen Energy LLC started from a simple pattern we kept seeing: strong sales and install teams, with a back office that could not keep up on permits, utilities, and homeowner communication.
             </p>
             <p>
-              The result is &quot;stuck&quot; jobs, frustrated homeowners, and cash flow bottlenecks. Most companies do not need another full-time operations salary on the books. They need flexible, professional help from people who know solar paperwork and follow-up.
+              That gap shows up as stuck jobs, angry homeowners, and slow cash. A lot of shops do not need another full-time ops salary on day one. They need steady hands on the paperwork a few hours a week, done by people who know solar workflows.
             </p>
             <p>
-              That&apos;s where we come in. We aren&apos;t a generic virtual assistant service. We are solar operations specialists who know how to navigate utility portals, track down permits, and keep a CRM organized.
+              That is the work we take on. We are not a generic virtual assistant marketplace. We focus on solar back-office execution: portals, AHJs, interconnection, CRM hygiene, and clear customer updates.
             </p>
-            <h2 className="text-2xl font-bold text-slate-900 pt-4">Our Philosophy</h2>
+            <h2 className={cn(marketingH2, "pt-2 text-xl sm:text-[1.35rem]")}>How we work with you</h2>
             <p>
-              We believe in transparency, efficiency, and focus. We don&apos;t use hype-heavy language or promise &quot;AI-driven miracles.&quot; We provide real people doing real work to get your projects through the finish line.
+              Straight talk, clear priorities, and weekly capacity you can plan around. No hype about automation replacing judgment. When something is out of scope, we say so early.
             </p>
           </div>
-          <div className="bg-slate-50 p-8 rounded-2xl border space-y-8">
-            <div>
-              <h3 className="text-lg font-bold mb-2">What We Are</h3>
-              <ul className="space-y-2 text-slate-600">
-                <li className="flex items-center gap-2">
-                  <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                  <span>A specialized solar operations desk</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                  <span>Flexible back-office support</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                  <span>A partner for solar contractors</span>
-                </li>
+
+          <div className="flex flex-col gap-6">
+            <div className={cn(marketingCardBase, marketingCardHover, "p-6")}>
+              <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-stone-900">
+                What we are
+              </h3>
+              <ul className="mt-3 space-y-2.5 text-sm text-stone-600">
+                {[
+                  "Solar operations desk for contractors",
+                  "Flexible weekly support blocks",
+                  "US-based work on your systems and tools",
+                ].map((line) => (
+                  <li key={line} className="flex items-start gap-2.5">
+                    <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-amber-400" aria-hidden />
+                    <span>{line}</span>
+                  </li>
+                ))}
               </ul>
             </div>
-            <div>
-              <h3 className="text-lg font-bold mb-2">What We Are Not</h3>
-              <ul className="space-y-2 text-slate-600">
-                <li className="flex items-center gap-2">
-                  <div className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                  <span>A homeowner solar installer</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <div className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                  <span>A solar sales organization</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <div className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                  <span>A generic virtual assistant firm</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <div className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                  <span>A software-only product</span>
-                </li>
+
+            <div className={cn(marketingCardBase, marketingCardHover, "p-6")}>
+              <h3 className="font-heading text-sm font-semibold uppercase tracking-wide text-stone-900">
+                What we are not
+              </h3>
+              <ul className="mt-3 space-y-2.5 text-sm text-stone-600">
+                {[
+                  "Not a homeowner installer or sales org",
+                  "Not a generic VA gig platform",
+                  "Not a software product you have to adopt",
+                ].map((line) => (
+                  <li key={line} className="flex items-start gap-2.5">
+                    <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-stone-300" aria-hidden />
+                    <span>{line}</span>
+                  </li>
+                ))}
               </ul>
             </div>
-            <div className="pt-4">
-              <p className="text-sm font-medium text-slate-500 mb-4">
-                Based in the United States, supporting residential solar companies nationwide.
-              </p>
-              <Link 
-                href="/request-help" 
-                className={cn(buttonVariants({ variant: "default" }), "w-full")}
-              >
-                Work With Us
-              </Link>
+
+            <div className="rounded-lg border border-stone-200 bg-white/80 px-4 py-3 text-xs text-stone-500">
+              Based in the United States, supporting residential solar companies nationwide.
             </div>
+
+            <Link
+              href="/request-help"
+              className={cn(buttonVariants({ size: "lg" }), marketingAmberCta, "w-full text-center")}
+            >
+              Work with us
+            </Link>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

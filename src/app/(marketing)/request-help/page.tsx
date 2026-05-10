@@ -1,37 +1,77 @@
 import { RequestHelpForm } from "@/components/forms/RequestHelpForm";
+import { cn } from "@/lib/utils";
+import {
+  marketingShell,
+  marketingSectionY,
+  marketingCardBase,
+  marketingH1,
+  marketingLead,
+} from "@/components/marketing/marketing-styles";
+
+const checklist = [
+  "Permit or utility file went quiet",
+  "Customer has not had a real update in days",
+  "CRM stages do not match what crews are doing",
+  "Proposal backlog is slowing sales",
+];
 
 export default function RequestHelpPage() {
   return (
-    <div className="py-20 bg-slate-50 min-h-screen">
-      <div className="container px-4 mx-auto">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold tracking-tight mb-4">Request Solar Ops Support</h1>
-            <p className="text-xl text-muted-foreground">
-              Tell us where you&apos;re stuck, and we&apos;ll help you get moving.
-            </p>
+    <div className="border-b border-stone-200/80">
+      <section className={cn(marketingSectionY)}>
+        <div className={cn(marketingShell)}>
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_280px] lg:gap-14">
+            <div>
+              <h1 className={marketingH1}>Request solar ops support</h1>
+              <p className={cn(marketingLead, "mt-4 max-w-xl")}>
+                Tell us what is stuck. We review capacity and follow up with next steps. Most companies hear back within one business day.
+              </p>
+            </div>
+
+            <aside className={cn(marketingCardBase, "h-fit p-5 lg:sticky lg:top-20")}>
+              <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">
+                Common starting points
+              </p>
+              <ul className="mt-3 flex flex-col gap-2.5">
+                {checklist.map((item) => (
+                  <li key={item} className="flex items-start gap-2 text-sm text-stone-600">
+                    <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-amber-400" aria-hidden />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-4 border-t border-stone-100 pt-3 text-xs text-stone-500 leading-relaxed">
+                No long-term contract required to start. Pick a weekly block after we talk through volume.
+              </p>
+            </aside>
           </div>
-          
-          <div className="bg-white p-8 md:p-12 rounded-2xl shadow-sm border">
+
+          <div
+            className={cn(
+              marketingCardBase,
+              "mx-auto mt-10 max-w-3xl p-6 shadow-[0_4px_24px_rgba(15,23,42,0.06)] md:p-10"
+            )}
+          >
             <RequestHelpForm />
           </div>
 
-          <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-8 text-sm text-muted-foreground">
-            <div className="bg-white p-6 rounded-xl border">
-              <h3 className="font-bold text-slate-900 mb-2">What happens next?</h3>
-              <p>
-                Once you submit this form, we&apos;ll review your needs and check our current capacity. You&apos;ll hear from us within 24 hours to schedule a brief call or discuss the next steps via email.
+          <div className="mx-auto mt-10 grid max-w-3xl grid-cols-1 gap-5 md:grid-cols-2">
+            <div className={cn(marketingCardBase, "p-5")}>
+              <h2 className="font-heading text-sm font-semibold text-stone-900">What happens next</h2>
+              <p className="mt-2 text-sm text-stone-600 leading-relaxed">
+                We read your request, check capacity, and reply by email or phone. If it is a fit, we agree on a weekly block and tool access, then start on priorities.
               </p>
             </div>
-            <div className="bg-white p-6 rounded-xl border">
-              <h3 className="font-bold text-slate-900 mb-2">No long-term commitment</h3>
-              <p>
-                Our support is designed to be flexible. You can start with a small block of time to see if we&apos;re a good fit, and scale up or down as your project volume changes.
+            <div className={cn(marketingCardBase, "p-5")}>
+              <h2 className="font-heading text-sm font-semibold text-stone-900">Flexible by design</h2>
+              <p className="mt-2 text-sm text-stone-600 leading-relaxed">
+                Start small if you want. Scale hours up or down when your pipeline changes. The work stays the same quality either way.
               </p>
             </div>
           </div>
+
         </div>
-      </div>
+      </section>
     </div>
   );
 }

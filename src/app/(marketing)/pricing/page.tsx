@@ -1,153 +1,185 @@
 import Link from "next/link";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  marketingShell,
+  marketingSectionY,
+  marketingH1,
+  marketingH2,
+  marketingLead,
+  marketingAmberCta,
+} from "@/components/marketing/marketing-styles";
 
 const plans = [
   {
     name: "Light Support",
-    hours: "2 hours/week",
-    description: "Ideal for small contractors or handling a single specific bottleneck.",
-    features: [
-      "2 hours of dedicated support",
-      "Weekly priority review",
-      "Private dashboard access",
-      "Email & CRM integration",
-      "No long-term contract"
+    hours: "2 hours per week",
+    label: "For cleanup",
+    labelClass: "text-stone-600 bg-stone-100 border-stone-200",
+    description: "Small backlogs, a few stuck jobs, or occasional permit and utility follow-up.",
+    items: [
+      "1-2 stuck jobs per week",
+      "Occasional follow-up calls",
+      "CRM cleanup batches",
+      "Weekly capacity reserved in advance",
     ],
-    cta: "Request Light Support",
-    popular: false
+    featured: false,
   },
   {
     name: "Core Support",
-    hours: "5 hours/week",
-    description: "Our most popular level for growing companies with steady project volume.",
-    features: [
-      "5 hours of dedicated support",
-      "Weekly priority review",
-      "Private dashboard access",
-      "Email & CRM integration",
-      "Direct Slack/Phone access",
-      "Priority task handling"
+    hours: "5 hours per week",
+    label: "Most common",
+    labelClass: "text-amber-800 bg-amber-50 border-amber-200",
+    description: "Steady weekly help for companies with active pipelines and regular paperwork.",
+    items: [
+      "Ongoing permit and utility tracking",
+      "Customer communication on schedule",
+      "CRM updates and job status hygiene",
+      "Quote and proposal support as needed",
     ],
-    cta: "Request Core Support",
-    popular: true
+    featured: true,
   },
   {
     name: "Priority Support",
-    hours: "10 hours/week",
-    description: "Comprehensive support for active companies with multiple crews and high volume.",
-    features: [
-      "10 hours of dedicated support",
-      "Weekly priority review",
-      "Private dashboard access",
-      "Email & CRM integration",
-      "Direct Slack/Phone access",
-      "Same-day response on urgent items",
-      "Dedicated account manager"
+    hours: "10 hours per week",
+    label: "For active pipelines",
+    labelClass: "text-stone-600 bg-stone-100 border-stone-200",
+    description: "Multiple crews and jobs moving at once. More room for daily follow-up and deeper cleanup.",
+    items: [
+      "Multiple job pipelines at once",
+      "More time for calls and resubmittals",
+      "Stuck job resolution across stages",
+      "Enphase and equipment setup support",
     ],
-    cta: "Request Priority Support",
-    popular: false
-  }
+    featured: false,
+  },
 ];
 
 export default function PricingPage() {
   return (
-    <div className="py-20">
-      <div className="container px-4 mx-auto">
-        <div className="max-w-3xl text-center mx-auto mb-16">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl mb-6">
-            Simple, Weekly Support Blocks
-          </h1>
-          <p className="text-xl text-muted-foreground">
-            No complex pricing or hidden fees. Choose a weekly capacity that fits your business and adjust as you grow.
+    <div>
+      <section
+        className={cn("border-b border-stone-200/80", marketingSectionY)}
+        style={{
+          background:
+            "radial-gradient(ellipse 100% 50% at 50% -15%, #FFF0CC 0%, #ffffff 58%)",
+        }}
+      >
+        <div className={cn(marketingShell, "text-center")}>
+          <h1 className={marketingH1}>Weekly support blocks</h1>
+          <p className={cn(marketingLead, "mx-auto mt-4 max-w-2xl")}>
+            Simple capacity pricing. Pick the hours that match your volume. Adjust when things change.
           </p>
         </div>
+      </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {plans.map((plan, i) => (
-            <Card key={i} className={`flex flex-col ${plan.popular ? 'border-primary shadow-xl scale-105 z-10' : ''}`}>
-              <CardHeader>
-                {plan.popular && (
-                  <div className="px-3 py-1 text-xs font-semibold text-primary bg-primary/10 rounded-full w-fit mb-2">
-                    Most Popular
-                  </div>
+      <section className={cn(marketingSectionY, "border-b border-stone-200/80 bg-white")}>
+        <div className={cn(marketingShell)}>
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+            {plans.map((plan, i) => (
+              <div
+                key={i}
+                className={cn(
+                  "flex min-h-[440px] flex-col rounded-xl border p-6 md:p-7",
+                  "motion-safe:transition-all motion-safe:duration-200 motion-safe:hover:-translate-y-1",
+                  plan.featured
+                    ? "border-amber-300/70 bg-gradient-to-b from-amber-50/60 to-white shadow-[0_4px_24px_rgba(245,158,11,0.10),0_1px_3px_rgba(245,158,11,0.05)] hover:border-amber-300 hover:shadow-[0_12px_40px_rgba(245,158,11,0.14)]"
+                    : "border-stone-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05),0_4px_16px_rgba(15,23,42,0.04)] hover:border-amber-200/60 hover:shadow-[0_8px_28px_rgba(15,23,42,0.08)]"
                 )}
-                <CardTitle className="text-2xl">{plan.name}</CardTitle>
-                <CardDescription className="text-3xl font-bold text-slate-900 mt-2">
-                  {plan.hours}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1">
-                <p className="text-muted-foreground mb-6">{plan.description}</p>
-                <ul className="space-y-3">
-                  {plan.features.map((feature, j) => (
-                    <li key={j} className="flex items-start gap-3 text-sm">
-                      <Check className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                      <span>{feature}</span>
+              >
+                <div>
+                  <span
+                    className={cn(
+                      "mb-3 inline-flex rounded-md border px-2 py-0.5 text-[0.6875rem] font-semibold uppercase tracking-[0.06em]",
+                      plan.labelClass
+                    )}
+                  >
+                    {plan.label}
+                  </span>
+                  <h2 className="font-heading text-lg font-semibold text-stone-900">{plan.name}</h2>
+                  <p
+                    className={cn(
+                      "mt-2 text-[1.875rem] font-bold tabular-nums leading-none tracking-tight",
+                      plan.featured ? "text-amber-700" : "text-stone-900"
+                    )}
+                  >
+                    {plan.hours}
+                  </p>
+                  <p className="mt-3 text-sm text-stone-600 leading-relaxed">{plan.description}</p>
+                </div>
+
+                <ul className="mt-6 flex flex-1 flex-col gap-2.5">
+                  {plan.items.map((item, j) => (
+                    <li key={j} className="flex items-start gap-2.5 text-sm text-stone-600">
+                      <span
+                        className={cn(
+                          "mt-2 h-1 w-1 shrink-0 rounded-full",
+                          plan.featured ? "bg-amber-400" : "bg-stone-300"
+                        )}
+                        aria-hidden
+                      />
+                      {item}
                     </li>
                   ))}
                 </ul>
-              </CardContent>
-              <CardFooter>
-                <Link 
-                  href="/request-help" 
-                  className={cn(buttonVariants({ variant: plan.popular ? 'default' : 'outline' }), "w-full")}
-                >
-                  {plan.cta}
-                </Link>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
 
-        <div className="mt-20 max-w-4xl mx-auto">
-          <div className="bg-slate-50 rounded-2xl p-8 md:p-12 border">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-              <div>
-                <h2 className="text-2xl font-bold mb-4">Overflow & Custom Support</h2>
-                <p className="text-muted-foreground mb-6">
-                  Need more help than our standard blocks? We offer overflow support for existing clients and custom blocks for larger operations.
-                </p>
-                <ul className="space-y-2 text-sm">
-                  <li className="flex items-center gap-2">
-                    <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                    <span>Overflow work approved separately</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                    <span>Custom blocks for 20+ hours/week</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                    <span>One-time project cleanup available</span>
-                  </li>
-                </ul>
-              </div>
-              <div className="flex flex-col justify-center">
-                <h3 className="text-xl font-bold mb-4 text-center md:text-left">Contact for Availability</h3>
-                <p className="text-muted-foreground mb-6 text-center md:text-left">
-                  We maintain a high standard of support by limiting the number of clients we take on. Contact us to check our current capacity.
-                </p>
-                <Link 
-                  href="/request-help" 
-                  className={cn(buttonVariants({ variant: "secondary" }), "w-full")}
+                <Link
+                  href="/request-help"
+                  className={cn(
+                    "mt-8 w-full",
+                    plan.featured
+                      ? cn(buttonVariants({ size: "default" }), marketingAmberCta)
+                      : cn(
+                          buttonVariants({ variant: "outline", size: "default" }),
+                          "border-stone-200 hover:border-stone-300 hover:bg-stone-50"
+                        )
+                  )}
                 >
-                  Check Current Availability
+                  Request this block
                 </Link>
               </div>
+            ))}
+          </div>
+
+          <div
+            className={cn(
+              "mt-10 max-w-2xl rounded-xl border border-stone-200 bg-stone-50/90 px-5 py-4 shadow-[0_1px_3px_rgba(15,23,42,0.04)]"
+            )}
+          >
+            <p className="font-heading text-sm font-semibold text-stone-900">How capacity works</p>
+            <p className="mt-2 text-sm text-stone-600 leading-relaxed">
+              Blocks reserve time each week, not unlimited hours. If work exceeds your block, we prioritize what moves revenue and schedules first. Remaining items can roll to the next week or be approved as overflow.
+            </p>
+          </div>
+
+          <div
+            className={cn(
+              "mt-8 grid grid-cols-1 gap-6 rounded-xl border border-stone-200 bg-white p-6 md:grid-cols-2 md:p-8"
+            )}
+          >
+            <div>
+              <h2 className={cn(marketingH2, "text-xl")}>Overflow and custom scope</h2>
+              <p className="mt-2 text-sm text-stone-600 leading-relaxed">
+                Existing clients can request overflow hours when a week runs hot. Larger teams sometimes need a custom arrangement. Ask when you submit a request.
+              </p>
+            </div>
+            <div className="flex flex-col justify-center gap-3">
+              <p className="text-sm text-stone-600">
+                We limit how many companies we onboard at once so turnaround stays honest.
+              </p>
+              <Link
+                href="/request-help"
+                className={cn(
+                  buttonVariants({ variant: "outline" }),
+                  "w-full border-stone-200 hover:bg-stone-50"
+                )}
+              >
+                Check availability
+              </Link>
             </div>
           </div>
         </div>
-
-        <div className="mt-16 text-center text-sm text-muted-foreground max-w-2xl mx-auto">
-          <p className="font-semibold mb-2">The Hargen Energy Guarantee</p>
-          <p>
-            Clients reserve weekly solar operations support capacity, not unlimited help. If requested work exceeds the support block, Hargen Energy helps prioritize the highest-impact items first. Remaining work can roll over or be approved as overflow time.
-          </p>
-        </div>
-      </div>
+      </section>
     </div>
   );
 }
