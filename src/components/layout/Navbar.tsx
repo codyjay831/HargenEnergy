@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
-
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -16,62 +15,76 @@ const navItems = [
 export function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center justify-between px-4 mx-auto">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center space-x-2">
-            <span className="text-xl font-bold tracking-tight text-primary">
-              Hargen Energy
-            </span>
-            <span className="hidden text-sm font-medium text-muted-foreground sm:inline-block">
+      <div className="max-w-6xl mx-auto px-6 flex h-14 items-center justify-between">
+
+        {/* Brand + desktop nav */}
+        <div className="flex items-center gap-6">
+          <Link href="/" className="flex items-center gap-2.5">
+            <span className="text-[0.9375rem] font-semibold tracking-tight">Hargen Energy</span>
+            <span className="hidden text-xs text-muted-foreground/60 border-l border-border pl-2.5 sm:block">
               Solar Ops Desk
             </span>
           </Link>
-          <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
+          <nav className="hidden md:flex items-center">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="transition-colors hover:text-primary"
+                className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded-md hover:bg-muted/50 transition-colors"
               >
                 {item.name}
               </Link>
             ))}
           </nav>
         </div>
-        <div className="flex items-center gap-4">
-          <Link href="/login" className="hidden text-sm font-medium md:block">
+
+        {/* Desktop actions */}
+        <div className="flex items-center gap-1">
+          <Link
+            href="/login"
+            className="hidden md:block px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded-md hover:bg-muted/50 transition-colors"
+          >
             Login
           </Link>
-          <Link 
-            href="/request-help" 
-            className={cn(buttonVariants({ variant: "default" }))}
-          >
-            Request Solar Ops Support
+          <Link href="/request-help" className={cn(buttonVariants({ size: "sm" }))}>
+            Request Support
           </Link>
+
+          {/* Mobile menu */}
           <Sheet>
-            <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden" />}>
-              <Menu className="h-5 w-5" />
+            <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden ml-1" />}>
+              <Menu className="h-4 w-4" />
               <span className="sr-only">Toggle menu</span>
             </SheetTrigger>
             <SheetContent side="right">
-              <nav className="flex flex-col gap-4 mt-8">
+              <nav className="flex flex-col gap-1 mt-8">
                 {navItems.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="text-lg font-medium"
+                    className="text-sm font-medium px-3 py-2 rounded-md hover:bg-muted transition-colors"
                   >
                     {item.name}
                   </Link>
                 ))}
-                <hr className="my-2" />
-                <Link href="/login" className="text-lg font-medium">
+                <hr className="my-3" />
+                <Link
+                  href="/login"
+                  className="text-sm font-medium px-3 py-2 rounded-md hover:bg-muted transition-colors"
+                >
                   Login
+                </Link>
+                <Link
+                  href="/request-help"
+                  className={cn(buttonVariants(), "mt-2 w-full")}
+                >
+                  Request Support
                 </Link>
               </nav>
             </SheetContent>
           </Sheet>
         </div>
+
       </div>
     </header>
   );

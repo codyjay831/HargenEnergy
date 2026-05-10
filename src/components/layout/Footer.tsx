@@ -1,63 +1,82 @@
 import Link from "next/link";
 
+const companyLinks = [
+  { label: "About", href: "/about" },
+  { label: "Services", href: "/services" },
+  { label: "How It Works", href: "/how-it-works" },
+];
+
+const supportLinks = [
+  { label: "Pricing", href: "/pricing" },
+  { label: "Request Help", href: "/request-help" },
+  { label: "Client Login", href: "/login" },
+];
+
 export function Footer() {
   return (
-    <footer className="border-t bg-muted/30">
-      <div className="container py-12 md:py-16 px-4 mx-auto">
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
-          <div className="md:col-span-2">
-            <Link href="/" className="text-xl font-bold tracking-tight">
+    <footer className="border-t bg-background">
+      <div className="max-w-6xl mx-auto px-6 py-10">
+        <div className="grid grid-cols-2 gap-8 sm:grid-cols-[1fr_auto_auto]">
+
+          {/* Brand */}
+          <div className="col-span-2 sm:col-span-1">
+            <Link href="/" className="text-sm font-semibold">
               Hargen Energy LLC
             </Link>
-            <p className="mt-4 text-sm text-muted-foreground max-w-xs">
-              Flexible solar operations support for residential solar companies. We help get your back-office moving so you can focus on growth.
+            <p className="mt-2 text-xs text-muted-foreground leading-relaxed max-w-[220px]">
+              Solar operations support for residential solar companies.
             </p>
           </div>
+
+          {/* Company */}
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wider">Company</h3>
-            <ul className="mt-4 space-y-2 text-sm">
-              <li>
-                <Link href="/about" className="text-muted-foreground hover:text-primary">
-                  About Us
-                </Link>
-              </li>
-              <li>
-                <Link href="/services" className="text-muted-foreground hover:text-primary">
-                  Services
-                </Link>
-              </li>
-              <li>
-                <Link href="/how-it-works" className="text-muted-foreground hover:text-primary">
-                  How It Works
-                </Link>
-              </li>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-3 text-foreground">
+              Company
+            </p>
+            <ul className="flex flex-col gap-2">
+              {companyLinks.map((l) => (
+                <li key={l.href}>
+                  <Link
+                    href={l.href}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {l.label}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
+
+          {/* Support */}
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wider">Support</h3>
-            <ul className="mt-4 space-y-2 text-sm">
-              <li>
-                <Link href="/pricing" className="text-muted-foreground hover:text-primary">
-                  Pricing
-                </Link>
-              </li>
-              <li>
-                <Link href="/request-help" className="text-muted-foreground hover:text-primary">
-                  Request Help
-                </Link>
-              </li>
-              <li>
-                <Link href="/login" className="text-muted-foreground hover:text-primary">
-                  Client Login
-                </Link>
-              </li>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-3 text-foreground">
+              Support
+            </p>
+            <ul className="flex flex-col gap-2">
+              {supportLinks.map((l) => (
+                <li key={l.href}>
+                  <Link
+                    href={l.href}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {l.label}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
+
         </div>
-        <div className="mt-12 border-t pt-8 text-center text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} Hargen Energy LLC. All rights reserved.</p>
-          <p className="mt-2 text-xs">Support for solar companies — not solar sales to homeowners.</p>
+
+        <div className="mt-8 pt-6 border-t flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            © {new Date().getFullYear()} Hargen Energy LLC. All rights reserved.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Support for solar companies — not solar sales to homeowners.
+          </p>
         </div>
+
       </div>
     </footer>
   );
