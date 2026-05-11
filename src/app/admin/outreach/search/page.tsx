@@ -35,6 +35,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+const permitStackSearchModeLabels: Record<string, string> = {
+  contractors_by_area: "Contractors by area",
+  contractors_by_name: "Contractors by name",
+  derived_from_permits: "Derived from permits",
+};
+
 export default function ContractorFinderPage() {
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -43,6 +49,9 @@ export default function ContractorFinderPage() {
   const [counts, setCounts] = useState<Record<string, number>>({ google: 0, permitstack: 0 });
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [permitStackMessage, setPermitStackMessage] = useState<string | null>(null);
+  const [permitStackSearchMode, setPermitStackSearchMode] = useState<string | null>(null);
   const router = useRouter();
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -50,6 +59,9 @@ export default function ContractorFinderPage() {
     if (!query) return;
 
     setIsSearching(true);
+    setHasSearched(true);
+    setPermitStackMessage(null);
+    setPermitStackSearchMode(null);
     let result;
     
     if (activeSource === "google") {
@@ -61,7 +73,20 @@ export default function ContractorFinderPage() {
     if (result.success) {
       setResults(result.results);
       setCounts(prev => ({ ...prev, [activeSource]: result.count || 0 }));
+      if (activeSource === "permitstack") {
+        const permitStackResult = result as {
+          searchMode?: string;
+          message?: string;
+        };
+        setPermitStackSearchMode(permitStackResult.searchMode ?? null);
+        setPermitStackMessage(permitStackResult.message ?? null);
+      }
     } else {
+      setResults([]);
+      if (activeSource === "permitstack") {
+        setPermitStackSearchMode(null);
+        setPermitStackMessage(null);
+      }
       alert(result.error);
     }
     setIsSearching(false);
@@ -90,8 +115,13 @@ export default function ContractorFinderPage() {
     } else if (activeSource === "permitstack") {
       const permitLines = [
         "PermitStack Result",
-        result.permitCount != null ? `Recent Permits: ${result.permitCount}` : null,
+        permitStackSearchMode
+          ? `Search Mode: ${permitStackSearchModeLabels[permitStackSearchMode] || permitStackSearchMode}`
+          : null,
+        result.permitCount != null ? `Total Permits: ${result.permitCount}` : null,
         result.lastPermitDate ? `Last Permit Date: ${result.lastPermitDate}` : null,
+        result.specialties?.length ? `Specialties: ${result.specialties.join(", ")}` : null,
+        result.jurisdiction ? `Jurisdiction: ${result.jurisdiction}` : null,
         result.address ? `Address: ${result.address}` : null,
       ].filter(Boolean);
 
@@ -120,7 +150,8 @@ export default function ContractorFinderPage() {
         <div>
           <h1 className="text-2xl font-bold">Contractor Finder</h1>
           <p className="text-muted-foreground text-sm">
-            Search with Google Places, or use PermitStack by city/state or contractor name.
+            Search with Google Places, or use PermitStack for covered jurisdictions by city/state
+            or contractor name.
           </p>
         </div>
       </div>
@@ -144,7 +175,7 @@ export default function ContractorFinderPage() {
                   <Input
                     placeholder={
                       activeSource === "permitstack"
-                        ? "City, state or contractor name (e.g. Sacramento, CA)"
+                        ? "Sacramento, CA or Smith Solar"
                         : "e.g. solar contractors in Sacramento, CA"
                     }
                     className="pl-10"
@@ -159,14 +190,29 @@ export default function ContractorFinderPage() {
               </div>
               {activeSource === "permitstack" && (
                 <p className="text-xs text-muted-foreground">
-                  PermitStack location searches use recent solar permits in that area. Contractor
-                  name searches look up a specific company.
+                  PermitStack only returns contractors in covered jurisdictions with permit
+                  activity. Use a city and state for market discovery, or a contractor name for
+                  direct lookup.
                 </p>
               )}
             </form>
           </Tabs>
         </CardContent>
       </Card>
+
+      {activeSource === "permitstack" && permitStackSearchMode && (
+        <p className="text-sm text-muted-foreground">
+          Search mode: {permitStackSearchModeLabels[permitStackSearchMode] || permitStackSearchMode}
+        </p>
+      )}
+
+      {activeSource === "permitstack" && hasSearched && results.length === 0 && permitStackMessage && (
+        <Card>
+          <CardContent className="py-6">
+            <p className="text-sm text-muted-foreground">{permitStackMessage}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {results.length > 0 && (
         <div className="bg-white border rounded-lg overflow-hidden">
@@ -198,7 +244,9 @@ export default function ContractorFinderPage() {
                   <TableCell>
                     {activeSource === "permitstack" ? (
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium">{result.permitCount} permits</span>
+                        <span className="text-sm font-medium">
+                          {result.permitCount != null ? `${result.permitCount} permits` : "Permit data unavailable"}
+                        </span>
                         <span className="text-[10px] text-muted-foreground">Last: {result.lastPermitDate}</span>
                       </div>
                     ) : result.rating ? (
