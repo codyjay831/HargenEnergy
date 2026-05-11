@@ -25,7 +25,11 @@ export type RateLimitBucket =
   | "public-intake"
   | "admin-setup"
   | "portal-request-submit"
-  | "portal-comment";
+  | "portal-comment"
+  | "outreach-google-search"
+  | "outreach-permitstack-search"
+  | "outreach-yelp-enrich"
+  | "outreach-gemini-assist";
 
 const BUCKET_CONFIG: Record<
   RateLimitBucket,
@@ -40,6 +44,14 @@ const BUCKET_CONFIG: Record<
   "portal-request-submit": { max: 25, windowSec: 60 * 60 },
   /** Authenticated client portal: comments on requests (keyed by user id). */
   "portal-comment": { max: 120, windowSec: 60 * 60 },
+  /** Admin outreach contractor finder: Google Places text search. */
+  "outreach-google-search": { max: 20, windowSec: 10 * 60 },
+  /** Admin outreach contractor finder: PermitStack lookups. */
+  "outreach-permitstack-search": { max: 15, windowSec: 10 * 60 },
+  /** Admin outreach enrichment: Yelp match/search per company. */
+  "outreach-yelp-enrich": { max: 30, windowSec: 60 * 60 },
+  /** Admin outreach: Gemini PermitStack query assist. */
+  "outreach-gemini-assist": { max: 10, windowSec: 60 * 60 },
 };
 
 let redisClient: Redis | null = null;

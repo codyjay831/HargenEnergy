@@ -83,6 +83,7 @@ model User {
   comments     RequestComment[]
   passwordResetTokens PasswordResetToken[]
   outreachActivities OutreachActivity[]
+  outreachSearchRuns OutreachSearchRun[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 }
@@ -339,4 +340,33 @@ model OutreachTemplate {
   isActive     Boolean         @default(true)
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
+}
+
+enum OutreachSearchSource {
+  GOOGLE
+  PERMITSTACK
+}
+
+enum OutreachSearchStatus {
+  SUCCESS
+  EMPTY
+  ERROR
+}
+
+model OutreachSearchRun {
+  id             String               @id @default(cuid())
+  source         OutreachSearchSource
+  createdById    String?
+  createdBy      User?                @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  queryText      String?
+  params         Json?
+  resultCount    Int                  @default(0)
+  searchMode     String?
+  status         OutreachSearchStatus
+  errorMessage   String?
+  resultSnapshot Json?
+  createdAt      DateTime             @default(now())
+
+  @@index([createdAt])
+  @@index([source, createdAt])
 }

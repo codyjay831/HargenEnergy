@@ -3,10 +3,49 @@
 import { prisma } from "@/lib/prisma";
 import { outreachCompanySchema, OutreachCompanyInput } from "@/lib/validations";
 import { auth } from "@/auth";
-import { OutreachCompanyStatus, BusinessType } from "@/generated/prisma/client";
+import {
+  BusinessType,
+  OutreachCompanyStatus,
+  OutreachSearchSource,
+  OutreachSearchStatus,
+} from "@/generated/prisma/client";
 import { revalidatePath } from "next/cache";
 import Papa from "papaparse";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { checkRateLimit } from "@/lib/rate-limit";
+import {
+  annotateFinderResults,
+  findExistingOutreachCompany,
+  getRecentOutreachSearchRuns,
+  logOutreachSearchRun,
+  normalizeCompanyName,
+  OUTREACH_SEARCH_RESULT_LIMIT,
+} from "@/lib/outreach-search";
+import {
+  type PermitStackSearchInput,
+  runPermitStackSearch,
+} from "@/lib/outreach-permitstack";
+import {
+  mapYelpCandidate,
+  scoreYelpCandidate,
+  type YelpBusinessCandidate,
+} from "@/lib/outreach-yelp";
+
+async function enforceOutreachRateLimit(
+  bucket:
+    | "outreach-google-search"
+    | "outreach-permitstack-search"
+    | "outreach-yelp-enrich"
+    | "outreach-gemini-assist",
+  userId: string
+) {
+  const result = await checkRateLimit(bucket, `user:${userId}`);
+  if (!result.allowed) {
+    return `Too many requests. Try again in ${result.retryAfterSec} seconds.`;
+  }
+
+  return null;
+}
 
 export async function createOutreachCompany(data: OutreachCompanyInput) {
   const session = await auth();
@@ -23,6 +62,21 @@ export async function createOutreachCompany(data: OutreachCompanyInput) {
   }
 
   try {
+    const duplicate = await findExistingOutreachCompany({
+      name: validatedFields.data.name,
+      city: validatedFields.data.city,
+      state: validatedFields.data.state,
+      website: validatedFields.data.website,
+    });
+
+    if (duplicate) {
+      return {
+        error: "This company already exists in outreach.",
+        existingCompanyId: duplicate.company.id,
+        matchReason: duplicate.reason,
+      };
+    }
+
     const company = await prisma.outreachCompany.create({
       data: {
         ...validatedFields.data,
@@ -242,370 +296,112 @@ export async function searchContractors(query: string) {
     return { error: "Unauthorized. Admin access required." };
   }
 
+  const rateLimitError = await enforceOutreachRateLimit(
+    "outreach-google-search",
+    session.user.id
+  );
+  if (rateLimitError) {
+    return { error: rateLimitError };
+  }
+
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
     return { error: "Google Maps API key not configured." };
   }
 
+  const trimmedQuery = query.trim();
+  if (!trimmedQuery) {
+    return { error: "Enter a search query." };
+  }
+
   try {
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}`
+      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(trimmedQuery)}&key=${apiKey}`
     );
     const data = await response.json();
 
     if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+      await logOutreachSearchRun({
+        source: OutreachSearchSource.GOOGLE,
+        createdById: session.user.id,
+        queryText: trimmedQuery,
+        params: { query: trimmedQuery },
+        resultCount: 0,
+        status: OutreachSearchStatus.ERROR,
+        errorMessage: data.status,
+      });
       return { error: `Google API error: ${data.status}` };
     }
 
-    const results = data.results.map((place: any) => ({
+    const rawResults = (data.results || []).slice(0, OUTREACH_SEARCH_RESULT_LIMIT).map((place: any) => ({
       placeId: place.place_id,
       name: place.name,
       address: place.formatted_address,
       rating: place.rating,
       userRatingsTotal: place.user_ratings_total,
       types: place.types,
-      // Attempt to extract city/state from formatted_address
-      ...parseAddress(place.formatted_address)
+      ...parseAddress(place.formatted_address),
     }));
+
+    const results = await annotateFinderResults(rawResults);
+    const status =
+      results.length > 0 ? OutreachSearchStatus.SUCCESS : OutreachSearchStatus.EMPTY;
+
+    await logOutreachSearchRun({
+      source: OutreachSearchSource.GOOGLE,
+      createdById: session.user.id,
+      queryText: trimmedQuery,
+      params: { query: trimmedQuery },
+      resultCount: results.length,
+      status,
+      resultSnapshot: results.map((result) => ({
+        placeId: result.placeId,
+        name: result.name,
+        city: result.city,
+        state: result.state,
+      })),
+    });
 
     return { success: true, results, count: results.length };
   } catch (error) {
     console.error("Error searching contractors:", error);
+    await logOutreachSearchRun({
+      source: OutreachSearchSource.GOOGLE,
+      createdById: session.user.id,
+      queryText: trimmedQuery,
+      params: { query: trimmedQuery },
+      resultCount: 0,
+      status: OutreachSearchStatus.ERROR,
+      errorMessage: error instanceof Error ? error.message : "Unknown error",
+    });
     return { error: "Failed to search contractors." };
   }
 }
 
-const PERMITSTACK_API_BASE = "https://api.permit-stack.com";
-const PERMITSTACK_PAGE_SIZE = "100";
-
-type PermitStackSearchMode =
-  | "contractors_by_area"
-  | "contractors_by_name"
-  | "derived_from_permits";
-
-type PermitStackContractorSummary = {
-  id: string;
-  name: string;
-  city?: string | null;
-  state?: string | null;
-  total_permits?: number;
-  first_permit_date?: string | null;
-  last_permit_date?: string | null;
-  specialties?: string[] | null;
-};
-
-type PermitStackPermitSummary = {
-  id: string;
-  contractor_name?: string | null;
-  address_street?: string | null;
-  address_city?: string | null;
-  address_state?: string | null;
-  date_issued?: string | null;
-  date_filed?: string | null;
-  jurisdiction_name?: string | null;
-};
-
-type PermitStackSearchResponse<T> = {
-  total?: number;
-  page?: number;
-  per_page?: number;
-  results?: T[];
-};
-
-type PermitStackContractorResult = {
-  placeId: string;
-  name: string;
-  address: string;
-  rating: null;
-  userRatingsTotal: number;
-  city: string | null;
-  state: string | null;
-  permitCount: number | null;
-  lastPermitDate: string | null;
-  specialties: string[];
-  jurisdiction: string | null;
-};
-
-async function fetchPermitStack(
-  path: string,
-  params: Record<string, string>,
-  apiKey: string
-) {
-  const url = new URL(`${PERMITSTACK_API_BASE}${path}`);
-  for (const [key, value] of Object.entries(params)) {
-    if (value) {
-      url.searchParams.set(key, value);
-    }
-  }
-
-  const response = await fetch(url.toString(), {
-    headers: {
-      "X-API-Key": apiKey,
-    },
-  });
-
-  const text = await response.text();
-  let data: unknown = null;
-
-  if (text) {
-    try {
-      data = JSON.parse(text);
-    } catch {
-      if (!response.ok) {
-        return {
-          error: `PermitStack error: ${response.status} ${response.statusText}`,
-        };
-      }
-
-      return { error: "PermitStack returned an invalid response." };
-    }
-  }
-
-  if (!response.ok) {
-    const payload = data as {
-      message?: string;
-      error?: string | { description?: string; message?: string };
-    } | null;
-    const nestedError = payload?.error;
-    const message =
-      payload?.message ||
-      (typeof nestedError === "string"
-        ? nestedError
-        : nestedError?.description || nestedError?.message) ||
-      response.statusText;
-
-    return { error: `PermitStack error: ${message}` };
-  }
-
-  return { data };
-}
-
-function getPermitStackResults<T>(data: unknown): T[] {
-  const payload = data as PermitStackSearchResponse<T> | null;
-  if (!payload || !Array.isArray(payload.results)) {
-    return [];
-  }
-
-  return payload.results;
-}
-
-function parsePermitStackLocationQuery(
-  query: string
-): { city: string; state?: string } | null {
-  const trimmed = query.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  const commaParts = trimmed.split(",").map((part) => part.trim()).filter(Boolean);
-  if (commaParts.length >= 2) {
-    const city = commaParts[0];
-    const statePart = commaParts[1];
-    const stateMatch = statePart.match(/^([A-Za-z]{2})\b/);
-
-    return {
-      city,
-      state: stateMatch ? stateMatch[1].toUpperCase() : statePart,
-    };
-  }
-
-  const businessPattern =
-    /\b(llc|inc|corp|company|solar|electric|roofing|construction|services|group)\b/i;
-  if (businessPattern.test(trimmed)) {
-    return null;
-  }
-
-  return { city: trimmed };
-}
-
-function mapPermitStackContractor(
-  contractor: PermitStackContractorSummary
-): PermitStackContractorResult {
-  return {
-    placeId: contractor.id,
-    name: contractor.name,
-    address: "",
-    rating: null,
-    userRatingsTotal: 0,
-    city: contractor.city || null,
-    state: contractor.state || null,
-    permitCount: contractor.total_permits ?? null,
-    lastPermitDate: contractor.last_permit_date || null,
-    specialties: contractor.specialties || [],
-    jurisdiction: null,
-  };
-}
-
-function contractorsFromPermits(
-  permits: PermitStackPermitSummary[]
-): PermitStackContractorResult[] {
-  const byKey = new Map<string, PermitStackContractorResult>();
-
-  for (const permit of permits) {
-    const name = permit.contractor_name?.trim();
-    if (!name) {
-      continue;
-    }
-
-    const key = name.toLowerCase();
-    const permitDate = permit.date_issued || permit.date_filed || null;
-    const existing = byKey.get(key);
-
-    if (!existing) {
-      byKey.set(key, {
-        placeId: `permit-${key}`,
-        name,
-        address: permit.address_street || "",
-        rating: null,
-        userRatingsTotal: 0,
-        city: permit.address_city || null,
-        state: permit.address_state || null,
-        permitCount: 1,
-        lastPermitDate: permitDate,
-        specialties: [],
-        jurisdiction: permit.jurisdiction_name || null,
-      });
-      continue;
-    }
-
-    existing.permitCount = (existing.permitCount || 0) + 1;
-    if (
-      permitDate &&
-      (!existing.lastPermitDate || String(permitDate) > String(existing.lastPermitDate))
-    ) {
-      existing.lastPermitDate = permitDate;
-    }
-
-    if (permit.jurisdiction_name && !existing.jurisdiction) {
-      existing.jurisdiction = permit.jurisdiction_name;
-    }
-  }
-
-  return Array.from(byKey.values());
-}
-
-async function searchPermitStackContractors(
-  params: Record<string, string>,
-  apiKey: string
-) {
-  const response = await fetchPermitStack(
-    "/v1/contractors/search",
-    {
-      per_page: PERMITSTACK_PAGE_SIZE,
-      ...params,
-    },
-    apiKey
-  );
-
-  if (response.error) {
-    return { error: response.error };
-  }
-
-  return {
-    results: getPermitStackResults<PermitStackContractorSummary>(response.data).map(
-      mapPermitStackContractor
-    ),
-  };
-}
-
-async function searchPermitStackPermits(
-  params: Record<string, string>,
-  apiKey: string
-) {
-  const response = await fetchPermitStack(
-    "/v1/permits/search",
-    {
-      per_page: PERMITSTACK_PAGE_SIZE,
-      ...params,
-    },
-    apiKey
-  );
-
-  if (response.error) {
-    return { error: response.error };
-  }
-
-  return {
-    results: contractorsFromPermits(
-      getPermitStackResults<PermitStackPermitSummary>(response.data)
-    ),
-  };
-}
-
-function getPermitStackCoverageJurisdictions(data: unknown) {
-  if (!data || typeof data !== "object") {
-    return [] as Array<{ name?: string; city?: string; state?: string }>;
-  }
-
-  const payload = data as {
-    results?: Array<{ name?: string; city?: string; state?: string }>;
-    jurisdictions?: Array<{ name?: string; city?: string; state?: string }>;
-  };
-
-  if (Array.isArray(payload.results)) {
-    return payload.results;
-  }
-
-  if (Array.isArray(payload.jurisdictions)) {
-    return payload.jurisdictions;
-  }
-
-  return getPermitStackResults<{ name?: string; city?: string; state?: string }>(data);
-}
-
-async function getPermitStackCoverageMessage(
-  location: { city: string; state?: string },
-  apiKey: string
-) {
-  const response = await fetchPermitStack("/v1/permits/stats/coverage", {}, apiKey);
-  if (response.error || !response.data) {
-    return null;
-  }
-
-  const jurisdictions = getPermitStackCoverageJurisdictions(response.data);
-  const cityLower = location.city.toLowerCase();
-  const stateLower = location.state?.toLowerCase();
-
-  const matches = jurisdictions.filter((jurisdiction) => {
-    const jurisdictionCity = jurisdiction.city?.toLowerCase();
-    const jurisdictionName = jurisdiction.name?.toLowerCase();
-    const jurisdictionState = jurisdiction.state?.toLowerCase();
-
-    const cityMatches =
-      jurisdictionCity === cityLower ||
-      jurisdictionName?.includes(cityLower) ||
-      jurisdictionName === cityLower;
-    const stateMatches = !stateLower || jurisdictionState === stateLower;
-
-    return cityMatches && stateMatches;
-  });
-
-  if (matches.length === 0) {
-    return `No PermitStack coverage found for ${location.city}${location.state ? `, ${location.state}` : ""}. Try another covered city or search by contractor name.`;
-  }
-
-  return `${location.city}${location.state ? `, ${location.state}` : ""} is in PermitStack coverage, but no solar contractors matched this search. Permit activity may be limited or stale in that jurisdiction.`;
-}
-
-function buildPermitStackEmptyMessage(
-  location: { city: string; state?: string } | null,
-  coverageMessage: string | null
-) {
-  if (coverageMessage) {
-    return coverageMessage;
-  }
-
-  if (location) {
-    return `No PermitStack contractors matched ${location.city}${location.state ? `, ${location.state}` : ""}. Try adding a state code or searching by contractor name.`;
-  }
-
-  return "No PermitStack contractors matched that search. Try a covered city/state or a contractor name.";
-}
-
-export async function searchPermitStack(query: string) {
+export async function listOutreachSearchHistory(limit = 20) {
   const session = await auth();
   if (!session?.user || session.user.role !== "ADMIN") {
     return { error: "Unauthorized. Admin access required." };
+  }
+
+  const runs = await getRecentOutreachSearchRuns(limit);
+  return { success: true, runs };
+}
+
+export type { PermitStackSearchInput } from "@/lib/outreach-permitstack";
+
+export async function searchPermitStack(input: PermitStackSearchInput) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { error: "Unauthorized. Admin access required." };
+  }
+
+  const rateLimitError = await enforceOutreachRateLimit(
+    "outreach-permitstack-search",
+    session.user.id
+  );
+  if (rateLimitError) {
+    return { error: rateLimitError };
   }
 
   const apiKey = process.env.PERMITSTACK_API_KEY;
@@ -613,107 +409,139 @@ export async function searchPermitStack(query: string) {
     return { error: "PermitStack API key not configured." };
   }
 
-  const trimmedQuery = query.trim();
-  if (!trimmedQuery) {
-    return { error: "Enter a city, state, or contractor name to search PermitStack." };
-  }
-
   try {
-    const location = parsePermitStackLocationQuery(trimmedQuery);
-
-    if (location) {
-      const contractorParams: Record<string, string> = {
-        city: location.city,
-        specialty: "solar",
-      };
-
-      if (location.state) {
-        contractorParams.state = location.state;
-      }
-
-      const contractorSearch = await searchPermitStackContractors(contractorParams, apiKey);
-      if (contractorSearch.error) {
-        return { error: contractorSearch.error };
-      }
-
-      const areaContractors = contractorSearch.results ?? [];
-      if (areaContractors.length > 0) {
-        return {
-          success: true,
-          results: areaContractors,
-          count: areaContractors.length,
-          searchMode: "contractors_by_area" as PermitStackSearchMode,
-        };
-      }
-
-      const permitParams: Record<string, string> = {
-        city: location.city,
-        category: "solar",
-        jurisdiction: location.city,
-      };
-
-      if (location.state) {
-        permitParams.state = location.state;
-      }
-
-      const permitSearch = await searchPermitStackPermits(permitParams, apiKey);
-      if (permitSearch.error) {
-        return { error: permitSearch.error };
-      }
-
-      const derivedContractors = permitSearch.results ?? [];
-      if (derivedContractors.length > 0) {
-        return {
-          success: true,
-          results: derivedContractors,
-          count: derivedContractors.length,
-          searchMode: "derived_from_permits" as PermitStackSearchMode,
-        };
-      }
-
-      const coverageMessage = await getPermitStackCoverageMessage(location, apiKey);
-      return {
-        success: true,
-        results: [],
-        count: 0,
-        searchMode: "contractors_by_area" as PermitStackSearchMode,
-        message: buildPermitStackEmptyMessage(location, coverageMessage),
-      };
+    const searchResult = await runPermitStackSearch(input, apiKey);
+    if ("error" in searchResult && searchResult.error) {
+      await logOutreachSearchRun({
+        source: OutreachSearchSource.PERMITSTACK,
+        createdById: session.user.id,
+        queryText: input.contractorName || input.city || null,
+        params: input,
+        resultCount: 0,
+        searchMode: input.searchType,
+        status: OutreachSearchStatus.ERROR,
+        errorMessage: searchResult.error,
+      });
+      return { error: searchResult.error };
     }
 
-    const contractorSearch = await searchPermitStackContractors(
-      {
-        name: trimmedQuery,
-        specialty: "solar",
+    const annotated = await annotateFinderResults(searchResult.results ?? []);
+    const status =
+      annotated.length > 0 ? OutreachSearchStatus.SUCCESS : OutreachSearchStatus.EMPTY;
+
+    await logOutreachSearchRun({
+      source: OutreachSearchSource.PERMITSTACK,
+      createdById: session.user.id,
+      queryText: input.contractorName || input.city || null,
+      params: {
+        ...input,
+        attempted: searchResult.attempted,
+        resolvedJurisdiction: searchResult.resolvedJurisdiction,
       },
-      apiKey
-    );
-
-    if (contractorSearch.error) {
-      return { error: contractorSearch.error };
-    }
-
-    const namedContractors = contractorSearch.results ?? [];
-    if (namedContractors.length > 0) {
-      return {
-        success: true,
-        results: namedContractors,
-        count: namedContractors.length,
-        searchMode: "contractors_by_name" as PermitStackSearchMode,
-      };
-    }
+      resultCount: annotated.length,
+      searchMode: searchResult.searchMode,
+      status,
+      errorMessage: searchResult.message,
+      resultSnapshot: annotated.map((result) => ({
+        placeId: result.placeId,
+        name: result.name,
+        city: result.city,
+        state: result.state,
+      })),
+    });
 
     return {
       success: true,
-      results: [],
-      count: 0,
-      searchMode: "contractors_by_name" as PermitStackSearchMode,
-      message: buildPermitStackEmptyMessage(null, null),
+      results: annotated,
+      count: annotated.length,
+      searchMode: searchResult.searchMode,
+      message: searchResult.message,
+      resolvedJurisdiction: searchResult.resolvedJurisdiction,
+      attempted: searchResult.attempted,
     };
   } catch (error) {
     console.error("Error searching PermitStack:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
+    await logOutreachSearchRun({
+      source: OutreachSearchSource.PERMITSTACK,
+      createdById: session.user.id,
+      queryText: input.contractorName || input.city || null,
+      params: input,
+      resultCount: 0,
+      searchMode: input.searchType,
+      status: OutreachSearchStatus.ERROR,
+      errorMessage: message,
+    });
     return { error: `Failed to search PermitStack: ${message}` };
+  }
+}
+
+export async function normalizePermitStackQueryWithAI(text: string) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { error: "Unauthorized. Admin access required." };
+  }
+
+  const rateLimitError = await enforceOutreachRateLimit(
+    "outreach-gemini-assist",
+    session.user.id
+  );
+  if (rateLimitError) {
+    return { error: rateLimitError };
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return { error: "Gemini API key not configured." };
+  }
+
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return { error: "Enter text for AI to normalize." };
+  }
+
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const prompt = `
+      Convert the following admin search text into PermitStack search parameters.
+      Return JSON only with:
+      - searchType: "area" or "contractor"
+      - city: string or null
+      - state: 2-letter US state or null
+      - jurisdiction: string or null
+      - contractorName: string or null
+      - rationale: short string
+
+      Input: ${trimmed}
+    `;
+
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return { error: "AI could not normalize that query." };
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]) as PermitStackSearchInput & {
+      rationale?: string;
+    };
+
+    return {
+      success: true,
+      input: {
+        searchType: parsed.searchType === "contractor" ? "contractor" : "area",
+        city: parsed.city || undefined,
+        state: parsed.state || undefined,
+        jurisdiction: parsed.jurisdiction || undefined,
+        contractorName: parsed.contractorName || undefined,
+        category: "solar",
+      } satisfies PermitStackSearchInput,
+      rationale: parsed.rationale || null,
+    };
+  } catch (error) {
+    console.error("Error normalizing PermitStack query with AI:", error);
+    return { error: "Failed to normalize PermitStack query." };
   }
 }
 
@@ -942,10 +770,114 @@ export async function enrichWithApollo(companyId: string) {
   }
 }
 
-export async function enrichWithYelp(companyId: string) {
+function extractAddressLineFromNotes(notes?: string | null) {
+  if (!notes) {
+    return null;
+  }
+
+  const match = notes.match(/^Address:\s*(.+)$/m);
+  return match?.[1]?.trim() || null;
+}
+
+async function fetchYelpBusinessDetails(apiKey: string, businessId: string) {
+  const response = await fetch(`https://api.yelp.com/v3/businesses/${businessId}`, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    return {
+      error: `Yelp error: ${data.error?.description || response.statusText}`,
+    };
+  }
+
+  return { business: data };
+}
+
+async function applyYelpBusinessToCompany(
+  companyId: string,
+  business: {
+    id: string;
+    name: string;
+    rating?: number;
+    review_count?: number;
+    is_closed?: boolean;
+  },
+  confidence: number
+) {
+  const company = await prisma.outreachCompany.findUnique({ where: { id: companyId } });
+  if (!company) {
+    return { error: "Company not found." };
+  }
+
+  const apiKey = process.env.YELP_API_KEY;
+  if (!apiKey) {
+    return { error: "Yelp API key not configured." };
+  }
+
+  let latestReview = "";
+  try {
+    const reviewsResponse = await fetch(
+      `https://api.yelp.com/v3/businesses/${business.id}/reviews?limit=3&sort_by=newest`,
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+      }
+    );
+    if (reviewsResponse.ok) {
+      const reviewsData = await reviewsResponse.json();
+      const firstReview = reviewsData.reviews?.[0];
+      if (firstReview?.text) {
+        latestReview = `\nMost Recent Review (${firstReview.rating} stars): "${String(firstReview.text).replace(/\n/g, " ")}"`;
+      }
+    }
+  } catch (reviewError) {
+    console.warn("Failed to fetch Yelp reviews:", reviewError);
+  }
+
+  const isClosed = !!business.is_closed;
+  const statusText = isClosed ? "PERMANENTLY CLOSED" : "Active";
+  const yelpNote = `Yelp Status: ${statusText}\nYelp Match Confidence: ${Math.round(confidence * 100)}%\nYelp Rating: ${business.rating ?? "N/A"} (${business.review_count ?? 0} reviews)${latestReview}`;
+
+  const existingEnrichment =
+    company.enrichmentData && typeof company.enrichmentData === "object"
+      ? (company.enrichmentData as Record<string, unknown>)
+      : {};
+
+  await prisma.outreachCompany.update({
+    where: { id: companyId },
+    data: {
+      notes: company.notes ? `${company.notes}\n\n${yelpNote}` : yelpNote,
+      interestLevel: isClosed ? 0 : (Math.round(business.rating || 0) || company.interestLevel),
+      doNotContact: isClosed ? true : company.doNotContact,
+      status: isClosed ? OutreachCompanyStatus.BAD_FIT : company.status,
+      enrichmentData: {
+        ...existingEnrichment,
+        yelpBusinessId: business.id,
+        yelpMatchConfidence: confidence,
+        yelpBusinessName: business.name,
+      },
+    },
+  });
+
+  revalidatePath(`/admin/outreach/companies/${companyId}`);
+  return { success: true, message: `Updated from Yelp. Status: ${statusText}` };
+}
+
+export async function enrichWithYelp(companyId: string, selectedBusinessId?: string) {
   const session = await auth();
   if (!session?.user || session.user.role !== "ADMIN") {
     return { error: "Unauthorized. Admin access required." };
+  }
+
+  const rateLimitError = await enforceOutreachRateLimit(
+    "outreach-yelp-enrich",
+    session.user.id
+  );
+  if (rateLimitError) {
+    return { error: rateLimitError };
   }
 
   const apiKey = process.env.YELP_API_KEY;
@@ -957,60 +889,84 @@ export async function enrichWithYelp(companyId: string) {
     const company = await prisma.outreachCompany.findUnique({ where: { id: companyId } });
     if (!company) return { error: "Company not found." };
 
-    // 1. Search for the business to get ID and basic info
-    const searchResponse = await fetch(
-      `https://api.yelp.com/v3/businesses/search?term=${encodeURIComponent(company.name)}&location=${encodeURIComponent(`${company.city || ""}, ${company.state || ""}`)}&limit=1`,
-      {
+    if (selectedBusinessId) {
+      const details = await fetchYelpBusinessDetails(apiKey, selectedBusinessId);
+      if (details.error) {
+        return { error: details.error };
+      }
+
+      return applyYelpBusinessToCompany(companyId, details.business, 1);
+    }
+
+    const addressLine = extractAddressLineFromNotes(company.notes);
+    let candidates: YelpBusinessCandidate[] = [];
+
+    if (addressLine) {
+      const matchUrl = new URL("https://api.yelp.com/v3/businesses/matches");
+      matchUrl.searchParams.set("name", company.name);
+      matchUrl.searchParams.set("address1", addressLine);
+      if (company.city) {
+        matchUrl.searchParams.set("city", company.city);
+      }
+      if (company.state) {
+        matchUrl.searchParams.set("state", company.state);
+      }
+      matchUrl.searchParams.set("country", "US");
+
+      const matchResponse = await fetch(matchUrl.toString(), {
         headers: {
           Authorization: `Bearer ${apiKey}`,
         },
+      });
+      const matchData = await matchResponse.json();
+      if (matchResponse.ok && Array.isArray(matchData.businesses)) {
+        candidates = matchData.businesses.map((business: any) =>
+          mapYelpCandidate(business, scoreYelpCandidate(company, business))
+        );
       }
-    );
+    }
 
-    const searchData = await searchResponse.json();
-    if (!searchResponse.ok) return { error: `Yelp Search error: ${searchData.error?.description || searchResponse.statusText}` };
-
-    const biz = searchData.businesses?.[0];
-    if (!biz) return { error: "No matching business found on Yelp." };
-
-    // 2. Fetch the most recent reviews for this business
-    let latestReview = "";
-    try {
-      const reviewsResponse = await fetch(
-        `https://api.yelp.com/v3/businesses/${biz.id}/reviews?limit=3&sort_by=newest`,
+    if (candidates.length === 0) {
+      const searchResponse = await fetch(
+        `https://api.yelp.com/v3/businesses/search?term=${encodeURIComponent(company.name)}&location=${encodeURIComponent(`${company.city || ""}, ${company.state || ""}`)}&limit=5`,
         {
           headers: {
             Authorization: `Bearer ${apiKey}`,
           },
         }
       );
-      if (reviewsResponse.ok) {
-        const reviewsData = await reviewsResponse.json();
-        if (reviewsData.reviews && reviewsData.reviews.length > 0) {
-          const firstReview = reviewsData.reviews[0];
-          latestReview = `\nMost Recent Review (${firstReview.rating} stars): "${firstReview.text.replace(/\n/g, " ")}"`;
-        }
+      const searchData = await searchResponse.json();
+      if (!searchResponse.ok) {
+        return { error: `Yelp Search error: ${searchData.error?.description || searchResponse.statusText}` };
       }
-    } catch (reviewError) {
-      console.warn("Failed to fetch Yelp reviews:", reviewError);
+
+      candidates = (searchData.businesses || []).map((business: any) =>
+        mapYelpCandidate(business, scoreYelpCandidate(company, business))
+      );
     }
 
-    const isClosed = biz.is_closed;
-    const statusText = isClosed ? "PERMANENTLY CLOSED" : "Active";
-    const yelpNote = `Yelp Status: ${statusText}\nYelp Rating: ${biz.rating} (${biz.review_count} reviews)${latestReview}`;
+    candidates.sort((left, right) => right.confidence - left.confidence);
 
-    await prisma.outreachCompany.update({
-      where: { id: companyId },
-      data: {
-        notes: company.notes ? `${company.notes}\n\n${yelpNote}` : yelpNote,
-        interestLevel: isClosed ? 0 : (Math.round(biz.rating) || company.interestLevel),
-        doNotContact: isClosed ? true : company.doNotContact,
-        status: isClosed ? OutreachCompanyStatus.BAD_FIT : company.status,
+    if (candidates.length === 0) {
+      return { error: "No matching business found on Yelp." };
+    }
+
+    const best = candidates[0];
+    if (best.confidence >= 0.75) {
+      const details = await fetchYelpBusinessDetails(apiKey, best.id);
+      if (details.error) {
+        return { error: details.error };
       }
-    });
 
-    revalidatePath(`/admin/outreach/companies/${companyId}`);
-    return { success: true, message: `Updated from Yelp. Status: ${statusText}` };
+      return applyYelpBusinessToCompany(companyId, details.business, best.confidence);
+    }
+
+    return {
+      success: true,
+      requiresSelection: true,
+      candidates: candidates.slice(0, 3),
+      message: "Multiple Yelp matches found. Select the correct business.",
+    };
   } catch (error) {
     console.error("Error enriching with Yelp:", error);
     return { error: "Failed to enrich with Yelp." };

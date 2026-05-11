@@ -3,21 +3,21 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  Users, 
-  Star, 
-  ShieldCheck, 
-  Sparkles, 
+import {
+  Users,
+  Star,
+  ShieldCheck,
+  Sparkles,
   Loader2,
-  CheckCircle2
 } from "lucide-react";
-import { 
-  enrichWithApollo, 
-  enrichWithYelp, 
-  checkLicenseStatus, 
-  enrichCompanyWithAI 
+import {
+  enrichWithApollo,
+  enrichWithYelp,
+  checkLicenseStatus,
+  enrichCompanyWithAI,
 } from "@/app/actions/outreach";
 import { useRouter } from "next/navigation";
+import type { YelpBusinessCandidate } from "@/lib/outreach-yelp";
 
 interface EnrichmentToolsProps {
   companyId: string;
@@ -25,9 +25,11 @@ interface EnrichmentToolsProps {
 
 export function EnrichmentTools({ companyId }: EnrichmentToolsProps) {
   const [loading, setLoading] = useState<string | null>(null);
+  const [yelpCandidates, setYelpCandidates] = useState<YelpBusinessCandidate[]>([]);
+  const [yelpMessage, setYelpMessage] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleEnrich = async (source: string, action: Function) => {
+  const handleEnrich = async (source: string, action: (companyId: string) => Promise<any>) => {
     setLoading(source);
     const result = await action(companyId);
     if (result.success) {
@@ -35,6 +37,30 @@ export function EnrichmentTools({ companyId }: EnrichmentToolsProps) {
     } else {
       alert(result.error);
     }
+    setLoading(null);
+  };
+
+  const handleYelpEnrich = async (selectedBusinessId?: string) => {
+    setLoading("yelp");
+    setYelpMessage(null);
+
+    const result = await enrichWithYelp(companyId, selectedBusinessId);
+
+    if ("requiresSelection" in result && result.requiresSelection && result.candidates) {
+      setYelpCandidates(result.candidates);
+      setYelpMessage(result.message || "Select the correct Yelp business.");
+      setLoading(null);
+      return;
+    }
+
+    if ("success" in result && result.success) {
+      setYelpCandidates([]);
+      setYelpMessage(null);
+      router.refresh();
+    } else {
+      alert(result.error);
+    }
+
     setLoading(null);
   };
 
@@ -47,8 +73,8 @@ export function EnrichmentTools({ companyId }: EnrichmentToolsProps) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           className="w-full justify-start text-xs h-9"
           onClick={() => handleEnrich("apollo", enrichWithApollo)}
           disabled={!!loading}
@@ -61,10 +87,10 @@ export function EnrichmentTools({ companyId }: EnrichmentToolsProps) {
           Find People (Apollo)
         </Button>
 
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           className="w-full justify-start text-xs h-9"
-          onClick={() => handleEnrich("yelp", enrichWithYelp)}
+          onClick={() => handleYelpEnrich()}
           disabled={!!loading}
         >
           {loading === "yelp" ? (
@@ -75,8 +101,38 @@ export function EnrichmentTools({ companyId }: EnrichmentToolsProps) {
           Get Reviews (Yelp)
         </Button>
 
-        <Button 
-          variant="outline" 
+        {yelpMessage && (
+          <p className="text-xs text-muted-foreground">{yelpMessage}</p>
+        )}
+
+        {yelpCandidates.length > 0 && (
+          <div className="space-y-2 rounded-md border p-2">
+            {yelpCandidates.map((candidate) => (
+              <Button
+                key={candidate.id}
+                variant="outline"
+                className="w-full justify-start h-auto py-2 text-left"
+                onClick={() => handleYelpEnrich(candidate.id)}
+                disabled={loading === "yelp"}
+              >
+                <div className="flex flex-col items-start gap-0.5">
+                  <span className="text-xs font-medium">{candidate.name}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {[candidate.address, candidate.city, candidate.state]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    Match confidence: {Math.round(candidate.confidence * 100)}%
+                  </span>
+                </div>
+              </Button>
+            ))}
+          </div>
+        )}
+
+        <Button
+          variant="outline"
           className="w-full justify-start text-xs h-9"
           onClick={() => handleEnrich("license", checkLicenseStatus)}
           disabled={!!loading}
@@ -89,8 +145,8 @@ export function EnrichmentTools({ companyId }: EnrichmentToolsProps) {
           Verify License (Trades)
         </Button>
 
-        <Button 
-          variant="default" 
+        <Button
+          variant="default"
           className="w-full justify-start text-xs h-9 bg-primary/10 text-primary hover:bg-primary/20 border-primary/20"
           onClick={() => handleEnrich("ai", enrichCompanyWithAI)}
           disabled={!!loading}
