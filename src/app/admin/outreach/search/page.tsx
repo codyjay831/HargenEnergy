@@ -23,6 +23,11 @@ import {
   normalizePermitStackQueryWithAI,
   type PermitStackSearchInput,
 } from "@/app/actions/outreach";
+import { getRecentOutreachSearchRuns } from "@/lib/outreach-search";
+
+type OutreachSearchHistoryRun = Awaited<
+  ReturnType<typeof getRecentOutreachSearchRuns>
+>[number];
 import {
   Table,
   TableBody,
@@ -193,7 +198,7 @@ export default function ContractorFinderPage() {
   const [attemptDiagnostics, setAttemptDiagnostics] = useState<PermitStackAttemptDiagnostic[]>(
     []
   );
-  const [recentSearches, setRecentSearches] = useState<any[]>([]);
+  const [recentSearches, setRecentSearches] = useState<OutreachSearchHistoryRun[]>([]);
   const [replayedSearchAt, setReplayedSearchAt] = useState<string | null>(null);
   const [isViewingCachedResults, setIsViewingCachedResults] = useState(false);
   const [loadingReplayId, setLoadingReplayId] = useState<string | null>(null);
@@ -271,14 +276,7 @@ export default function ContractorFinderPage() {
     setIsViewingCachedResults(false);
   };
 
-  const handleViewSearchResults = async (run: {
-    id: string;
-    source: string;
-    createdAt: string;
-    params: unknown;
-    searchMode?: string | null;
-    errorMessage?: string | null;
-  }) => {
+  const handleViewSearchResults = async (run: OutreachSearchHistoryRun) => {
     setLoadingReplayId(run.id);
     const response = await getOutreachSearchRun(run.id);
 

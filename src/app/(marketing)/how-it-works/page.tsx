@@ -36,7 +36,7 @@ const steps = [
     title: "Work stays visible",
     icon: Eye,
     description:
-      "You get a private client view of open requests and how weekly time is used. No guessing whether something is in progress.",
+      "After onboarding, you get a private portal for open work and weekly time. No guessing whether something is in progress.",
   },
   {
     title: "Review and reset priorities",
@@ -126,7 +126,7 @@ export default function HowItWorksPage() {
                 href="/request-help"
                 className={cn(buttonVariants({ size: "lg" }), marketingAmberCta, "mt-8 w-full sm:mt-6")}
               >
-                Request Solar Ops Support
+                Request a walkthrough
               </Link>
             </div>
           </div>

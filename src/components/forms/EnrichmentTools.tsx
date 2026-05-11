@@ -29,7 +29,10 @@ export function EnrichmentTools({ companyId }: EnrichmentToolsProps) {
   const [yelpMessage, setYelpMessage] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleEnrich = async (source: string, action: (companyId: string) => Promise<any>) => {
+  const handleEnrich = async (
+    source: string,
+    action: (companyId: string) => Promise<{ success?: boolean; error?: string }>,
+  ) => {
     setLoading(source);
     const result = await action(companyId);
     if (result.success) {

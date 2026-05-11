@@ -8,7 +8,10 @@ import {
   ClientStatus,
   RequestStatus,
   OverflowStatus,
+  SupportRequestKind,
+  SupportRequestSource,
 } from "@/generated/prisma/client";
+import { buildIntakeTitle } from "@/lib/request-lifecycle";
 import {
   sendRequestConfirmation,
   sendInternalRequestAlert,
@@ -91,7 +94,9 @@ export async function submitRequestHelp(data: RequestHelpInput) {
     const supportRequest = await prisma.supportRequest.create({
       data: {
         clientId: client.id,
-        title: `Intake: ${supportNeeded.slice(0, 2).join(", ")}${supportNeeded.length > 2 ? "..." : ""}`,
+        title: buildIntakeTitle(supportNeeded),
+        kind: SupportRequestKind.PROSPECT_INTAKE,
+        source: SupportRequestSource.PUBLIC_FORM,
         supportNeeded: supportNeeded.join(", "),
         description: bottleneck,
         mostHelpful: takeOffPlate,
@@ -113,6 +118,7 @@ export async function submitRequestHelp(data: RequestHelpInput) {
           urgency,
           description: bottleneck,
           requestId: supportRequest.id,
+          kind: SupportRequestKind.PROSPECT_INTAKE,
         }),
       ]);
     } catch (emailError) {
@@ -212,9 +218,12 @@ export async function updateRequest(
         sendClientUpdateEmail({
           to: request.client.email,
           requestTitle: request.title,
+          requestId: request.id,
           status: request.status,
           needsInfo: request.needsInfo,
           clientVisibleUpdate: request.clientVisibleUpdate,
+          companyName: request.client.companyName,
+          logoUrl: request.client.logoUrl,
         }),
       );
     }

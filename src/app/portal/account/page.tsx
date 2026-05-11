@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, CreditCard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { PortalBillingPortalButton } from "@/components/forms/PortalBillingPortalButton";
 
 export const dynamic = "force-dynamic";
 
@@ -94,12 +95,15 @@ export default async function PortalAccount() {
               <span className="text-sm font-medium">{client.weeklyHours} hours per week</span>
             </div>
 
-            <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-              <p className="text-xs text-slate-600 leading-relaxed">
-                <strong>Need to change your plan?</strong><br />
-                To upgrade, downgrade, or cancel your weekly support block, please contact your Hargen Energy account manager directly.
-              </p>
-            </div>
+            {client.stripeCustomerId ? (
+              <PortalBillingPortalButton />
+            ) : (
+              <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Retainer billing will appear here after your account manager enables Stripe billing.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

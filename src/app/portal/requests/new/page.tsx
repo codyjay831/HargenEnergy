@@ -16,7 +16,7 @@ export default function NewPortalRequest() {
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Submit New Support Request</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Submit work</h1>
           <p className="text-muted-foreground">Tell us where you&apos;re getting stuck and we&apos;ll help get it moving.</p>
         </div>
       </div>

@@ -103,3 +103,31 @@ export async function createCheckoutSession(clientId: string, planTypeRaw: strin
 
   return { url: checkoutSession.url };
 }
+
+export async function createClientBillingPortalSession() {
+  const session = await auth();
+
+  if (!session?.user?.clientId) {
+    throw new Error("Unauthorized. Client access required.");
+  }
+
+  const client = await prisma.client.findUnique({
+    where: { id: session.user.clientId },
+  });
+
+  if (!client?.stripeCustomerId) {
+    throw new Error("Billing is not configured for this account yet.");
+  }
+
+  const stripe = getStripe();
+  const portalSession = await stripe.billingPortal.sessions.create({
+    customer: client.stripeCustomerId,
+    return_url: `${APP_URL}/portal/account`,
+  });
+
+  if (!portalSession.url) {
+    throw new Error("Failed to create billing portal session.");
+  }
+
+  return { url: portalSession.url };
+}

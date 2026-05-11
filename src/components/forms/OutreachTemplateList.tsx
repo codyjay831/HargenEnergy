@@ -2,11 +2,21 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Copy, Check, Mail, MessageSquare, Globe } from "lucide-react";
+import { Copy, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
+interface OutreachTemplateCompany {
+  name: string;
+  city: string | null;
+  state: string | null;
+  contacts: Array<{
+    name: string | null;
+    isPrimary: boolean;
+  }>;
+}
+
 interface OutreachTemplateListProps {
-  company: any;
+  company: OutreachTemplateCompany;
 }
 
 const DEFAULT_TEMPLATES = [
@@ -41,7 +51,8 @@ const DEFAULT_TEMPLATES = [
 export function OutreachTemplateList({ company }: OutreachTemplateListProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const primaryContact = company.contacts.find((c: any) => c.isPrimary) || company.contacts[0];
+  const primaryContact =
+    company.contacts.find((contact) => contact.isPrimary) || company.contacts[0];
   const contactName = primaryContact?.name?.split(" ")[0] || "there";
 
   const replaceVariables = (text: string) => {

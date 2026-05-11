@@ -66,3 +66,30 @@ export type RequestStatusValue = (typeof REQUEST_STATUS_VALUES)[number];
 export function isRequestStatusValue(v: string): v is RequestStatusValue {
   return (REQUEST_STATUS_VALUES as readonly string[]).includes(v);
 }
+
+export const SUPPORT_REQUEST_SOURCE_VALUES = [
+  "EMAIL",
+  "PHONE",
+  "TEXT",
+  "VOICEMAIL",
+  "ADMIN",
+] as const;
+export type SupportRequestSourceValue =
+  (typeof SUPPORT_REQUEST_SOURCE_VALUES)[number];
+
+export const SUPPORT_REQUEST_SOURCE_OPTIONS: {
+  value: SupportRequestSourceValue;
+  label: string;
+}[] = [
+  { value: "EMAIL", label: "Email" },
+  { value: "PHONE", label: "Phone call" },
+  { value: "TEXT", label: "Text message" },
+  { value: "VOICEMAIL", label: "Voicemail" },
+  { value: "ADMIN", label: "Other / admin" },
+];
+
+export function isSupportRequestSourceValue(
+  v: string,
+): v is SupportRequestSourceValue {
+  return (SUPPORT_REQUEST_SOURCE_VALUES as readonly string[]).includes(v);
+}

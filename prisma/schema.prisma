@@ -48,6 +48,21 @@ enum RequestStatus {
   CANCELLED
 }
 
+enum SupportRequestKind {
+  PROSPECT_INTAKE
+  CLIENT_OPS
+}
+
+enum SupportRequestSource {
+  PUBLIC_FORM
+  PORTAL
+  EMAIL
+  PHONE
+  TEXT
+  VOICEMAIL
+  ADMIN
+}
+
 enum BillableType {
   INCLUDED
   OVERFLOW
@@ -68,6 +83,41 @@ enum AuthorType {
   SYSTEM
 }
 
+enum SystemAccessType {
+  AHJ
+  UTILITY
+  CRM
+  EMAIL
+  OTHER
+}
+
+enum SystemAccessMethod {
+  VAULT_LINK
+  CLIENT_WILL_INVITE
+  ADMIN_SECURE_NOTE
+}
+
+enum SystemAccessStatus {
+  NOT_PROVIDED
+  PROVIDED
+  VERIFIED
+}
+
+enum DisbursementPaymentMethod {
+  HARGEN_PAYS
+  CLIENT_PAYS_DIRECT
+  REIMBURSE_HARGEN
+}
+
+enum DisbursementStatus {
+  PENDING_APPROVAL
+  APPROVED
+  DECLINED
+  PAID
+  CLIENT_PAID_DIRECT
+  CANCELLED
+}
+
 model User {
   id           String      @id @default(cuid())
   name         String?
@@ -84,6 +134,8 @@ model User {
   passwordResetTokens PasswordResetToken[]
   outreachActivities OutreachActivity[]
   outreachSearchRuns OutreachSearchRun[]
+  requestedDisbursements DisbursementRequest[] @relation("DisbursementRequester")
+  approvedDisbursements  DisbursementRequest[] @relation("DisbursementApprover")
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 }
@@ -117,11 +169,16 @@ model Client {
   stripeSubscriptionId String?
   subscriptionStatus String?
   subscriptionCurrentPeriodEnd DateTime?
+  logoUrl            String?
+  brandAccent        String?
+  activatedAt        DateTime?
   notes              String?
   users              User[]
   requests           SupportRequest[]
   timeEntries        TimeEntry[]
   attachments        Attachment[]
+  systemAccesses     ClientSystemAccess[]
+  disbursements      DisbursementRequest[]
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 }
@@ -131,7 +188,8 @@ model SupportRequest {
   clientId            String
   client              Client        @relation(fields: [clientId], references: [id])
   title               String
-  requestType         String?
+  kind                SupportRequestKind   @default(CLIENT_OPS)
+  source              SupportRequestSource @default(ADMIN)
   supportNeeded       String?
   description         String
   mostHelpful         String?
@@ -152,8 +210,61 @@ model SupportRequest {
   timeEntries         TimeEntry[]
   attachments         Attachment[]
   comments            RequestComment[]
+  disbursements       DisbursementRequest[]
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
+
+  @@index([kind, status])
+  @@index([clientId, kind])
+}
+
+model ClientSystemAccess {
+  id               String              @id @default(cuid())
+  clientId         String
+  client           Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  systemType       SystemAccessType
+  label            String
+  loginUrl         String?
+  username         String?
+  accessMethod     SystemAccessMethod  @default(VAULT_LINK)
+  vaultLink        String?
+  adminSecureNote  String?
+  status           SystemAccessStatus  @default(NOT_PROVIDED)
+  lastVerifiedAt   DateTime?
+  notes            String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([clientId])
+}
+
+model DisbursementRequest {
+  id                 String                    @id @default(cuid())
+  clientId           String
+  client             Client                    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  supportRequestId   String
+  supportRequest     SupportRequest            @relation(fields: [supportRequestId], references: [id], onDelete: Cascade)
+  vendor             String
+  purpose            String
+  amountCents        Int
+  currency           String                    @default("USD")
+  paymentMethod      DisbursementPaymentMethod @default(HARGEN_PAYS)
+  status             DisbursementStatus        @default(PENDING_APPROVAL)
+  requestedById      String?
+  requestedBy        User?                     @relation("DisbursementRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+  approvedAt         DateTime?
+  approvedById       String?
+  approvedBy         User?                     @relation("DisbursementApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  declinedAt         DateTime?
+  paidAt             DateTime?
+  receiptUrl         String?
+  receiptNotes       String?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  @@index([clientId])
+  @@index([supportRequestId])
+  @@index([status])
 }
 
 model RequestComment {

@@ -93,9 +93,9 @@ export function RequestHelpForm() {
     return (
       <Card className="rounded-xl border border-amber-200/80 bg-amber-50/40 shadow-sm">
         <CardContent className="px-6 py-10 text-center sm:px-10">
-          <h3 className="font-heading text-xl font-semibold text-stone-900">Request received</h3>
+          <h3 className="font-heading text-xl font-semibold text-stone-900">Walkthrough request received</h3>
           <p className="mt-3 text-sm text-stone-600 leading-relaxed">
-            We will review your note and follow up with the best next step, usually within one business day.
+            We will review where you are stuck and follow up by email, usually within one business day. Portal access for ongoing client work comes after walkthrough, contract, and payment.
           </p>
           <Button
             variant="outline"

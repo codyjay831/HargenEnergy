@@ -7,12 +7,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Building2, User, Mail, Phone, Globe, MapPin, Clock, AlertCircle, TrendingUp, MessageSquare } from "lucide-react";
 import { UpdateRequestForm } from "@/components/forms/UpdateRequestForm";
 import { OverflowPrioritizationForm } from "@/components/forms/OverflowPrioritizationForm";
+import { AdminDisbursementMarkPaidForm } from "@/components/forms/AdminDisbursementMarkPaidForm";
+import { DisbursementRequestForm } from "@/components/forms/DisbursementRequestForm";
 import { LogTimeForm } from "@/components/forms/LogTimeForm";
 import { RequestCommentForm } from "@/components/forms/RequestCommentForm";
 import { buttonVariants } from "@/components/ui/button";
 import { cn, safeExternalHref } from "@/lib/utils";
 import { calculateWeeklyUsage } from "@/lib/usage";
-import { OverflowStatus } from "@/generated/prisma/client";
+import { OverflowStatus, SupportRequestKind } from "@/generated/prisma/client";
+import { isProspectIntake } from "@/lib/request-lifecycle";
 import { startOfWeek } from "date-fns";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +31,25 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
   if (!id) {
     notFound();
   }
+
+  // #region agent log
+  fetch("http://127.0.0.1:7490/ingest/ca2f0bff-e45e-43cc-bc2f-329025fe6fd9", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "501f66",
+    },
+    body: JSON.stringify({
+      sessionId: "501f66",
+      runId: "post-fix",
+      hypothesisId: "H1",
+      location: "admin/requests/[id]/page.tsx:before-findUnique",
+      message: "Loading support request detail",
+      data: { requestId: id },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   const request = await prisma.supportRequest.findUnique({
     where: { id },
@@ -54,7 +76,10 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
             select: { name: true, email: true }
           }
         }
-      }
+      },
+      disbursements: {
+        orderBy: { createdAt: "desc" },
+      },
     },
   });
 
@@ -64,26 +89,36 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
 
   const usage = calculateWeeklyUsage(request.client.timeEntries, request.client.weeklyHours);
   const isNearOrOverLimit = usage.isNearLimit || usage.isOverLimit;
+  const prospectIntake = isProspectIntake(request.kind);
+  const listHref = prospectIntake ? "/admin/intake" : "/admin/requests";
 
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-4">
         <Link 
-          href="/admin/requests" 
+          href={listHref}
           className={cn(buttonVariants({ variant: "ghost", size: "icon" }))}
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Request Details</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {prospectIntake ? "Inbound Lead" : "Client Ops Request"}
+          </h1>
           <p className="text-muted-foreground">Submitted on {format(new Date(request.createdAt), "MMMM d, yyyy 'at' h:mm a")}</p>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <Badge variant="outline">
+              {request.kind === SupportRequestKind.PROSPECT_INTAKE ? "Inbound lead" : "Client ops"}
+            </Badge>
+            <Badge variant="secondary">{request.source.replace("_", " ")}</Badge>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column: Request Info */}
         <div className="lg:col-span-2 space-y-8">
-          {isNearOrOverLimit && (
+          {!prospectIntake && isNearOrOverLimit && (
             <div className={cn(
               "p-4 rounded-lg border flex items-start gap-3",
               usage.isOverLimit ? "bg-red-50 border-red-200 text-red-800" : "bg-orange-50 border-orange-200 text-orange-800"
@@ -101,7 +136,7 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
 
           <Card>
             <CardHeader>
-              <CardTitle>Intake Information</CardTitle>
+              <CardTitle>{prospectIntake ? "Lead details" : "Work details"}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div>
@@ -153,6 +188,7 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
             </CardContent>
           </Card>
 
+          {!prospectIntake && (
           <Card className={cn(
             "border-2",
             request.overflowStatus === OverflowStatus.NEEDS_APPROVAL ? "border-orange-200 bg-orange-50/30" : 
@@ -168,7 +204,9 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
               <OverflowPrioritizationForm request={request} />
             </CardContent>
           </Card>
+          )}
 
+          {!prospectIntake && (
           <Card>
             <CardHeader>
               <CardTitle>Recent Time Entries</CardTitle>
@@ -199,8 +237,9 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
               )}
             </CardContent>
           </Card>
+          )}
 
-          {/* Messages / Comments Section */}
+          {!prospectIntake && (
           <div className="space-y-4">
             <h3 className="text-lg font-bold flex items-center gap-2">
               <MessageSquare className="h-5 w-5 text-primary" />
@@ -244,9 +283,9 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
               </CardContent>
             </Card>
           </div>
+          )}
         </div>
 
-        {/* Right Column: Client Info & Log Time */}
         <div className="space-y-8">
           <Card className="border-primary/20">
             <CardHeader>
@@ -256,13 +295,62 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {prospectIntake && (
+                <p className="text-sm text-muted-foreground mb-4">
+                  Sales and walkthrough time on inbound leads must be non-billable.
+                </p>
+              )}
               <LogTimeForm 
                 clientId={request.clientId} 
                 supportRequestId={request.id} 
                 isOverflowApproved={request.overflowStatus === OverflowStatus.APPROVED}
+                defaultBillableType={prospectIntake ? "NON_BILLABLE" : undefined}
               />
             </CardContent>
           </Card>
+
+          {!prospectIntake && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Pass-through payments</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <DisbursementRequestForm
+                clientId={request.clientId}
+                supportRequestId={request.id}
+              />
+              {request.disbursements.length > 0 && (
+                <div className="space-y-3 border-t pt-4">
+                  {request.disbursements.map((item) => (
+                    <div key={item.id} className="rounded-md border p-3 space-y-2">
+                      <p className="text-sm font-medium">{item.vendor}</p>
+                      <p className="text-xs text-muted-foreground">{item.purpose}</p>
+                      <p className="text-sm">
+                        ${(item.amountCents / 100).toFixed(2)} {item.currency}
+                      </p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        {item.status.replace(/_/g, " ")}
+                      </p>
+                      {item.status === "APPROVED" && (
+                        <AdminDisbursementMarkPaidForm
+                          disbursementId={item.id}
+                          mode="PAID"
+                        />
+                      )}
+                      {(item.status === "PENDING_APPROVAL" ||
+                        item.status === "APPROVED") && (
+                        <AdminDisbursementMarkPaidForm
+                          disbursementId={item.id}
+                          mode="CLIENT_PAID_DIRECT"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          )}
 
           <Card>
             <CardHeader>

@@ -12,6 +12,7 @@ import {
   ClientStatus,
   BillableType,
   OverflowStatus,
+  SupportRequestKind,
 } from "@/generated/prisma/client";
 import { format, startOfWeek } from "date-fns";
 import { calculateWeeklyUsage } from "@/lib/usage";
@@ -23,17 +24,27 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
   const [
-    newRequestsCount,
+    newInboundLeadsCount,
+    newOpsRequestsCount,
     activeClientsCount,
     inProgressCount,
     needsInfoCount,
     includedTimeThisWeek,
     overflowTimeThisWeek,
   ] = await Promise.all([
-    prisma.supportRequest.count({ where: { status: RequestStatus.NEW } }),
+    prisma.supportRequest.count({
+      where: { kind: SupportRequestKind.PROSPECT_INTAKE, status: RequestStatus.NEW },
+    }),
+    prisma.supportRequest.count({
+      where: { kind: SupportRequestKind.CLIENT_OPS, status: RequestStatus.NEW },
+    }),
     prisma.client.count({ where: { status: ClientStatus.ACTIVE } }),
-    prisma.supportRequest.count({ where: { status: RequestStatus.IN_PROGRESS } }),
-    prisma.supportRequest.count({ where: { needsInfo: true } }),
+    prisma.supportRequest.count({
+      where: { kind: SupportRequestKind.CLIENT_OPS, status: RequestStatus.IN_PROGRESS },
+    }),
+    prisma.supportRequest.count({
+      where: { kind: SupportRequestKind.CLIENT_OPS, needsInfo: true },
+    }),
     prisma.timeEntry.aggregate({
       where: {
         billableType: BillableType.INCLUDED,
@@ -54,7 +65,8 @@ export default async function AdminDashboard() {
   const overflowHours = (overflowTimeThisWeek._sum.minutes || 0) / 60;
 
   const stats = [
-    { title: "New Support Requests", value: newRequestsCount.toString(), icon: AlertCircle, color: "text-orange-600", bg: "bg-orange-50" },
+    { title: "New Inbound Leads", value: newInboundLeadsCount.toString(), icon: AlertCircle, color: "text-orange-600", bg: "bg-orange-50" },
+    { title: "New Ops Requests", value: newOpsRequestsCount.toString(), icon: AlertCircle, color: "text-amber-600", bg: "bg-amber-50" },
     { title: "Active Clients", value: activeClientsCount.toString(), icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
     { title: "In Progress", value: inProgressCount.toString(), icon: Clock, color: "text-indigo-600", bg: "bg-indigo-50" },
     { title: "Needs Info", value: needsInfoCount.toString(), icon: AlertCircle, color: "text-red-600", bg: "bg-red-50" },
@@ -62,14 +74,23 @@ export default async function AdminDashboard() {
     { title: "Overflow Hours (Week)", value: overflowHours.toFixed(1), icon: CheckCircle2, color: "text-purple-600", bg: "bg-purple-50" },
   ];
 
-  const recentRequests = await prisma.supportRequest.findMany({
+  const recentInboundLeads = await prisma.supportRequest.findMany({
+    where: { kind: SupportRequestKind.PROSPECT_INTAKE },
     include: { client: true },
     orderBy: { createdAt: "desc" },
-    take: 5
+    take: 5,
+  });
+
+  const recentOpsRequests = await prisma.supportRequest.findMany({
+    where: { kind: SupportRequestKind.CLIENT_OPS },
+    include: { client: true },
+    orderBy: { createdAt: "desc" },
+    take: 5,
   });
 
   const overflowRequests = await prisma.supportRequest.findMany({
     where: {
+      kind: SupportRequestKind.CLIENT_OPS,
       overflowStatus: {
         in: [OverflowStatus.NEEDS_APPROVAL, OverflowStatus.DEFERRED]
       }
@@ -154,14 +175,42 @@ export default async function AdminDashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Recent Requests</CardTitle>
+            <CardTitle>Recent Inbound Leads</CardTitle>
           </CardHeader>
           <CardContent>
-            {recentRequests.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">No requests yet.</p>
+            {recentInboundLeads.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">No inbound leads yet.</p>
             ) : (
               <div className="space-y-4">
-                {recentRequests.map((request, i) => (
+                {recentInboundLeads.map((request, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="font-medium text-sm truncate max-w-[200px]">{request.title || request.supportNeeded}</p>
+                      <p className="text-xs text-muted-foreground">{request.client.companyName} • {format(new Date(request.createdAt), "MMM d")}</p>
+                    </div>
+                    <Link
+                      href={`/admin/requests/${request.id}`}
+                      className="text-xs font-semibold text-primary hover:underline"
+                    >
+                      Review
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Ops Requests</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {recentOpsRequests.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">No client ops requests yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {recentOpsRequests.map((request, i) => (
                   <div key={i} className="flex items-center justify-between p-3 border rounded-lg">
                     <div>
                       <p className="font-medium text-sm truncate max-w-[200px]">{request.title || request.supportNeeded}</p>

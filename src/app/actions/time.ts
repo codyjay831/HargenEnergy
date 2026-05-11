@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { BillableType } from "@/generated/prisma/client";
+import { assertBillableTimeOnRequest } from "@/lib/request-lifecycle";
 import { revalidatePath } from "next/cache";
 import { isBillableTypeValue } from "@/lib/ui-enums";
 
@@ -35,6 +36,20 @@ export async function createTimeEntry(data: {
   }
 
   try {
+    if (data.supportRequestId) {
+      const request = await prisma.supportRequest.findUnique({
+        where: { id: data.supportRequestId },
+        select: { kind: true },
+      });
+
+      if (request) {
+        const billableError = assertBillableTimeOnRequest(request.kind, billableType);
+        if (billableError) {
+          return billableError;
+        }
+      }
+    }
+
     const timeEntry = await prisma.timeEntry.create({
       data: {
         clientId: data.clientId,

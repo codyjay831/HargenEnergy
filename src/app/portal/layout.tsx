@@ -1,15 +1,18 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { 
-  LayoutDashboard, 
-  ClipboardList, 
-  PlusCircle, 
+import Image from "next/image";
+import {
+  LayoutDashboard,
+  ClipboardList,
+  PlusCircle,
   UserCircle,
-  ChevronRight
+  KeyRound,
+  ChevronRight,
 } from "lucide-react";
 import { LogoutButton } from "@/components/layout/LogoutButton";
 import { cn } from "@/lib/utils";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -43,10 +46,23 @@ export default async function PortalLayout({
     );
   }
 
+  const client =
+    !isAdmin && session.user.clientId
+      ? await prisma.client.findUnique({
+          where: { id: session.user.clientId },
+          select: {
+            companyName: true,
+            logoUrl: true,
+            brandAccent: true,
+          },
+        })
+      : null;
+
   const navItems = [
     { name: "Dashboard", href: "/portal", icon: LayoutDashboard },
     { name: "My Requests", href: "/portal/requests", icon: ClipboardList },
     { name: "Submit Request", href: "/portal/requests/new", icon: PlusCircle },
+    { name: "System Access", href: "/portal/access", icon: KeyRound },
     { name: "Account", href: "/portal/account", icon: UserCircle },
   ];
 
@@ -56,8 +72,23 @@ export default async function PortalLayout({
       <aside className="w-full md:w-64 bg-[#0f172a] text-white flex-shrink-0">
         <div className="p-6">
           <Link href="/portal" className="flex items-center gap-2">
-            <div className="h-8 w-8 bg-primary rounded flex items-center justify-center text-[#0f172a] font-bold">H</div>
-            <span className="font-bold text-lg tracking-tight">Hargen Portal</span>
+            {client?.logoUrl ? (
+              <Image
+                src={client.logoUrl}
+                alt=""
+                width={32}
+                height={32}
+                className="h-8 w-8 rounded object-contain bg-white/10"
+                unoptimized
+              />
+            ) : (
+              <div className="h-8 w-8 bg-primary rounded flex items-center justify-center text-[#0f172a] font-bold">
+                H
+              </div>
+            )}
+            <span className="font-bold text-lg tracking-tight">
+              {client?.companyName ?? "Hargen Portal"}
+            </span>
           </Link>
         </div>
 
@@ -92,7 +123,9 @@ export default async function PortalLayout({
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>Portal</span>
             <ChevronRight className="h-4 w-4" />
-            <span className="font-medium text-slate-900">Hargen Energy Solar Ops Desk</span>
+            <span className="font-medium text-slate-900">
+              {client?.companyName ?? "Hargen Energy Solar Ops Desk"}
+            </span>
           </div>
         </header>
 

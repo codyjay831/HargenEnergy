@@ -22,9 +22,9 @@ export default function RequestHelpPage() {
         <div className={cn(marketingShell)}>
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_280px] lg:gap-14">
             <div>
-              <h1 className={marketingH1}>Request solar ops support</h1>
+              <h1 className={marketingH1}>Request a walkthrough</h1>
               <p className={cn(marketingLead, "mt-4 max-w-xl")}>
-                Tell us what is stuck. We review capacity and follow up with next steps. Most companies hear back within one business day.
+                Tell us where you are stuck. We start with a walkthrough and activation conversation, not a support ticket. Most companies hear back within one business day.
               </p>
             </div>
 
@@ -59,7 +59,7 @@ export default function RequestHelpPage() {
             <div className={cn(marketingCardBase, "p-5")}>
               <h2 className="font-heading text-sm font-semibold text-stone-900">What happens next</h2>
               <p className="mt-2 text-sm text-stone-600 leading-relaxed">
-                We read your request, check capacity, and reply by email or phone. If it is a fit, we agree on a weekly block and tool access, then start on priorities.
+                We read your request, check capacity, and reply by email or phone. After we align on scope, contract, and payment, you get portal access for ongoing client work.
               </p>
             </div>
             <div className={cn(marketingCardBase, "p-5")}>

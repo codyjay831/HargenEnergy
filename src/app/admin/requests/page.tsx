@@ -10,12 +10,13 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Urgency, OverflowStatus } from "@/generated/prisma/client";
+import { Urgency, OverflowStatus, SupportRequestKind } from "@/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminRequests() {
   const requests = await prisma.supportRequest.findMany({
+    where: { kind: SupportRequestKind.CLIENT_OPS },
     include: {
       client: true,
       timeEntries: {
@@ -30,12 +31,12 @@ export default async function AdminRequests() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Support Requests</h1>
+        <h1 className="text-2xl font-bold">Ops queue</h1>
       </div>
 
       {requests.length === 0 ? (
         <div className="bg-white border rounded-lg p-12 text-center text-muted-foreground">
-          No support requests yet. Submitted requests from the public form will appear here.
+          No client ops requests yet. Portal submissions and logged off-channel work will appear here.
         </div>
       ) : (
         <div className="bg-white border rounded-lg overflow-hidden">

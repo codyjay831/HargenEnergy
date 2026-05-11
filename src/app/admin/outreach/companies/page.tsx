@@ -11,7 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Plus, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { CSVImportButton } from "@/components/forms/CSVImportButton";
 import { CSVExportButton } from "@/components/forms/CSVExportButton";
 

@@ -2,6 +2,12 @@ import "server-only";
 
 import { Resend } from "resend";
 
+import {
+  adminIntakeRequestUrl,
+  adminRequestUrl,
+  portalRequestUrl,
+} from "@/lib/app-url";
+import { SupportRequestKind } from "@/generated/prisma/client";
 import { escapeHtml, sanitizeEmailSubjectFragment } from "@/lib/html-escape";
 
 /**
@@ -19,11 +25,32 @@ function getResend() {
 
 const FROM_EMAIL = process.env.SUPPORT_FROM_EMAIL || "Hargen Energy Solar Ops Desk <onboarding@resend.dev>";
 const ADMIN_EMAIL = process.env.SUPPORT_NOTIFICATION_EMAIL;
-const APP_URL = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-function adminRequestUrl(requestId: string): string {
-  const base = APP_URL.replace(/\/$/, "");
-  return `${base}/admin/requests/${encodeURIComponent(requestId)}`;
+function formatMoney(amountCents: number, currency: string): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+  }).format(amountCents / 100);
+}
+
+function clientEmailHeader(data: {
+  companyName?: string;
+  logoUrl?: string | null;
+}) {
+  const safeCompany = escapeHtml(data.companyName || "Your company");
+  const logo = data.logoUrl
+    ? `<img src="${escapeHtml(data.logoUrl)}" alt="" width="48" height="48" style="object-fit:contain;border-radius:8px;" />`
+    : "";
+
+  return `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+      ${logo}
+      <div>
+        <p style="margin:0;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Client portal</p>
+        <p style="margin:4px 0 0;font-size:18px;font-weight:700;color:#0f172a;">${safeCompany}</p>
+      </div>
+    </div>
+  `;
 }
 
 /**
@@ -53,7 +80,7 @@ export async function sendRequestConfirmation(to: string, companyName: string) {
           <h2 style="color: #0f172a;">Thank you for reaching out.</h2>
           <p>Hargen Energy has received your solar operations support request for <strong>${safeCompany}</strong>.</p>
           <p>We will review the bottleneck and support needs you've shared. If we need more details to understand the scope, we will follow up with you directly.</p>
-          <p>Please note that support availability depends on the fit of the work, your reserved support block, and our current capacity.</p>
+          <p>We will start with a walkthrough to understand your backlog and where you are stuck. Portal access and ongoing client work begin after onboarding, contract, and payment are in place.</p>
           <p style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 14px; color: #64748b;">
             Hargen Energy Solar Ops Desk<br />
             Flexible Solar Operations Support
@@ -78,6 +105,7 @@ export async function sendInternalRequestAlert(data: {
   urgency?: string;
   description: string;
   requestId: string;
+  kind?: SupportRequestKind;
 }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
@@ -95,9 +123,16 @@ export async function sendInternalRequestAlert(data: {
   const safePlan = escapeHtml(data.plan || "N/A");
   const safeUrgency = escapeHtml(data.urgency || "N/A");
   const safeDescription = escapeHtml(data.description);
-  const adminUrl = escapeHtml(adminRequestUrl(data.requestId));
+  const isInboundLead = data.kind === SupportRequestKind.PROSPECT_INTAKE;
+  const adminUrl = escapeHtml(
+    isInboundLead
+      ? adminIntakeRequestUrl(data.requestId)
+      : adminRequestUrl(data.requestId),
+  );
   const subject = sanitizeEmailSubjectFragment(
-    `New Hargen Energy support request: ${data.companyName}`,
+    isInboundLead
+      ? `New inbound lead: ${data.companyName}`
+      : `New client ops request: ${data.companyName}`,
     200,
   );
 
@@ -108,7 +143,7 @@ export async function sendInternalRequestAlert(data: {
       subject,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
-          <h2 style="color: #0f172a;">New Support Request</h2>
+          <h2 style="color: #0f172a;">${isInboundLead ? "New Inbound Lead" : "New Client Ops Request"}</h2>
           <p><strong>Company:</strong> ${safeCompany}</p>
           <p><strong>Contact:</strong> ${safeContact} (${safeEmail})</p>
           <p><strong>Phone:</strong> ${safePhone}</p>
@@ -133,9 +168,12 @@ export async function sendInternalRequestAlert(data: {
 export async function sendClientUpdateEmail(data: {
   to: string;
   requestTitle: string;
+  requestId: string;
   status: string;
   needsInfo: boolean;
   clientVisibleUpdate: string;
+  companyName?: string;
+  logoUrl?: string | null;
 }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
@@ -158,10 +196,11 @@ export async function sendClientUpdateEmail(data: {
   } else if (data.status === "NEEDS_INFO" || data.needsInfo) {
     subject = "More information needed for your Hargen Energy support request";
     title = "Information Needed";
-    extraMessage = `<p style="color: #b91c1c; font-weight: bold;">Work on this request may pause until the needed details are provided. Please reply to this email with the requested information.</p>`;
+    extraMessage = `<p style="color: #b91c1c; font-weight: bold;">Work on this request may pause until the needed details are provided. Open the portal to reply on this request.</p>`;
   }
 
   const safeHeading = escapeHtml(title);
+  const portalUrl = escapeHtml(portalRequestUrl(data.requestId));
 
   try {
     await resend.emails.send({
@@ -170,6 +209,7 @@ export async function sendClientUpdateEmail(data: {
       subject,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          ${clientEmailHeader({ companyName: data.companyName, logoUrl: data.logoUrl })}
           <h2 style="color: #0f172a;">${safeHeading}</h2>
           <p><strong>Request:</strong> ${safeTitle}</p>
           <p><strong>Status:</strong> ${safeStatus}</p>
@@ -178,6 +218,9 @@ export async function sendClientUpdateEmail(data: {
             <p style="margin-top: 10px; color: #0f172a; line-height: 1.6;">${safeUpdate}</p>
           </div>
           ${extraMessage}
+          <p style="margin: 24px 0;">
+            <a href="${portalUrl}" style="background: #0f172a; color: white; padding: 12px 22px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">View in portal</a>
+          </p>
           <p style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 14px; color: #64748b;">
             Hargen Energy Solar Ops Desk<br />
             Flexible Solar Operations Support
@@ -421,5 +464,239 @@ export async function sendOverflowApprovedEmail(data: {
   } catch (error) {
     console.error("Error sending overflow approved email:", error);
     return { error: "Failed to send overflow approved email." };
+  }
+}
+
+export async function sendPortalInviteEmail(data: {
+  to: string;
+  companyName: string;
+  resetUrl: string;
+  logoUrl?: string | null;
+}) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  const { resend } = config;
+
+  const safeHref = escapeHtml(data.resetUrl);
+
+  try {
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: data.to,
+      subject: "Your Hargen Energy client portal is ready",
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          ${clientEmailHeader({ companyName: data.companyName, logoUrl: data.logoUrl })}
+          <h2 style="color: #0f172a;">Set up your portal access</h2>
+          <p>Your private client portal is ready for <strong>${escapeHtml(data.companyName)}</strong>.</p>
+          <p>Use the button below to choose a password, then sign in to view open requests, approvals, and weekly support usage.</p>
+          <p style="margin: 28px 0;">
+            <a href="${safeHref}" style="background: #0f172a; color: white; padding: 12px 22px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Set password and open portal</a>
+          </p>
+          <p style="font-size: 14px; color: #64748b;">This link expires in 30 minutes and can only be used once.</p>
+          <p style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 14px; color: #64748b;">
+            Hargen Energy Solar Ops Desk
+          </p>
+        </div>
+      `,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending portal invite email:", error);
+    return { error: "Failed to send portal invite email." };
+  }
+}
+
+export async function sendInternalClientCommentAlert(data: {
+  companyName: string;
+  requestTitle: string;
+  requestId: string;
+  commentBody: string;
+}) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  if (!ADMIN_EMAIL) {
+    return { error: "Internal notification email not configured." };
+  }
+  const { resend } = config;
+
+  const safeCompany = escapeHtml(data.companyName);
+  const safeTitle = escapeHtml(data.requestTitle);
+  const safeComment = escapeHtml(data.commentBody);
+  const adminUrl = escapeHtml(adminRequestUrl(data.requestId));
+
+  try {
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: ADMIN_EMAIL,
+      subject: sanitizeEmailSubjectFragment(
+        `Client reply: ${data.companyName} — ${data.requestTitle}`,
+        200,
+      ),
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          <h2 style="color: #0f172a;">New client comment</h2>
+          <p><strong>Company:</strong> ${safeCompany}</p>
+          <p><strong>Request:</strong> ${safeTitle}</p>
+          <p style="background: #f8fafc; padding: 15px; border-radius: 4px; border-left: 4px solid #e2e8f0;">${safeComment}</p>
+          <p style="margin-top: 20px;">
+            <a href="${adminUrl}" style="background: #0f172a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">View in admin</a>
+          </p>
+        </div>
+      `,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending client comment alert:", error);
+    return { error: "Failed to send client comment alert." };
+  }
+}
+
+export async function sendDisbursementApprovalRequestEmail(data: {
+  to: string;
+  companyName: string;
+  requestTitle: string;
+  requestId: string;
+  vendor: string;
+  purpose: string;
+  amountCents: number;
+  currency: string;
+  logoUrl?: string | null;
+}) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  const { resend } = config;
+
+  const portalUrl = escapeHtml(portalRequestUrl(data.requestId));
+  const amount = escapeHtml(formatMoney(data.amountCents, data.currency));
+
+  try {
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: data.to,
+      subject: sanitizeEmailSubjectFragment(
+        `Approval needed: ${data.vendor} fee for ${data.requestTitle}`,
+        200,
+      ),
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          ${clientEmailHeader({ companyName: data.companyName, logoUrl: data.logoUrl })}
+          <h2 style="color: #0f172a;">Payment approval needed</h2>
+          <p><strong>Request:</strong> ${escapeHtml(data.requestTitle)}</p>
+          <p><strong>Vendor:</strong> ${escapeHtml(data.vendor)}</p>
+          <p><strong>Amount:</strong> ${amount}</p>
+          <p><strong>Purpose:</strong> ${escapeHtml(data.purpose)}</p>
+          <p>Approve or decline this pass-through fee in your portal before Hargen pays it on your behalf.</p>
+          <p style="margin: 24px 0;">
+            <a href="${portalUrl}" style="background: #0f172a; color: white; padding: 12px 22px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Review in portal</a>
+          </p>
+        </div>
+      `,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending disbursement approval email:", error);
+    return { error: "Failed to send disbursement approval email." };
+  }
+}
+
+export async function sendDisbursementStatusEmail(data: {
+  to: string;
+  companyName: string;
+  requestTitle: string;
+  requestId: string;
+  status: string;
+  vendor: string;
+  amountCents: number;
+  currency: string;
+  logoUrl?: string | null;
+  receiptUrl?: string | null;
+}) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  const { resend } = config;
+
+  const portalUrl = escapeHtml(portalRequestUrl(data.requestId));
+  const amount = escapeHtml(formatMoney(data.amountCents, data.currency));
+  const statusLabel = escapeHtml(data.status.replace(/_/g, " "));
+  const receiptBlock = data.receiptUrl
+    ? `<p><strong>Receipt:</strong> <a href="${escapeHtml(data.receiptUrl)}">${escapeHtml(data.receiptUrl)}</a></p>`
+    : "";
+
+  try {
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: data.to,
+      subject: sanitizeEmailSubjectFragment(
+        `Payment update: ${data.vendor} — ${data.requestTitle}`,
+        200,
+      ),
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          ${clientEmailHeader({ companyName: data.companyName, logoUrl: data.logoUrl })}
+          <h2 style="color: #0f172a;">Pass-through payment update</h2>
+          <p><strong>Request:</strong> ${escapeHtml(data.requestTitle)}</p>
+          <p><strong>Vendor:</strong> ${escapeHtml(data.vendor)}</p>
+          <p><strong>Amount:</strong> ${amount}</p>
+          <p><strong>Status:</strong> ${statusLabel}</p>
+          ${receiptBlock}
+          <p style="margin: 24px 0;">
+            <a href="${portalUrl}" style="background: #0f172a; color: white; padding: 12px 22px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">View in portal</a>
+          </p>
+        </div>
+      `,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending disbursement status email:", error);
+    return { error: "Failed to send disbursement status email." };
+  }
+}
+
+export async function sendInternalDisbursementDecisionAlert(data: {
+  companyName: string;
+  requestTitle: string;
+  requestId: string;
+  vendor: string;
+  amountCents: number;
+  currency: string;
+  status: string;
+}) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  if (!ADMIN_EMAIL) {
+    return { error: "Internal notification email not configured." };
+  }
+  const { resend } = config;
+
+  const adminUrl = escapeHtml(adminRequestUrl(data.requestId));
+  const amount = escapeHtml(formatMoney(data.amountCents, data.currency));
+
+  try {
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: ADMIN_EMAIL,
+      subject: sanitizeEmailSubjectFragment(
+        `Disbursement ${data.status}: ${data.companyName}`,
+        200,
+      ),
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          <h2 style="color: #0f172a;">Client disbursement decision</h2>
+          <p><strong>Company:</strong> ${escapeHtml(data.companyName)}</p>
+          <p><strong>Request:</strong> ${escapeHtml(data.requestTitle)}</p>
+          <p><strong>Vendor:</strong> ${escapeHtml(data.vendor)}</p>
+          <p><strong>Amount:</strong> ${amount}</p>
+          <p><strong>Status:</strong> ${escapeHtml(data.status.replace(/_/g, " "))}</p>
+          <p style="margin-top: 20px;">
+            <a href="${adminUrl}" style="background: #0f172a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">View in admin</a>
+          </p>
+        </div>
+      `,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending internal disbursement alert:", error);
+    return { error: "Failed to send internal disbursement alert." };
   }
 }

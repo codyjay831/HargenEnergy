@@ -5,6 +5,8 @@ import { outreachCompanySchema, OutreachCompanyInput } from "@/lib/validations";
 import { auth } from "@/auth";
 import {
   BusinessType,
+  OutreachActivityType,
+  OutreachChannel,
   OutreachCompanyStatus,
   OutreachSearchSource,
   OutreachSearchStatus,
@@ -21,7 +23,6 @@ import {
   getOutreachSearchRunById,
   getRecentOutreachSearchRuns,
   logOutreachSearchRun,
-  normalizeCompanyName,
   OUTREACH_SEARCH_RESULT_LIMIT,
   type OutreachSearchReplayPayload,
 } from "@/lib/outreach-search";
@@ -168,7 +169,7 @@ export async function importOutreachCSV(csvContent: string) {
     return { error: "Failed to parse CSV.", details: parsed.errors };
   }
 
-  const rows = parsed.data as any[];
+  const rows = parsed.data as Record<string, string | undefined>[];
   let createdCount = 0;
   let updatedCount = 0;
   let skippedCount = 0;
@@ -190,7 +191,7 @@ export async function importOutreachCSV(csvContent: string) {
 
     try {
       // Duplicate detection
-      const conditions: any[] = [];
+      const conditions: Prisma.OutreachCompanyWhereInput[] = [];
       
       if (website) {
         conditions.push({ 
@@ -349,14 +350,21 @@ export async function searchContractors(query: string) {
       return { error: `Google API error: ${data.status}` };
     }
 
-    const rawResults = (data.results || []).slice(0, OUTREACH_SEARCH_RESULT_LIMIT).map((place: any) => ({
+    const rawResults = (data.results || []).slice(0, OUTREACH_SEARCH_RESULT_LIMIT).map((place: {
+      place_id: string;
+      name: string;
+      formatted_address?: string;
+      rating?: number;
+      user_ratings_total?: number;
+      types?: string[];
+    }) => ({
       placeId: place.place_id,
       name: place.name,
       address: place.formatted_address,
       rating: place.rating,
       userRatingsTotal: place.user_ratings_total,
       types: place.types,
-      ...parseAddress(place.formatted_address),
+      ...parseAddress(place.formatted_address ?? ""),
     }));
 
     const results = await annotateFinderResults(rawResults);
@@ -716,9 +724,11 @@ export async function enrichCompanyWithAI(companyId: string) {
     let result;
     try {
       result = await model.generateContent(prompt);
-    } catch (apiError: any) {
+    } catch (apiError: unknown) {
       console.error("Gemini API Error:", apiError);
-      return { error: `Gemini API Error: ${apiError.message || "Unknown error"}` };
+      const message =
+        apiError instanceof Error ? apiError.message : "Unknown error";
+      return { error: `Gemini API Error: ${message}` };
     }
     
     const response = await result.response;
@@ -730,7 +740,7 @@ export async function enrichCompanyWithAI(companyId: string) {
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error("No JSON found in response");
       enrichment = JSON.parse(jsonMatch[0]);
-    } catch (e) {
+    } catch {
       console.error("Failed to parse AI response:", text);
       return { error: "AI returned invalid data format. Please try again." };
     }
@@ -994,7 +1004,7 @@ export async function enrichWithYelp(companyId: string, selectedBusinessId?: str
       });
       const matchData = await matchResponse.json();
       if (matchResponse.ok && Array.isArray(matchData.businesses)) {
-        candidates = matchData.businesses.map((business: any) =>
+        candidates = matchData.businesses.map((business: Parameters<typeof mapYelpCandidate>[0]) =>
           mapYelpCandidate(business, scoreYelpCandidate(company, business))
         );
       }
@@ -1014,7 +1024,7 @@ export async function enrichWithYelp(companyId: string, selectedBusinessId?: str
         return { error: `Yelp Search error: ${searchData.error?.description || searchResponse.statusText}` };
       }
 
-      candidates = (searchData.businesses || []).map((business: any) =>
+      candidates = (searchData.businesses || []).map((business: Parameters<typeof mapYelpCandidate>[0]) =>
         mapYelpCandidate(business, scoreYelpCandidate(company, business))
       );
     }
@@ -1119,8 +1129,8 @@ export async function logOutreachActivity(data: {
       data: {
         companyId: data.companyId,
         contactId: data.contactId,
-        channel: data.channel as any,
-        activityType: data.activityType as any,
+        channel: data.channel as OutreachChannel,
+        activityType: data.activityType as OutreachActivityType,
         notes: data.notes,
         responseSummary: data.responseSummary,
         nextFollowUpAt: data.nextFollowUpAt,
@@ -1129,7 +1139,7 @@ export async function logOutreachActivity(data: {
     });
 
     // Update company status and dates
-    const updateData: any = {
+    const updateData: Prisma.OutreachCompanyUpdateInput = {
       lastContactedAt: new Date(),
     };
 

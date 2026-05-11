@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Mail, Phone, Globe, Trash2, User } from "lucide-react";
 import { addOutreachContact, deleteOutreachContact } from "@/app/actions/outreach";
+import type { OutreachContact } from "@/generated/prisma/client";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -18,7 +19,7 @@ import { Label } from "@/components/ui/label";
 
 interface OutreachContactListProps {
   companyId: string;
-  initialContacts: any[];
+  initialContacts: OutreachContact[];
 }
 
 export function OutreachContactList({ companyId, initialContacts }: OutreachContactListProps) {
@@ -146,6 +147,7 @@ export function OutreachContactList({ companyId, initialContacts }: OutreachCont
                     {contact.email && (
                       <button 
                         onClick={() => {
+                          if (!contact.email) return;
                           navigator.clipboard.writeText(contact.email);
                           alert("Email copied to clipboard");
                         }}

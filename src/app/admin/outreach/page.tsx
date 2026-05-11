@@ -1,16 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  Megaphone, 
-  Users, 
-  MessageSquare, 
-  Calendar, 
+import {
+  Megaphone,
+  Users,
+  MessageSquare,
+  Calendar,
   CheckCircle2,
   Clock,
   Search,
-  FileUp,
-  FileDown,
-  Plus
 } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";

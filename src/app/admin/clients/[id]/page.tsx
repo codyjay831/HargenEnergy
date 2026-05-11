@@ -8,7 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Building2, User, Mail, Phone, Globe, MapPin, CreditCard, Clock } from "lucide-react";
 import { cn, safeExternalHref } from "@/lib/utils";
 import { ClientBillingManager } from "@/components/forms/ClientBillingManager";
+import { ClientBrandingManager } from "@/components/forms/ClientBrandingManager";
+import { ClientPortalAccessManager } from "@/components/forms/ClientPortalAccessManager";
+import { ClientSystemAccessManager } from "@/components/forms/ClientSystemAccessManager";
 import { LogTimeForm } from "@/components/forms/LogTimeForm";
+import { ClientStatus, Role } from "@/generated/prisma/client";
+import { ActivateClientButton } from "@/components/forms/ActivateClientButton";
+import { LogClientOpsForm } from "@/components/forms/LogClientOpsForm";
 import { calculateWeeklyUsage } from "@/lib/usage";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +34,13 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
   const client = await prisma.client.findUnique({
     where: { id },
     include: {
+      users: {
+        where: { role: Role.CLIENT },
+        select: { id: true, email: true, name: true },
+      },
+      systemAccesses: {
+        orderBy: { createdAt: "asc" },
+      },
       requests: {
         orderBy: { createdAt: "desc" },
         take: 5
@@ -55,8 +68,17 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{client.companyName}</h1>
-          <p className="text-muted-foreground">Client since {format(new Date(client.createdAt), "MMMM d, yyyy")}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight">{client.companyName}</h1>
+            <Badge variant={client.status === ClientStatus.ACTIVE ? "default" : "secondary"}>
+              {client.status === ClientStatus.ACTIVE ? "Active client" : "Prospect"}
+            </Badge>
+          </div>
+          <p className="text-muted-foreground">
+            {client.status === ClientStatus.ACTIVE && client.activatedAt
+              ? `Active since ${format(new Date(client.activatedAt), "MMMM d, yyyy")}`
+              : `Prospect since ${format(new Date(client.createdAt), "MMMM d, yyyy")}`}
+          </p>
         </div>
       </div>
 
@@ -132,9 +154,37 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
             </CardContent>
           </Card>
 
+          {client.status === ClientStatus.LEAD && (
+            <Card className="border-amber-200 bg-amber-50/40">
+              <CardHeader>
+                <CardTitle>Activation</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Mark the company active after walkthrough, contract, and payment. Then set up billing and send a portal invite.
+                </p>
+                <ActivateClientButton clientId={client.id} />
+              </CardContent>
+            </Card>
+          )}
+
+          {client.status === ClientStatus.ACTIVE && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Log client ops request</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Capture work that came in by email, phone, text, or voicemail.
+                </p>
+                <LogClientOpsForm clientId={client.id} />
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
-              <CardTitle>Recent Support Requests</CardTitle>
+              <CardTitle>Recent Requests</CardTitle>
             </CardHeader>
             <CardContent>
               {client.requests.length === 0 ? (
@@ -253,6 +303,47 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
             </CardHeader>
             <CardContent>
               <LogTimeForm clientId={client.id} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Portal access</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ClientPortalAccessManager
+                clientId={client.id}
+                clientStatus={client.status}
+                defaultEmail={client.email}
+                defaultName={client.contactName}
+                users={client.users}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Portal branding</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ClientBrandingManager
+                clientId={client.id}
+                website={client.website}
+                logoUrl={client.logoUrl}
+                brandAccent={client.brandAccent}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">System access checklist</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ClientSystemAccessManager
+                clientId={client.id}
+                records={client.systemAccesses}
+              />
             </CardContent>
           </Card>
 

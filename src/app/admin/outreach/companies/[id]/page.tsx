@@ -3,20 +3,15 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants, Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  ArrowLeft, 
-  Users, 
-  User, 
-  Mail, 
-  Phone, 
-  Globe, 
-  MapPin, 
+import {
+  ArrowLeft,
+  Users,
+  Globe,
+  MapPin,
   Calendar,
   Clock,
-  Plus,
-  Copy,
 } from "lucide-react";
 import { cn, safeExternalHref } from "@/lib/utils";
 import { OutreachActivityForm } from "@/components/forms/OutreachActivityForm";

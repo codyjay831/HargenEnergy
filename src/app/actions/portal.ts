@@ -2,9 +2,19 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { RequestStatus, Urgency, AuthorType } from "@/generated/prisma/client";
+import {
+  RequestStatus,
+  Urgency,
+  AuthorType,
+  SupportRequestKind,
+  SupportRequestSource,
+} from "@/generated/prisma/client";
+import { assertActiveClientForPortalSubmit } from "@/lib/request-lifecycle";
 import { revalidatePath } from "next/cache";
-import { sendInternalRequestAlert } from "@/lib/email";
+import {
+  sendInternalClientCommentAlert,
+  sendInternalRequestAlert,
+} from "@/lib/email";
 import {
   portalSubmitRequestSchema,
   portalAddCommentSchema,
@@ -78,6 +88,11 @@ export async function submitPortalRequest(data: {
       return { error: "Client record not found." };
     }
 
+    const activeError = assertActiveClientForPortalSubmit(client.status);
+    if (activeError) {
+      return activeError;
+    }
+
     const fullDescription = `
 ${description}
 
@@ -92,6 +107,8 @@ Desired Outcome: ${desiredOutcome || "N/A"}
       data: {
         clientId,
         title,
+        kind: SupportRequestKind.CLIENT_OPS,
+        source: SupportRequestSource.PORTAL,
         supportNeeded,
         description: fullDescription,
         urgency: urgencyEnum,
@@ -110,6 +127,7 @@ Desired Outcome: ${desiredOutcome || "N/A"}
         urgency: urgencyEnum,
         description: fullDescription,
         requestId: supportRequest.id,
+        kind: SupportRequestKind.CLIENT_OPS,
       });
     } catch (emailError) {
       console.error("Failed to send internal alert for portal request:", emailError);
@@ -185,9 +203,16 @@ export async function addRequestComment(data: {
     });
 
     if (!isAdmin) {
-      console.log(
-        `Client ${request.client.companyName} commented on request ${request.title}`,
-      );
+      try {
+        await sendInternalClientCommentAlert({
+          companyName: request.client.companyName,
+          requestTitle: request.title,
+          requestId,
+          commentBody: body,
+        });
+      } catch (emailError) {
+        console.error("Failed to send client comment alert:", emailError);
+      }
     }
 
     revalidatePath(`/portal/requests/${requestId}`);

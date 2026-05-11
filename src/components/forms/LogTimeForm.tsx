@@ -20,15 +20,24 @@ interface LogTimeFormProps {
   clientId: string;
   supportRequestId?: string;
   isOverflowApproved?: boolean;
+  defaultBillableType?: BillableTypeValue;
   onSuccess?: () => void;
 }
 
-export function LogTimeForm({ clientId, supportRequestId, isOverflowApproved, onSuccess }: LogTimeFormProps) {
+export function LogTimeForm({
+  clientId,
+  supportRequestId,
+  isOverflowApproved,
+  defaultBillableType,
+  onSuccess,
+}: LogTimeFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [minutes, setMinutes] = useState("");
   const [description, setDescription] = useState("");
-  const [billableType, setBillableType] = useState<BillableTypeValue>(BILLABLE_TYPES.INCLUDED);
+  const [billableType, setBillableType] = useState<BillableTypeValue>(
+    defaultBillableType ?? BILLABLE_TYPES.INCLUDED,
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,12 +53,12 @@ export function LogTimeForm({ clientId, supportRequestId, isOverflowApproved, on
         billableType,
       });
 
-      if (result.success) {
+      if ("success" in result && result.success) {
         setMinutes("");
         setDescription("");
         if (onSuccess) onSuccess();
       } else {
-        alert(result.error || "Failed to log time.");
+        alert("error" in result ? result.error : "Failed to log time.");
       }
     } catch {
       alert("An unexpected error occurred.");

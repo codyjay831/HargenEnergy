@@ -13,12 +13,13 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { logOutreachActivity } from "@/app/actions/outreach";
+import type { OutreachContact } from "@/generated/prisma/client";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 interface OutreachActivityFormProps {
   companyId: string;
-  contacts: any[];
+  contacts: OutreachContact[];
 }
 
 export function OutreachActivityForm({ companyId, contacts }: OutreachActivityFormProps) {

@@ -30,7 +30,7 @@ export default async function LoginPage({
             Hargen Energy Sign In
           </CardTitle>
           <CardDescription className="text-center">
-            Sign in to access the solar operations desk
+            Client portal access is by invitation after onboarding. Sign in with the email your account manager enabled.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

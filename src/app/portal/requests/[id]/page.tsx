@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Clock, AlertCircle, MessageSquare } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PortalDisbursementPanel } from "@/components/forms/PortalDisbursementPanel";
 import { RequestCommentForm } from "@/components/forms/RequestCommentForm";
 import { OverflowStatus } from "@/generated/prisma/client";
 
@@ -41,7 +42,10 @@ export default async function PortalRequestDetailPage({ params }: PortalRequestD
       },
       timeEntries: {
         select: { minutes: true, billableType: true }
-      }
+      },
+      disbursements: {
+        orderBy: { createdAt: "desc" },
+      },
     },
   });
 
@@ -197,6 +201,17 @@ export default async function PortalRequestDetailPage({ params }: PortalRequestD
               )}
             </CardContent>
           </Card>
+
+          {request.disbursements.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Pass-through payments</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <PortalDisbursementPanel disbursements={request.disbursements} />
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

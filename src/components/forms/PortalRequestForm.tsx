@@ -42,10 +42,10 @@ export function PortalRequestForm() {
     try {
       const result = await submitPortalRequest(data);
 
-      if (result.success) {
+      if ("success" in result && result.success) {
         router.push(`/portal/requests/${result.requestId}`);
       } else {
-        setError(result.error || "Failed to submit request.");
+        setError("error" in result ? result.error : "Failed to submit request.");
       }
     } catch {
       setError("An unexpected error occurred.");

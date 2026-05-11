@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { format, isBefore, isToday, isThisWeek } from "date-fns";
+import { format, isBefore, isToday } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { 
@@ -11,7 +11,8 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { OutreachCompanyStatus } from "@/generated/prisma/client";
-import { Calendar, Clock, Megaphone } from "lucide-react";
+import { Calendar, Clock } from "lucide-react";
+import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export default async function OutreachFollowUpsPage() {
   const today = followUps.filter(f => isToday(new Date(f.nextFollowUpAt!)));
   const upcoming = followUps.filter(f => !isBefore(new Date(f.nextFollowUpAt!), new Date()) && !isToday(new Date(f.nextFollowUpAt!)));
 
-  const renderTable = (companies: typeof followUps, title: string, icon: any, color: string) => (
+  const renderTable = (companies: typeof followUps, title: string, icon: ReactNode, color: string) => (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         {icon}
