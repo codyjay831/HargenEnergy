@@ -7,10 +7,7 @@ export type PermitStackSearchMode =
   | "contractors_by_name"
   | "derived_from_permits";
 
-export type PermitStackProspectSourceKind =
-  | "named_contractor"
-  | "fallback_description"
-  | "fallback_address";
+export type PermitStackProspectSourceKind = "named_contractor";
 
 export type PermitStackSearchInput = {
   searchType: "area" | "contractor";
@@ -47,6 +44,8 @@ type PermitStackContractorSummary = {
 
 type PermitStackPermitSummary = {
   id: string;
+  permit_number?: string | null;
+  category?: string | null;
   contractor_name?: string | null;
   address_street?: string | null;
   address_city?: string | null;
@@ -67,6 +66,7 @@ type PermitStackSearchResponse<T> = {
 export type PermitStackContractorResult = {
   placeId: string;
   name: string;
+  contractorName: string;
   address: string;
   rating: null;
   userRatingsTotal: number;
@@ -76,8 +76,12 @@ export type PermitStackContractorResult = {
   lastPermitDate: string | null;
   specialties: string[];
   jurisdiction: string | null;
-  sourceKind?: PermitStackProspectSourceKind;
-  matchConfidence?: number;
+  permitNumbers: string[];
+  samplePermitId: string | null;
+  samplePermitNumber: string | null;
+  sampleDescription: string | null;
+  sourceKind: PermitStackProspectSourceKind;
+  matchConfidence: number;
 };
 
 type CoverageJurisdiction = {
@@ -318,6 +322,7 @@ function mapPermitStackContractor(
   return {
     placeId: contractor.id,
     name: contractor.name,
+    contractorName: contractor.name,
     address: "",
     rating: null,
     userRatingsTotal: 0,
@@ -327,64 +332,43 @@ function mapPermitStackContractor(
     lastPermitDate: contractor.last_permit_date || null,
     specialties: contractor.specialties || [],
     jurisdiction: null,
+    permitNumbers: [],
+    samplePermitId: null,
+    samplePermitNumber: null,
+    sampleDescription: null,
     sourceKind: "named_contractor",
     matchConfidence: 1,
-  };
-}
-
-function formatPermitAddress(permit: PermitStackPermitSummary) {
-  return [permit.address_street, permit.address_city, permit.address_state]
-    .filter(Boolean)
-    .join(", ");
-}
-
-function deriveProspectFromPermit(permit: PermitStackPermitSummary) {
-  const contractorName = permit.contractor_name?.trim();
-  if (contractorName) {
-    return {
-      name: contractorName,
-      sourceKind: "named_contractor" as const,
-      matchConfidence: 1,
-      key: contractorName.toLowerCase(),
-    };
-  }
-
-  const description = permit.description_raw?.trim();
-  if (description) {
-    const compact = description.replace(/\s+/g, " ").slice(0, 120).trim();
-    if (compact) {
-      return {
-        name: compact,
-        sourceKind: "fallback_description" as const,
-        matchConfidence: 0.5,
-        key: `description-${permit.id}`,
-      };
-    }
-  }
-
-  const address = formatPermitAddress(permit);
-  return {
-    name: address ? `Permit applicant at ${address}` : `Permit applicant ${permit.id}`,
-    sourceKind: "fallback_address" as const,
-    matchConfidence: 0.3,
-    key: `address-${permit.id}`,
   };
 }
 
 function contractorsFromPermits(
   permits: PermitStackPermitSummary[]
 ): PermitStackContractorResult[] {
-  const byKey = new Map<string, PermitStackContractorResult>();
+  const byKey = new Map<
+    string,
+    PermitStackContractorResult & { permitNumberSet: Set<string> }
+  >();
 
   for (const permit of permits) {
-    const prospect = deriveProspectFromPermit(permit);
+    const contractorName = permit.contractor_name?.trim();
+    if (!contractorName) {
+      continue;
+    }
+
+    const key = contractorName.toLowerCase();
     const permitDate = permit.date_issued || permit.date_filed || null;
-    const existing = byKey.get(prospect.key);
+    const existing = byKey.get(key);
 
     if (!existing) {
-      byKey.set(prospect.key, {
-        placeId: `permit-${prospect.key}`,
-        name: prospect.name,
+      const permitNumbers = new Set<string>();
+      if (permit.permit_number?.trim()) {
+        permitNumbers.add(permit.permit_number.trim());
+      }
+
+      byKey.set(key, {
+        placeId: `contractor-${key}`,
+        name: contractorName,
+        contractorName,
         address: permit.address_street || "",
         rating: null,
         userRatingsTotal: 0,
@@ -392,20 +376,32 @@ function contractorsFromPermits(
         state: permit.address_state || null,
         permitCount: 1,
         lastPermitDate: permitDate,
-        specialties: [],
+        specialties: permit.category ? [permit.category] : [],
         jurisdiction: permit.jurisdiction_name || null,
-        sourceKind: prospect.sourceKind,
-        matchConfidence: prospect.matchConfidence,
+        permitNumbers: [],
+        samplePermitId: permit.id,
+        samplePermitNumber: permit.permit_number?.trim() || null,
+        sampleDescription: permit.description_raw?.trim() || null,
+        sourceKind: "named_contractor",
+        matchConfidence: 1,
+        permitNumberSet: permitNumbers,
       });
       continue;
     }
 
     existing.permitCount = (existing.permitCount || 0) + 1;
+    if (permit.permit_number?.trim()) {
+      existing.permitNumberSet.add(permit.permit_number.trim());
+    }
+
     if (
       permitDate &&
       (!existing.lastPermitDate || String(permitDate) > String(existing.lastPermitDate))
     ) {
       existing.lastPermitDate = permitDate;
+      existing.samplePermitId = permit.id;
+      existing.samplePermitNumber = permit.permit_number?.trim() || existing.samplePermitNumber;
+      existing.sampleDescription = permit.description_raw?.trim() || existing.sampleDescription;
     }
 
     if (permit.jurisdiction_name && !existing.jurisdiction) {
@@ -413,7 +409,10 @@ function contractorsFromPermits(
     }
   }
 
-  return Array.from(byKey.values());
+  return Array.from(byKey.values()).map(({ permitNumberSet, ...result }) => ({
+    ...result,
+    permitNumbers: Array.from(permitNumberSet),
+  }));
 }
 
 async function searchPermitStackContractors(
@@ -608,7 +607,7 @@ function buildPermitStackEmptyMessage(
   }
 
   if (totals.contractorRowsDerived === 0) {
-    return `PermitStack returned ${totals.permitTotal} matching permits, but none could be turned into saveable contractor prospects.${coverageMatches.length ? ` Coverage: ${coverageMatches.join(", ")}.` : ""} Attempted: ${attemptSummary}. Try contractor-name search or broaden filters.`;
+    return `PermitStack returned ${totals.permitTotal} matching permits, but none listed a contractor_name.${coverageMatches.length ? ` Coverage: ${coverageMatches.join(", ")}.` : ""} Attempted: ${attemptSummary}. Try contractor-name search or broaden filters.`;
   }
 
   return `No saveable contractor prospects matched for ${categoryLabel}. Attempted: ${attemptSummary}.`;

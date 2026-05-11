@@ -9,6 +9,30 @@ import {
 
 export const OUTREACH_SEARCH_RESULT_LIMIT = 20;
 
+export type OutreachSearchReplayPayload = {
+  results: unknown[];
+  searchMode?: string | null;
+  message?: string | null;
+  resolvedJurisdiction?: string | null;
+  attemptDiagnostics?: unknown[] | null;
+};
+
+export function buildOutreachSearchReplaySnapshot<T>(payload: {
+  results: T[];
+  searchMode?: string | null;
+  message?: string | null;
+  resolvedJurisdiction?: string | null;
+  attemptDiagnostics?: unknown[] | null;
+}): OutreachSearchReplayPayload {
+  return {
+    results: payload.results.slice(0, OUTREACH_SEARCH_RESULT_LIMIT),
+    searchMode: payload.searchMode ?? null,
+    message: payload.message ?? null,
+    resolvedJurisdiction: payload.resolvedJurisdiction ?? null,
+    attemptDiagnostics: payload.attemptDiagnostics ?? null,
+  };
+}
+
 export type OutreachDuplicateMatchReason =
   | "source_id"
   | "website"
@@ -195,6 +219,21 @@ export async function getRecentOutreachSearchRuns(limit = 20) {
   return prisma.outreachSearchRun.findMany({
     orderBy: { createdAt: "desc" },
     take: limit,
+    include: {
+      createdBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+  });
+}
+
+export async function getOutreachSearchRunById(runId: string) {
+  return prisma.outreachSearchRun.findUnique({
+    where: { id: runId },
     include: {
       createdBy: {
         select: {

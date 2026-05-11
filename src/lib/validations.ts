@@ -134,6 +134,7 @@ export const outreachCompanySchema = z.object({
   notes: trimmedString.max(10000).optional().nullable(),
   painTags: z.array(z.string()).optional(),
   doNotContact: z.boolean().optional(),
+  enrichmentData: z.record(z.string(), z.unknown()).optional().nullable(),
 });
 
 export type OutreachCompanyInput = z.infer<typeof outreachCompanySchema>;

@@ -19,6 +19,7 @@ import {
   getPlaceDetails,
   createOutreachCompany,
   listOutreachSearchHistory,
+  getOutreachSearchRun,
   normalizePermitStackQueryWithAI,
   type PermitStackSearchInput,
 } from "@/app/actions/outreach";
@@ -34,6 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import type { OutreachCompanyInput } from "@/lib/validations";
 
 const permitStackSearchModeLabels: Record<string, string> = {
   contractors_by_name: "Contractors by name",
@@ -58,6 +60,93 @@ const defaultPermitStackInput: PermitStackSearchInput = {
   keyword: "",
   filedAfter: "",
 };
+
+type FinderResult = {
+  placeId: string;
+  name: string;
+  address?: string;
+  city?: string | null;
+  state?: string | null;
+  rating?: number | null;
+  userRatingsTotal?: number;
+  permitCount?: number | null;
+  lastPermitDate?: string | null;
+  permitNumbers?: string[];
+  samplePermitNumber?: string | null;
+  samplePermitId?: string | null;
+  sampleDescription?: string | null;
+  contractorName?: string;
+  jurisdiction?: string | null;
+  specialties?: string[];
+  sourceKind?: string;
+  matchConfidence?: number;
+  alreadySaved?: boolean;
+  matchedCompanyId?: string | null;
+};
+
+function formatPermitNumberSummary(result: FinderResult) {
+  if (result.permitNumbers?.length) {
+    const preview = result.permitNumbers.slice(0, 3).join(", ");
+    const remainder = result.permitNumbers.length - 3;
+    return remainder > 0 ? `${preview} (+${remainder} more)` : preview;
+  }
+
+  return result.samplePermitNumber || "Not listed";
+}
+
+function buildPermitStackSavePayload(
+  result: FinderResult,
+  searchInput: PermitStackSearchInput,
+  searchMode: string | null
+) {
+  const contractorName = result.contractorName || result.name;
+  const permitNumberSummary = formatPermitNumberSummary(result);
+  const notes = [
+    "PermitStack contractor (named on permit)",
+    `Contractor: ${contractorName}`,
+    `Permit numbers: ${permitNumberSummary}`,
+    result.lastPermitDate ? `Latest permit date: ${result.lastPermitDate}` : null,
+    result.jurisdiction ? `Jurisdiction: ${result.jurisdiction}` : null,
+    result.address ? `Job site: ${result.address}` : null,
+    result.sampleDescription
+      ? `Sample work: ${result.sampleDescription.slice(0, 200)}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const sourceUrl =
+    result.placeId && !result.placeId.startsWith("contractor-")
+      ? `https://api.permit-stack.com/v1/contractors/${result.placeId}`
+      : undefined;
+
+  return {
+    name: contractorName,
+    city: result.city,
+    state: result.state,
+    notes,
+    sourceUrl,
+    enrichmentData: {
+      permitStack: {
+        searchParams: searchInput,
+        searchMode,
+        contractorName,
+        permitNumbers: result.permitNumbers || [],
+        samplePermitId: result.samplePermitId,
+        samplePermitNumber: result.samplePermitNumber,
+        sampleDescription: result.sampleDescription,
+        jurisdiction: result.jurisdiction,
+        address: result.address,
+        city: result.city,
+        state: result.state,
+        permitCount: result.permitCount,
+        lastPermitDate: result.lastPermitDate,
+        matchConfidence: result.matchConfidence ?? 1,
+        sourceKind: result.sourceKind || "named_contractor",
+      },
+    },
+  };
+}
 
 function parsePermitStackParamsFromRun(params: unknown): PermitStackSearchInput | null {
   if (!params || typeof params !== "object") {
@@ -86,7 +175,7 @@ export default function ContractorFinderPage() {
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [activeSource, setActiveSource] = useState("google");
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<FinderResult[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({ google: 0, permitstack: 0 });
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -105,6 +194,9 @@ export default function ContractorFinderPage() {
     []
   );
   const [recentSearches, setRecentSearches] = useState<any[]>([]);
+  const [replayedSearchAt, setReplayedSearchAt] = useState<string | null>(null);
+  const [isViewingCachedResults, setIsViewingCachedResults] = useState(false);
+  const [loadingReplayId, setLoadingReplayId] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -136,16 +228,94 @@ export default function ContractorFinderPage() {
     setIsAiAssisting(false);
   };
 
-  const handleReRunPermitStackSearch = (params: unknown) => {
+  const restorePermitStackForm = (params: unknown) => {
     const restored = parsePermitStackParamsFromRun(params);
     if (!restored) {
-      return;
+      return false;
     }
 
     setActiveSource("permitstack");
     setPermitStackInput(restored);
     setPermitStackFormError(null);
     setAiAssistError(null);
+    return true;
+  };
+
+  const handleReRunPermitStackSearch = (params: unknown) => {
+    restorePermitStackForm(params);
+    setResults([]);
+    setHasSearched(false);
+    setPermitStackMessage(null);
+    setPermitStackSearchMode(null);
+    setResolvedJurisdiction(null);
+    setAttemptDiagnostics([]);
+    setReplayedSearchAt(null);
+    setIsViewingCachedResults(false);
+  };
+
+  const handleReRunGoogleSearch = (params: unknown) => {
+    const value =
+      params && typeof params === "object" && "query" in params
+        ? String((params as { query?: unknown }).query || "")
+        : "";
+
+    setActiveSource("google");
+    setQuery(value);
+    setResults([]);
+    setHasSearched(false);
+    setPermitStackMessage(null);
+    setPermitStackSearchMode(null);
+    setResolvedJurisdiction(null);
+    setAttemptDiagnostics([]);
+    setReplayedSearchAt(null);
+    setIsViewingCachedResults(false);
+  };
+
+  const handleViewSearchResults = async (run: {
+    id: string;
+    source: string;
+    createdAt: string;
+    params: unknown;
+    searchMode?: string | null;
+    errorMessage?: string | null;
+  }) => {
+    setLoadingReplayId(run.id);
+    const response = await getOutreachSearchRun(run.id);
+
+    if (!response.success || !response.replay) {
+      alert(response.error || "Could not load saved search results.");
+      setLoadingReplayId(null);
+      return;
+    }
+
+    const replay = response.replay;
+    const replayedAt = new Date(run.createdAt).toLocaleString();
+
+    if (run.source === "PERMITSTACK") {
+      restorePermitStackForm(run.params);
+    } else if (run.source === "GOOGLE") {
+      const value =
+        run.params && typeof run.params === "object" && "query" in run.params
+          ? String((run.params as { query?: unknown }).query || "")
+          : "";
+      setActiveSource("google");
+      setQuery(value);
+    }
+
+    setResults((replay.results as FinderResult[]) || []);
+    setCounts((prev) => ({
+      ...prev,
+      [run.source === "PERMITSTACK" ? "permitstack" : "google"]:
+        replay.results?.length || 0,
+    }));
+    setHasSearched(true);
+    setPermitStackMessage(replay.message ?? run.errorMessage ?? null);
+    setPermitStackSearchMode(replay.searchMode ?? run.searchMode ?? null);
+    setResolvedJurisdiction(replay.resolvedJurisdiction ?? null);
+    setAttemptDiagnostics((replay.attemptDiagnostics as PermitStackAttemptDiagnostic[]) || []);
+    setReplayedSearchAt(replayedAt);
+    setIsViewingCachedResults(true);
+    setLoadingReplayId(null);
   };
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -157,6 +327,8 @@ export default function ContractorFinderPage() {
     setResolvedJurisdiction(null);
     setAttemptDiagnostics([]);
     setPermitStackFormError(null);
+    setReplayedSearchAt(null);
+    setIsViewingCachedResults(false);
 
     let result;
 
@@ -218,7 +390,11 @@ export default function ContractorFinderPage() {
     setIsSearching(false);
   };
 
-  const handleSave = async (result: any) => {
+  const handleSave = async (result: FinderResult) => {
+    if (activeSource === "permitstack" && result.sourceKind !== "named_contractor") {
+      return;
+    }
+
     if (result.alreadySaved && result.matchedCompanyId) {
       router.push(`/admin/outreach/companies/${result.matchedCompanyId}`);
       return;
@@ -226,7 +402,7 @@ export default function ContractorFinderPage() {
 
     setLoadingId(result.placeId);
 
-    let companyData: any = {
+    let companyData: OutreachCompanyInput = {
       name: result.name,
       city: result.city,
       state: result.state,
@@ -243,20 +419,10 @@ export default function ContractorFinderPage() {
         companyData.notes = `Google Rating: ${result.rating} (${result.userRatingsTotal} reviews)\nAddress: ${result.address}`;
       }
     } else if (activeSource === "permitstack") {
-      companyData.sourceUrl = `https://api.permit-stack.com/v1/contractors/${result.placeId}`;
-      const permitLines = [
-        "PermitStack Result",
-        permitStackSearchMode
-          ? `Search Mode: ${permitStackSearchModeLabels[permitStackSearchMode] || permitStackSearchMode}`
-          : null,
-        result.permitCount != null ? `Total Permits: ${result.permitCount}` : null,
-        result.lastPermitDate ? `Last Permit Date: ${result.lastPermitDate}` : null,
-        result.specialties?.length ? `Specialties: ${result.specialties.join(", ")}` : null,
-        result.jurisdiction ? `Jurisdiction: ${result.jurisdiction}` : null,
-        result.address ? `Address: ${result.address}` : null,
-      ].filter(Boolean);
-
-      companyData.notes = permitLines.join("\n");
+      companyData = {
+        ...companyData,
+        ...buildPermitStackSavePayload(result, permitStackInput, permitStackSearchMode),
+      };
     }
 
     const saveResult = await createOutreachCompany(companyData);
@@ -481,6 +647,17 @@ export default function ContractorFinderPage() {
         </CardContent>
       </Card>
 
+      {isViewingCachedResults && replayedSearchAt && (
+        <Card>
+          <CardContent className="py-4">
+            <p className="text-sm text-muted-foreground">
+              Showing cached results from {replayedSearchAt}. Use Re-run search when you want a fresh
+              provider lookup.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {activeSource === "permitstack" && permitStackSearchMode && (
         <p className="text-sm text-muted-foreground">
           Search mode: {permitStackSearchModeLabels[permitStackSearchMode] || permitStackSearchMode}
@@ -528,13 +705,11 @@ export default function ContractorFinderPage() {
                       <span className="text-xs text-muted-foreground truncate max-w-[300px]">
                         {result.address}
                       </span>
-                      {activeSource === "permitstack" &&
-                        result.sourceKind &&
-                        result.sourceKind !== "named_contractor" && (
-                          <Badge variant="outline" className="w-fit text-[10px]">
-                            Derived from permit
-                          </Badge>
-                        )}
+                      {activeSource === "permitstack" && (
+                        <span className="text-xs text-muted-foreground">
+                          Permit # {formatPermitNumberSummary(result)}
+                        </span>
+                      )}
                       {result.alreadySaved && (
                         <Badge variant="outline" className="w-fit text-[10px]">
                           Already in CRM
@@ -592,7 +767,11 @@ export default function ContractorFinderPage() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleSave(result)}
-                        disabled={loadingId === result.placeId}
+                        disabled={
+                          loadingId === result.placeId ||
+                          (activeSource === "permitstack" &&
+                            result.sourceKind !== "named_contractor")
+                        }
                       >
                         {loadingId === result.placeId ? (
                           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
@@ -625,15 +804,34 @@ export default function ContractorFinderPage() {
                       {run.source} · {run.resultCount} results
                     </span>
                     <div className="flex items-center gap-2">
-                      {run.source === "PERMITSTACK" && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleReRunPermitStackSearch(run.params)}
-                        >
-                          Re-run
-                        </Button>
+                      {(run.source === "PERMITSTACK" || run.source === "GOOGLE") && (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleViewSearchResults(run)}
+                            disabled={loadingReplayId === run.id}
+                          >
+                            {loadingReplayId === run.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              "View results"
+                            )}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              run.source === "PERMITSTACK"
+                                ? handleReRunPermitStackSearch(run.params)
+                                : handleReRunGoogleSearch(run.params)
+                            }
+                          >
+                            Re-run search
+                          </Button>
+                        </>
                       )}
                       <span className="text-xs text-muted-foreground">
                         {new Date(run.createdAt).toLocaleString()}

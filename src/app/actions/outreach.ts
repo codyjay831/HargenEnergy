@@ -8,6 +8,7 @@ import {
   OutreachCompanyStatus,
   OutreachSearchSource,
   OutreachSearchStatus,
+  Prisma,
 } from "@/generated/prisma/client";
 import { revalidatePath } from "next/cache";
 import Papa from "papaparse";
@@ -15,11 +16,14 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
   annotateFinderResults,
+  buildOutreachSearchReplaySnapshot,
   findExistingOutreachCompany,
+  getOutreachSearchRunById,
   getRecentOutreachSearchRuns,
   logOutreachSearchRun,
   normalizeCompanyName,
   OUTREACH_SEARCH_RESULT_LIMIT,
+  type OutreachSearchReplayPayload,
 } from "@/lib/outreach-search";
 import {
   type PermitStackSearchInput,
@@ -80,9 +84,12 @@ export async function createOutreachCompany(data: OutreachCompanyInput) {
       };
     }
 
+    const { enrichmentData, ...companyFields } = validatedFields.data;
+
     const company = await prisma.outreachCompany.create({
       data: {
-        ...validatedFields.data,
+        ...companyFields,
+        enrichmentData: (enrichmentData ?? undefined) as Prisma.InputJsonValue | undefined,
         status: (validatedFields.data.status as OutreachCompanyStatus) || OutreachCompanyStatus.LEAD_FOUND,
         businessType: (validatedFields.data.businessType as BusinessType) || BusinessType.OTHER,
       },
@@ -103,10 +110,16 @@ export async function updateOutreachCompany(id: string, data: Partial<OutreachCo
   }
 
   try {
+    const { enrichmentData, ...companyFields } = data;
+
     const company = await prisma.outreachCompany.update({
       where: { id },
       data: {
-        ...data,
+        ...companyFields,
+        enrichmentData:
+          enrichmentData === undefined
+            ? undefined
+            : (enrichmentData as Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput),
         status: data.status ? (data.status as OutreachCompanyStatus) : undefined,
         businessType: data.businessType ? (data.businessType as BusinessType) : undefined,
       },
@@ -357,12 +370,9 @@ export async function searchContractors(query: string) {
       params: { query: trimmedQuery },
       resultCount: results.length,
       status,
-      resultSnapshot: results.map((result) => ({
-        placeId: result.placeId,
-        name: result.name,
-        city: result.city,
-        state: result.state,
-      })),
+      resultSnapshot: buildOutreachSearchReplaySnapshot({
+        results,
+      }),
     });
 
     return { success: true, results, count: results.length };
@@ -389,6 +399,52 @@ export async function listOutreachSearchHistory(limit = 20) {
 
   const runs = await getRecentOutreachSearchRuns(limit);
   return { success: true, runs };
+}
+
+export async function getOutreachSearchRun(runId: string) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { error: "Unauthorized. Admin access required." };
+  }
+
+  const run = await getOutreachSearchRunById(runId);
+  if (!run) {
+    return { error: "Search run not found." };
+  }
+
+  const snapshot = run.resultSnapshot as OutreachSearchReplayPayload | null;
+  if (!snapshot) {
+    return {
+      success: true,
+      run,
+      replay: {
+        results: [],
+        searchMode: run.searchMode,
+        message: run.errorMessage,
+        resolvedJurisdiction: null,
+        attemptDiagnostics: null,
+      },
+    };
+  }
+
+  const results = await annotateFinderResults(
+    (snapshot.results || []) as Array<{
+      placeId: string;
+      name: string;
+      city?: string | null;
+      state?: string | null;
+      website?: string | null;
+    }>
+  );
+
+  return {
+    success: true,
+    run,
+    replay: {
+      ...snapshot,
+      results,
+    },
+  };
 }
 
 export type { PermitStackSearchInput } from "@/lib/outreach-permitstack";
@@ -436,21 +492,18 @@ export async function searchPermitStack(input: PermitStackSearchInput) {
       source: OutreachSearchSource.PERMITSTACK,
       createdById: session.user.id,
       queryText: input.contractorName || input.city || null,
-      params: {
-        ...input,
-        attemptDiagnostics: searchResult.attemptDiagnostics,
-        resolvedJurisdiction: searchResult.resolvedJurisdiction,
-      },
+      params: input,
       resultCount: annotated.length,
       searchMode: searchResult.searchMode,
       status,
       errorMessage: searchResult.message,
-      resultSnapshot: annotated.map((result) => ({
-        placeId: result.placeId,
-        name: result.name,
-        city: result.city,
-        state: result.state,
-      })),
+      resultSnapshot: buildOutreachSearchReplaySnapshot({
+        results: annotated,
+        searchMode: searchResult.searchMode,
+        message: searchResult.message,
+        resolvedJurisdiction: searchResult.resolvedJurisdiction,
+        attemptDiagnostics: searchResult.attemptDiagnostics,
+      }),
     });
 
     return {

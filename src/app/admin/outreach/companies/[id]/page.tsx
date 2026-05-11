@@ -51,6 +51,25 @@ export default async function OutreachCompanyDetailPage({ params }: OutreachComp
 
   if (!company) notFound();
 
+  const enrichmentData =
+    company.enrichmentData && typeof company.enrichmentData === "object"
+      ? (company.enrichmentData as Record<string, unknown>)
+      : null;
+  const permitStackEvidence =
+    enrichmentData?.permitStack && typeof enrichmentData.permitStack === "object"
+      ? (enrichmentData.permitStack as Record<string, unknown>)
+      : null;
+  const permitNumbers = Array.isArray(permitStackEvidence?.permitNumbers)
+    ? permitStackEvidence.permitNumbers.filter(
+        (value): value is string => typeof value === "string" && value.trim().length > 0
+      )
+    : [];
+  const looksLikePermitDescription =
+    !permitStackEvidence &&
+    company.leadSource?.toLowerCase() === "permitstack" &&
+    (company.name.length > 60 ||
+      /\b(revision|resubmit|install|system|solarapp|permit)\b/i.test(company.name));
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -89,6 +108,77 @@ export default async function OutreachCompanyDetailPage({ params }: OutreachComp
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column: Company Info & Contacts */}
         <div className="lg:col-span-2 space-y-8">
+          {looksLikePermitDescription && (
+            <Card className="border-amber-200 bg-amber-50">
+              <CardContent className="py-4">
+                <p className="text-sm text-amber-900">
+                  This saved prospect name looks like permit description text rather than a named
+                  contractor. Review the record before outreach.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {permitStackEvidence && (
+            <Card>
+              <CardHeader>
+                <CardTitle>PermitStack evidence</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Contractor</p>
+                  <p className="font-medium">
+                    {typeof permitStackEvidence.contractorName === "string"
+                      ? permitStackEvidence.contractorName
+                      : company.name}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">
+                    Permit numbers
+                  </p>
+                  <p className="font-medium">
+                    {permitNumbers.length > 0
+                      ? permitNumbers.join(", ")
+                      : typeof permitStackEvidence.samplePermitNumber === "string"
+                        ? permitStackEvidence.samplePermitNumber
+                        : "Not listed"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">
+                    Latest permit date
+                  </p>
+                  <p className="font-medium">
+                    {typeof permitStackEvidence.lastPermitDate === "string"
+                      ? permitStackEvidence.lastPermitDate
+                      : "Not listed"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">
+                    Jurisdiction
+                  </p>
+                  <p className="font-medium">
+                    {typeof permitStackEvidence.jurisdiction === "string"
+                      ? permitStackEvidence.jurisdiction
+                      : "Not listed"}
+                  </p>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Job site</p>
+                  <p className="font-medium">
+                    {typeof permitStackEvidence.address === "string" && permitStackEvidence.address
+                      ? permitStackEvidence.address
+                      : [permitStackEvidence.city, permitStackEvidence.state]
+                          .filter((value) => typeof value === "string" && value)
+                          .join(", ") || "Not listed"}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>Company Details</CardTitle>
