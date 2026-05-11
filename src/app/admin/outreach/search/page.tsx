@@ -36,9 +36,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 const permitStackSearchModeLabels: Record<string, string> = {
-  contractors_by_area: "Contractors by area",
   contractors_by_name: "Contractors by name",
-  derived_from_permits: "Derived from permits",
+  derived_from_permits: "Permits search",
 };
 
 const defaultPermitStackInput: PermitStackSearchInput = {
@@ -48,7 +47,33 @@ const defaultPermitStackInput: PermitStackSearchInput = {
   jurisdiction: "",
   contractorName: "",
   category: "solar",
+  zipCode: "",
+  keyword: "",
+  filedAfter: "",
 };
+
+function parsePermitStackParamsFromRun(params: unknown): PermitStackSearchInput | null {
+  if (!params || typeof params !== "object") {
+    return null;
+  }
+
+  const value = params as Record<string, unknown>;
+  if (value.searchType !== "area" && value.searchType !== "contractor") {
+    return null;
+  }
+
+  return {
+    searchType: value.searchType,
+    city: typeof value.city === "string" ? value.city : "",
+    state: typeof value.state === "string" ? value.state : "",
+    jurisdiction: typeof value.jurisdiction === "string" ? value.jurisdiction : "",
+    contractorName: typeof value.contractorName === "string" ? value.contractorName : "",
+    category: typeof value.category === "string" ? value.category : "solar",
+    zipCode: typeof value.zipCode === "string" ? value.zipCode : "",
+    keyword: typeof value.keyword === "string" ? value.keyword : "",
+    filedAfter: typeof value.filedAfter === "string" ? value.filedAfter : "",
+  };
+}
 
 export default function ContractorFinderPage() {
   const [query, setQuery] = useState("");
@@ -65,7 +90,9 @@ export default function ContractorFinderPage() {
     useState<PermitStackSearchInput>(defaultPermitStackInput);
   const [aiAssistText, setAiAssistText] = useState("");
   const [aiAssistRationale, setAiAssistRationale] = useState<string | null>(null);
+  const [aiAssistError, setAiAssistError] = useState<string | null>(null);
   const [isAiAssisting, setIsAiAssisting] = useState(false);
+  const [permitStackFormError, setPermitStackFormError] = useState<string | null>(null);
   const [resolvedJurisdiction, setResolvedJurisdiction] = useState<string | null>(null);
   const [attemptedQueries, setAttemptedQueries] = useState<string[]>([]);
   const [recentSearches, setRecentSearches] = useState<any[]>([]);
@@ -88,14 +115,28 @@ export default function ContractorFinderPage() {
     }
 
     setIsAiAssisting(true);
+    setAiAssistError(null);
     const result = await normalizePermitStackQueryWithAI(aiAssistText);
     if (result.success && result.input) {
-      setPermitStackInput(result.input);
+      setPermitStackInput((prev) => ({ ...prev, ...result.input }));
       setAiAssistRationale(result.rationale || null);
     } else {
-      alert(result.error);
+      setAiAssistRationale(null);
+      setAiAssistError(result.error || "Could not normalize that query.");
     }
     setIsAiAssisting(false);
+  };
+
+  const handleReRunPermitStackSearch = (params: unknown) => {
+    const restored = parsePermitStackParamsFromRun(params);
+    if (!restored) {
+      return;
+    }
+
+    setActiveSource("permitstack");
+    setPermitStackInput(restored);
+    setPermitStackFormError(null);
+    setAiAssistError(null);
   };
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -106,6 +147,7 @@ export default function ContractorFinderPage() {
     setPermitStackSearchMode(null);
     setResolvedJurisdiction(null);
     setAttemptedQueries([]);
+    setPermitStackFormError(null);
 
     let result;
 
@@ -117,6 +159,25 @@ export default function ContractorFinderPage() {
 
       result = await searchContractors(query);
     } else {
+      if (permitStackInput.searchType === "contractor") {
+        if (!permitStackInput.contractorName?.trim()) {
+          setPermitStackFormError("Enter a contractor name before searching PermitStack.");
+          setIsSearching(false);
+          return;
+        }
+      } else if (
+        !permitStackInput.city?.trim() &&
+        !permitStackInput.zipCode?.trim() &&
+        !permitStackInput.keyword?.trim() &&
+        !permitStackInput.jurisdiction?.trim()
+      ) {
+        setPermitStackFormError(
+          "Enter at least one area filter: city, ZIP code, keyword, or jurisdiction."
+        );
+        setIsSearching(false);
+        return;
+      }
+
       result = await searchPermitStack(permitStackInput);
     }
 
@@ -275,31 +336,66 @@ export default function ContractorFinderPage() {
                   </div>
 
                   {permitStackInput.searchType === "area" ? (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <Input
-                        placeholder="City (e.g. Sacramento)"
-                        value={permitStackInput.city || ""}
-                        onChange={(e) =>
-                          setPermitStackInput((prev) => ({ ...prev, city: e.target.value }))
-                        }
-                      />
-                      <Input
-                        placeholder="State (e.g. CA)"
-                        value={permitStackInput.state || ""}
-                        onChange={(e) =>
-                          setPermitStackInput((prev) => ({ ...prev, state: e.target.value }))
-                        }
-                      />
-                      <Input
-                        placeholder="Jurisdiction (optional)"
-                        value={permitStackInput.jurisdiction || ""}
-                        onChange={(e) =>
-                          setPermitStackInput((prev) => ({
-                            ...prev,
-                            jurisdiction: e.target.value,
-                          }))
-                        }
-                      />
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <Input
+                          placeholder="City (e.g. Sacramento)"
+                          value={permitStackInput.city || ""}
+                          onChange={(e) =>
+                            setPermitStackInput((prev) => ({ ...prev, city: e.target.value }))
+                          }
+                        />
+                        <Input
+                          placeholder="State (e.g. CA)"
+                          value={permitStackInput.state || ""}
+                          onChange={(e) =>
+                            setPermitStackInput((prev) => ({ ...prev, state: e.target.value }))
+                          }
+                        />
+                        <Input
+                          placeholder="Jurisdiction (optional)"
+                          value={permitStackInput.jurisdiction || ""}
+                          onChange={(e) =>
+                            setPermitStackInput((prev) => ({
+                              ...prev,
+                              jurisdiction: e.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <Input
+                          placeholder="Category (default solar, all)"
+                          value={permitStackInput.category || ""}
+                          onChange={(e) =>
+                            setPermitStackInput((prev) => ({ ...prev, category: e.target.value }))
+                          }
+                        />
+                        <Input
+                          placeholder="ZIP code"
+                          value={permitStackInput.zipCode || ""}
+                          onChange={(e) =>
+                            setPermitStackInput((prev) => ({ ...prev, zipCode: e.target.value }))
+                          }
+                        />
+                        <Input
+                          placeholder="Keyword"
+                          value={permitStackInput.keyword || ""}
+                          onChange={(e) =>
+                            setPermitStackInput((prev) => ({ ...prev, keyword: e.target.value }))
+                          }
+                        />
+                        <Input
+                          type="date"
+                          value={permitStackInput.filedAfter || ""}
+                          onChange={(e) =>
+                            setPermitStackInput((prev) => ({
+                              ...prev,
+                              filedAfter: e.target.value,
+                            }))
+                          }
+                        />
+                      </div>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -354,7 +450,14 @@ export default function ContractorFinderPage() {
                     {aiAssistRationale && (
                       <p className="text-xs text-muted-foreground">{aiAssistRationale}</p>
                     )}
+                    {aiAssistError && (
+                      <p className="text-xs text-destructive">{aiAssistError}</p>
+                    )}
                   </div>
+
+                  {permitStackFormError && (
+                    <p className="text-sm text-destructive">{permitStackFormError}</p>
+                  )}
 
                   <div className="flex justify-end">
                     <Button type="submit" disabled={isSearching}>
@@ -499,9 +602,21 @@ export default function ContractorFinderPage() {
                     <span className="text-sm font-medium">
                       {run.source} · {run.resultCount} results
                     </span>
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(run.createdAt).toLocaleString()}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {run.source === "PERMITSTACK" && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleReRunPermitStackSearch(run.params)}
+                        >
+                          Re-run
+                        </Button>
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(run.createdAt).toLocaleString()}
+                      </span>
+                    </div>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {run.queryText || JSON.stringify(run.params)}

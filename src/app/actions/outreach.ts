@@ -23,6 +23,7 @@ import {
 } from "@/lib/outreach-search";
 import {
   type PermitStackSearchInput,
+  parsePermitStackQueryLocally,
   runPermitStackSearch,
 } from "@/lib/outreach-permitstack";
 import {
@@ -490,14 +491,23 @@ export async function normalizePermitStackQueryWithAI(text: string) {
     return { error: rateLimitError };
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return { error: "Gemini API key not configured." };
-  }
-
   const trimmed = text.trim();
   if (!trimmed) {
     return { error: "Enter text for AI to normalize." };
+  }
+
+  const localParse = parsePermitStackQueryLocally(trimmed);
+  if (localParse) {
+    return {
+      success: true,
+      input: localParse.input,
+      rationale: localParse.rationale,
+    };
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return { error: "Gemini API key not configured. Fill the form manually instead." };
   }
 
   try {
