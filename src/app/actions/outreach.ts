@@ -275,6 +275,175 @@ export async function searchContractors(query: string) {
   }
 }
 
+const PERMITSTACK_API_BASE = "https://api.permitstack.com";
+
+type PermitStackContractorResult = {
+  placeId: string;
+  name: string;
+  address: string;
+  rating: null;
+  userRatingsTotal: number;
+  city: string | null;
+  state: string | null;
+  permitCount: number | null;
+  lastPermitDate: string | null;
+};
+
+async function fetchPermitStack(
+  path: string,
+  params: Record<string, string>,
+  apiKey: string
+) {
+  const url = new URL(`${PERMITSTACK_API_BASE}${path}`);
+  for (const [key, value] of Object.entries(params)) {
+    if (value) {
+      url.searchParams.set(key, value);
+    }
+  }
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      "X-API-Key": apiKey,
+    },
+  });
+
+  const text = await response.text();
+  let data: any = null;
+
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      if (!response.ok) {
+        return {
+          error: `PermitStack error: ${response.status} ${response.statusText}`,
+        };
+      }
+
+      return { error: "PermitStack returned an invalid response." };
+    }
+  }
+
+  if (!response.ok) {
+    const message =
+      data?.message ||
+      data?.error?.description ||
+      data?.error?.message ||
+      data?.error ||
+      response.statusText;
+
+    return { error: `PermitStack error: ${message}` };
+  }
+
+  return { data };
+}
+
+function parsePermitStackLocationQuery(
+  query: string
+): { city: string; state?: string } | null {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const commaParts = trimmed.split(",").map((part) => part.trim()).filter(Boolean);
+  if (commaParts.length >= 2) {
+    const city = commaParts[0];
+    const statePart = commaParts[1];
+    const stateMatch = statePart.match(/^([A-Za-z]{2})\b/);
+
+    return {
+      city,
+      state: stateMatch ? stateMatch[1].toUpperCase() : statePart,
+    };
+  }
+
+  const businessPattern =
+    /\b(llc|inc|corp|company|solar|electric|roofing|construction|services|group)\b/i;
+  if (businessPattern.test(trimmed)) {
+    return null;
+  }
+
+  return { city: trimmed };
+}
+
+function mapPermitStackContractor(contractor: any): PermitStackContractorResult {
+  return {
+    placeId: String(contractor.id ?? contractor.contractor_id ?? contractor.name),
+    name: contractor.name,
+    address: contractor.address || "",
+    rating: null,
+    userRatingsTotal: 0,
+    city: contractor.city || null,
+    state: contractor.state || null,
+    permitCount:
+      contractor.recent_permit_count ??
+      contractor.permit_count ??
+      contractor.permits_count ??
+      null,
+    lastPermitDate:
+      contractor.last_permit_date ??
+      contractor.last_activity_date ??
+      contractor.last_activity ??
+      null,
+  };
+}
+
+function contractorsFromPermits(permits: any[]): PermitStackContractorResult[] {
+  const byKey = new Map<string, PermitStackContractorResult>();
+
+  for (const permit of permits) {
+    const name =
+      permit.contractor_name ||
+      permit.contractor?.name ||
+      permit.contractor ||
+      permit.applicant_name;
+
+    if (!name || typeof name !== "string") {
+      continue;
+    }
+
+    const normalizedName = name.trim();
+    const key = normalizedName.toLowerCase();
+    const permitDate =
+      permit.issue_date ||
+      permit.permit_date ||
+      permit.last_permit_date ||
+      permit.date ||
+      null;
+    const existing = byKey.get(key);
+
+    if (!existing) {
+      byKey.set(key, {
+        placeId: String(
+          permit.contractor_id ||
+            permit.contractor?.id ||
+            `permit-${key}`
+        ),
+        name: normalizedName,
+        address: permit.address || permit.site_address || "",
+        rating: null,
+        userRatingsTotal: 0,
+        city: permit.city || null,
+        state: permit.state || null,
+        permitCount: 1,
+        lastPermitDate: permitDate,
+      });
+      continue;
+    }
+
+    existing.permitCount = (existing.permitCount || 0) + 1;
+    if (
+      permitDate &&
+      (!existing.lastPermitDate || String(permitDate) > String(existing.lastPermitDate))
+    ) {
+      existing.lastPermitDate = permitDate;
+    }
+  }
+
+  return Array.from(byKey.values());
+}
+
 export async function searchPermitStack(query: string) {
   const session = await auth();
   if (!session?.user || session.user.role !== "ADMIN") {
@@ -286,37 +455,63 @@ export async function searchPermitStack(query: string) {
     return { error: "PermitStack API key not configured." };
   }
 
+  const trimmedQuery = query.trim();
+  if (!trimmedQuery) {
+    return { error: "Enter a city, state, or contractor name to search PermitStack." };
+  }
+
   try {
-    const response = await fetch(
-      `https://api.permitstack.com/v1/contractors/search?q=${encodeURIComponent(query)}`,
-      {
-        headers: {
-          "X-API-Key": apiKey
-        }
+    const location = parsePermitStackLocationQuery(trimmedQuery);
+
+    if (location) {
+      const permitParams: Record<string, string> = {
+        city: location.city,
+        category: "solar",
+        per_page: "50",
+      };
+
+      if (location.state) {
+        permitParams.state = location.state;
       }
+
+      const permitResponse = await fetchPermitStack(
+        "/v1/permits/search",
+        permitParams,
+        apiKey
+      );
+
+      if (permitResponse.error) {
+        return { error: permitResponse.error };
+      }
+
+      const permits = Array.isArray(permitResponse.data?.permits)
+        ? permitResponse.data.permits
+        : Array.isArray(permitResponse.data?.results)
+          ? permitResponse.data.results
+          : [];
+
+      const results = contractorsFromPermits(permits);
+      return { success: true, results, count: results.length };
+    }
+
+    const contractorResponse = await fetchPermitStack(
+      "/v1/contractors/search",
+      {
+        name: trimmedQuery,
+        per_page: "50",
+      },
+      apiKey
     );
-    const data = await response.json();
 
-    if (!response.ok) {
-      return { error: `PermitStack error: ${data.message || response.statusText}` };
+    if (contractorResponse.error) {
+      return { error: contractorResponse.error };
     }
 
-    if (!data.contractors || !Array.isArray(data.contractors)) {
-      return { success: true, results: [], count: 0 };
-    }
+    const contractors = Array.isArray(contractorResponse.data?.contractors)
+      ? contractorResponse.data.contractors
+      : [];
 
-    const results = data.contractors.map((c: any) => ({
-      placeId: c.id,
-      name: c.name,
-      address: c.address,
-      rating: null,
-      userRatingsTotal: 0,
-      city: c.city,
-      state: c.state,
-      permitCount: c.recent_permit_count,
-      lastPermitDate: c.last_permit_date,
-    }));
-
+    const results = contractors.map(mapPermitStackContractor);
     return { success: true, results, count: results.length };
   } catch (error) {
     console.error("Error searching PermitStack:", error);

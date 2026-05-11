@@ -88,7 +88,14 @@ export default function ContractorFinderPage() {
         companyData.notes = `Google Rating: ${result.rating} (${result.userRatingsTotal} reviews)\nAddress: ${result.address}`;
       }
     } else if (activeSource === "permitstack") {
-      companyData.notes = `PermitStack Result\nRecent Permits: ${result.permitCount}\nLast Permit Date: ${result.lastPermitDate}\nAddress: ${result.address}`;
+      const permitLines = [
+        "PermitStack Result",
+        result.permitCount != null ? `Recent Permits: ${result.permitCount}` : null,
+        result.lastPermitDate ? `Last Permit Date: ${result.lastPermitDate}` : null,
+        result.address ? `Address: ${result.address}` : null,
+      ].filter(Boolean);
+
+      companyData.notes = permitLines.join("\n");
     }
     
     const saveResult = await createOutreachCompany(companyData);
@@ -112,7 +119,9 @@ export default function ContractorFinderPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-bold">Contractor Finder</h1>
-          <p className="text-muted-foreground text-sm">Search for solar contractors using Google Places or PermitStack.</p>
+          <p className="text-muted-foreground text-sm">
+            Search with Google Places, or use PermitStack by city/state or contractor name.
+          </p>
         </div>
       </div>
 
@@ -128,24 +137,32 @@ export default function ContractorFinderPage() {
               </TabsTrigger>
             </TabsList>
 
-            <form onSubmit={handleSearch} className="flex gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input 
-                  placeholder={
-                    activeSource === "permitstack" 
-                      ? "e.g. Sacramento, CA" 
-                      : "e.g. solar contractors in Sacramento, CA"
-                  }
-                  className="pl-10"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
+            <form onSubmit={handleSearch} className="space-y-2">
+              <div className="flex gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={
+                      activeSource === "permitstack"
+                        ? "City, state or contractor name (e.g. Sacramento, CA)"
+                        : "e.g. solar contractors in Sacramento, CA"
+                    }
+                    className="pl-10"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                  />
+                </div>
+                <Button type="submit" disabled={isSearching}>
+                  {isSearching ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Search
+                </Button>
               </div>
-              <Button type="submit" disabled={isSearching}>
-                {isSearching ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                Search
-              </Button>
+              {activeSource === "permitstack" && (
+                <p className="text-xs text-muted-foreground">
+                  PermitStack location searches use recent solar permits in that area. Contractor
+                  name searches look up a specific company.
+                </p>
+              )}
             </form>
           </Tabs>
         </CardContent>
