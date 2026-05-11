@@ -23,8 +23,10 @@ import {
 } from "@/lib/outreach-search";
 import {
   type PermitStackSearchInput,
+  loadPermitStackCoverage,
   parsePermitStackQueryLocally,
   runPermitStackSearch,
+  sanitizePermitStackJurisdiction,
 } from "@/lib/outreach-permitstack";
 import {
   mapYelpCandidate,
@@ -436,7 +438,7 @@ export async function searchPermitStack(input: PermitStackSearchInput) {
       queryText: input.contractorName || input.city || null,
       params: {
         ...input,
-        attempted: searchResult.attempted,
+        attemptDiagnostics: searchResult.attemptDiagnostics,
         resolvedJurisdiction: searchResult.resolvedJurisdiction,
       },
       resultCount: annotated.length,
@@ -458,7 +460,7 @@ export async function searchPermitStack(input: PermitStackSearchInput) {
       searchMode: searchResult.searchMode,
       message: searchResult.message,
       resolvedJurisdiction: searchResult.resolvedJurisdiction,
-      attempted: searchResult.attempted,
+      attemptDiagnostics: searchResult.attemptDiagnostics,
     };
   } catch (error) {
     console.error("Error searching PermitStack:", error);
@@ -537,13 +539,22 @@ export async function normalizePermitStackQueryWithAI(text: string) {
       rationale?: string;
     };
 
+    const permitStackApiKey = process.env.PERMITSTACK_API_KEY;
+    let jurisdiction = parsed.jurisdiction || undefined;
+    if (jurisdiction && permitStackApiKey) {
+      const coverage = await loadPermitStackCoverage(permitStackApiKey);
+      jurisdiction = sanitizePermitStackJurisdiction(jurisdiction, coverage);
+    } else if (jurisdiction) {
+      jurisdiction = undefined;
+    }
+
     return {
       success: true,
       input: {
         searchType: parsed.searchType === "contractor" ? "contractor" : "area",
         city: parsed.city || undefined,
         state: parsed.state || undefined,
-        jurisdiction: parsed.jurisdiction || undefined,
+        jurisdiction,
         contractorName: parsed.contractorName || undefined,
         category: "solar",
       } satisfies PermitStackSearchInput,

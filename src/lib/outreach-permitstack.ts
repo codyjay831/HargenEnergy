@@ -7,6 +7,11 @@ export type PermitStackSearchMode =
   | "contractors_by_name"
   | "derived_from_permits";
 
+export type PermitStackProspectSourceKind =
+  | "named_contractor"
+  | "fallback_description"
+  | "fallback_address";
+
 export type PermitStackSearchInput = {
   searchType: "area" | "contractor";
   city?: string;
@@ -20,6 +25,13 @@ export type PermitStackSearchInput = {
   filedBefore?: string;
   issuedAfter?: string;
   issuedBefore?: string;
+};
+
+export type PermitStackSearchAttemptDiagnostic = {
+  query: string;
+  permitTotal: number;
+  permitRowsReturned: number;
+  contractorRowsDerived: number;
 };
 
 type PermitStackContractorSummary = {
@@ -39,6 +51,7 @@ type PermitStackPermitSummary = {
   address_street?: string | null;
   address_city?: string | null;
   address_state?: string | null;
+  description_raw?: string | null;
   date_issued?: string | null;
   date_filed?: string | null;
   jurisdiction_name?: string | null;
@@ -63,6 +76,8 @@ export type PermitStackContractorResult = {
   lastPermitDate: string | null;
   specialties: string[];
   jurisdiction: string | null;
+  sourceKind?: PermitStackProspectSourceKind;
+  matchConfidence?: number;
 };
 
 type CoverageJurisdiction = {
@@ -95,7 +110,11 @@ function formatAttemptedQuery(path: string, params: Record<string, string>) {
 
 export function buildPermitStackPermitParams(
   input: PermitStackSearchInput,
-  options?: { includeJurisdiction?: boolean; includeCategory?: boolean }
+  options?: {
+    includeJurisdiction?: boolean;
+    includeCategory?: boolean;
+    jurisdictionOnly?: boolean;
+  }
 ) {
   const params: Record<string, string> = {};
   const city = input.city?.trim();
@@ -110,7 +129,7 @@ export function buildPermitStackPermitParams(
   const category =
     options?.includeCategory === false ? null : normalizeCategory(input.category);
 
-  if (city) {
+  if (!options?.jurisdictionOnly && city) {
     params.city = city;
   }
 
@@ -118,7 +137,7 @@ export function buildPermitStackPermitParams(
     params.state = state;
   }
 
-  if (zipCode) {
+  if (!options?.jurisdictionOnly && zipCode) {
     params.zip_code = zipCode;
   }
 
@@ -130,7 +149,7 @@ export function buildPermitStackPermitParams(
     params.category = category;
   }
 
-  if (keyword) {
+  if (!options?.jurisdictionOnly && keyword) {
     params.q = keyword;
   }
 
@@ -213,6 +232,18 @@ export function parsePermitStackQueryLocally(text: string): {
   return null;
 }
 
+export function sanitizePermitStackJurisdiction(
+  jurisdiction: string | undefined,
+  coverage: CoverageJurisdiction[]
+) {
+  const value = jurisdiction?.trim();
+  if (!value) {
+    return undefined;
+  }
+
+  return jurisdictionMatchesCoverage(value, coverage) ? value : undefined;
+}
+
 async function fetchPermitStack(
   path: string,
   params: Record<string, string>,
@@ -276,6 +307,11 @@ function getPermitStackResults<T>(data: unknown): T[] {
   return payload.results;
 }
 
+function getPermitStackTotal(data: unknown) {
+  const payload = data as PermitStackSearchResponse<unknown> | null;
+  return payload?.total ?? 0;
+}
+
 function mapPermitStackContractor(
   contractor: PermitStackContractorSummary
 ): PermitStackContractorResult {
@@ -291,6 +327,47 @@ function mapPermitStackContractor(
     lastPermitDate: contractor.last_permit_date || null,
     specialties: contractor.specialties || [],
     jurisdiction: null,
+    sourceKind: "named_contractor",
+    matchConfidence: 1,
+  };
+}
+
+function formatPermitAddress(permit: PermitStackPermitSummary) {
+  return [permit.address_street, permit.address_city, permit.address_state]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function deriveProspectFromPermit(permit: PermitStackPermitSummary) {
+  const contractorName = permit.contractor_name?.trim();
+  if (contractorName) {
+    return {
+      name: contractorName,
+      sourceKind: "named_contractor" as const,
+      matchConfidence: 1,
+      key: contractorName.toLowerCase(),
+    };
+  }
+
+  const description = permit.description_raw?.trim();
+  if (description) {
+    const compact = description.replace(/\s+/g, " ").slice(0, 120).trim();
+    if (compact) {
+      return {
+        name: compact,
+        sourceKind: "fallback_description" as const,
+        matchConfidence: 0.5,
+        key: `description-${permit.id}`,
+      };
+    }
+  }
+
+  const address = formatPermitAddress(permit);
+  return {
+    name: address ? `Permit applicant at ${address}` : `Permit applicant ${permit.id}`,
+    sourceKind: "fallback_address" as const,
+    matchConfidence: 0.3,
+    key: `address-${permit.id}`,
   };
 }
 
@@ -300,19 +377,14 @@ function contractorsFromPermits(
   const byKey = new Map<string, PermitStackContractorResult>();
 
   for (const permit of permits) {
-    const name = permit.contractor_name?.trim();
-    if (!name) {
-      continue;
-    }
-
-    const key = name.toLowerCase();
+    const prospect = deriveProspectFromPermit(permit);
     const permitDate = permit.date_issued || permit.date_filed || null;
-    const existing = byKey.get(key);
+    const existing = byKey.get(prospect.key);
 
     if (!existing) {
-      byKey.set(key, {
-        placeId: `permit-${key}`,
-        name,
+      byKey.set(prospect.key, {
+        placeId: `permit-${prospect.key}`,
+        name: prospect.name,
         address: permit.address_street || "",
         rating: null,
         userRatingsTotal: 0,
@@ -322,6 +394,8 @@ function contractorsFromPermits(
         lastPermitDate: permitDate,
         specialties: [],
         jurisdiction: permit.jurisdiction_name || null,
+        sourceKind: prospect.sourceKind,
+        matchConfidence: prospect.matchConfidence,
       });
       continue;
     }
@@ -383,10 +457,14 @@ async function searchPermitStackPermits(
     return { error: response.error };
   }
 
+  const permits = getPermitStackResults<PermitStackPermitSummary>(response.data);
+  const results = contractorsFromPermits(permits);
+
   return {
-    results: contractorsFromPermits(
-      getPermitStackResults<PermitStackPermitSummary>(response.data)
-    ),
+    results,
+    permitTotal: getPermitStackTotal(response.data),
+    permitRowsReturned: permits.length,
+    contractorRowsDerived: results.length,
   };
 }
 
@@ -411,7 +489,7 @@ function getPermitStackCoverageJurisdictions(data: unknown) {
   return getPermitStackResults<CoverageJurisdiction>(data);
 }
 
-async function loadPermitStackCoverage(apiKey: string) {
+export async function loadPermitStackCoverage(apiKey: string) {
   if (coverageCache && coverageCache.expiresAt > Date.now()) {
     return coverageCache.jurisdictions;
   }
@@ -492,7 +570,7 @@ export function resolvePermitStackJurisdictions(
 function buildPermitStackEmptyMessage(
   input: PermitStackSearchInput,
   coverage: CoverageJurisdiction[],
-  attempted: string[]
+  attemptDiagnostics: PermitStackSearchAttemptDiagnostic[]
 ) {
   if (input.searchType === "contractor") {
     return `No PermitStack contractors matched "${input.contractorName || ""}". Try a broader contractor name or switch to permit search with city, state, and category filters.`;
@@ -500,23 +578,70 @@ function buildPermitStackEmptyMessage(
 
   const locationLabel = `${input.city || ""}${input.state ? `, ${input.state}` : ""}`.trim();
   const coverageMatches = resolvePermitStackJurisdictions(input, coverage);
-  const attemptedSummary = attempted.length
-    ? ` Attempted: ${attempted.join("; ")}.`
-    : "";
   const categoryLabel = normalizeCategory(input.category) || "all categories";
+  const totals = attemptDiagnostics.reduce(
+    (summary, attempt) => ({
+      permitTotal: Math.max(summary.permitTotal, attempt.permitTotal),
+      permitRowsReturned: Math.max(summary.permitRowsReturned, attempt.permitRowsReturned),
+      contractorRowsDerived: Math.max(
+        summary.contractorRowsDerived,
+        attempt.contractorRowsDerived
+      ),
+    }),
+    { permitTotal: 0, permitRowsReturned: 0, contractorRowsDerived: 0 }
+  );
 
-  if (coverageMatches.length === 0) {
-    return `No PermitStack coverage found for ${locationLabel || "that location"}. Try another covered city/state, add a ZIP or keyword, or search by contractor name.${attemptedSummary}`;
+  const attemptSummary = attemptDiagnostics
+    .map(
+      (attempt) =>
+        `${attempt.query} (permits total ${attempt.permitTotal}, rows ${attempt.permitRowsReturned}, prospects ${attempt.contractorRowsDerived})`
+    )
+    .join("; ");
+
+  if (totals.permitTotal === 0) {
+    const coverageHint =
+      coverageMatches.length > 0
+        ? ` PermitStack coverage includes ${coverageMatches.join(", ")}.`
+        : "";
+
+    return `PermitStack returned no permit rows for ${locationLabel || "that search"} with ${categoryLabel}.${coverageHint} Attempted: ${attemptSummary}. Try category=all, a keyword, ZIP code, filed-after date, or contractor-name search.`;
   }
 
-  return `${locationLabel || "This area"} is in PermitStack coverage (${coverageMatches.join(", ")}), but no contractors matched for ${categoryLabel}.${attemptedSummary} Try category=all, a keyword, ZIP code, filed-after date, or contractor-name search.`;
+  if (totals.contractorRowsDerived === 0) {
+    return `PermitStack returned ${totals.permitTotal} matching permits, but none could be turned into saveable contractor prospects.${coverageMatches.length ? ` Coverage: ${coverageMatches.join(", ")}.` : ""} Attempted: ${attemptSummary}. Try contractor-name search or broaden filters.`;
+  }
+
+  return `No saveable contractor prospects matched for ${categoryLabel}. Attempted: ${attemptSummary}.`;
+}
+
+async function runPermitSearchAttempt(
+  params: Record<string, string>,
+  apiKey: string,
+  attemptDiagnostics: PermitStackSearchAttemptDiagnostic[]
+): Promise<{ error: string } | { results: PermitStackContractorResult[] }> {
+  const query = formatAttemptedQuery("permits/search", params);
+  const search = await searchPermitStackPermits(params, apiKey);
+  if (search.error) {
+    return { error: search.error as string };
+  }
+
+  const results = search.results ?? [];
+
+  attemptDiagnostics.push({
+    query,
+    permitTotal: search.permitTotal ?? 0,
+    permitRowsReturned: search.permitRowsReturned ?? 0,
+    contractorRowsDerived: search.contractorRowsDerived ?? 0,
+  });
+
+  return { results };
 }
 
 export async function runPermitStackSearch(
   input: PermitStackSearchInput,
   apiKey: string
 ) {
-  const attempted: string[] = [];
+  const attemptDiagnostics: PermitStackSearchAttemptDiagnostic[] = [];
   const coverage = await loadPermitStackCoverage(apiKey);
 
   if (input.searchType === "contractor") {
@@ -542,7 +667,6 @@ export async function runPermitStackSearch(
       contractorParams.state = input.state.trim().toUpperCase();
     }
 
-    attempted.push(formatAttemptedQuery("contractors/search", contractorParams));
     const contractorSearch = await searchPermitStackContractors(contractorParams, apiKey);
     if (contractorSearch.error) {
       return { error: contractorSearch.error };
@@ -554,7 +678,7 @@ export async function runPermitStackSearch(
         results: contractorResults,
         searchMode: "contractors_by_name" as PermitStackSearchMode,
         resolvedJurisdiction: input.jurisdiction || null,
-        attempted,
+        attemptDiagnostics,
         message: null,
       };
     }
@@ -567,19 +691,21 @@ export async function runPermitStackSearch(
       { includeJurisdiction: !!input.jurisdiction?.trim() }
     );
 
-    attempted.push(formatAttemptedQuery("permits/search", permitParams));
-    const permitSearch = await searchPermitStackPermits(permitParams, apiKey);
-    if (permitSearch.error) {
-      return { error: permitSearch.error };
+    const permitAttempt = await runPermitSearchAttempt(
+      permitParams,
+      apiKey,
+      attemptDiagnostics
+    );
+    if ("error" in permitAttempt) {
+      return { error: permitAttempt.error };
     }
 
-    const permitResults = permitSearch.results ?? [];
-    if (permitResults.length > 0) {
+    if (permitAttempt.results.length > 0) {
       return {
-        results: permitResults,
+        results: permitAttempt.results,
         searchMode: "derived_from_permits" as PermitStackSearchMode,
         resolvedJurisdiction: input.jurisdiction || null,
-        attempted,
+        attemptDiagnostics,
         message: null,
       };
     }
@@ -588,8 +714,8 @@ export async function runPermitStackSearch(
       results: [],
       searchMode: "contractors_by_name" as PermitStackSearchMode,
       resolvedJurisdiction: input.jurisdiction || null,
-      attempted,
-      message: buildPermitStackEmptyMessage(input, coverage, attempted),
+      attemptDiagnostics,
+      message: buildPermitStackEmptyMessage(input, coverage, attemptDiagnostics),
     };
   }
 
@@ -614,78 +740,91 @@ export async function runPermitStackSearch(
     includeJurisdiction: !!jurisdiction,
     includeCategory: true,
   });
-  attempted.push(formatAttemptedQuery("permits/search", primaryParams));
-  const primarySearch = await searchPermitStackPermits(primaryParams, apiKey);
+  const primaryAttempt = await runPermitSearchAttempt(
+    primaryParams,
+    apiKey,
+    attemptDiagnostics
+  );
   searchCalls += 1;
 
-  if (primarySearch.error) {
-    return { error: primarySearch.error };
+  if ("error" in primaryAttempt) {
+    return { error: primaryAttempt.error };
   }
 
-  const primaryResults = primarySearch.results ?? [];
-  if (primaryResults.length > 0) {
+  if (primaryAttempt.results.length > 0) {
     return {
-      results: primaryResults,
+      results: primaryAttempt.results,
       searchMode: "derived_from_permits" as PermitStackSearchMode,
       resolvedJurisdiction,
-      attempted,
+      attemptDiagnostics,
       message: null,
     };
   }
 
-  if (searchCalls < 2 && category) {
-    const broadParams = buildPermitStackPermitParams(input, {
-      includeJurisdiction: !!jurisdiction,
-      includeCategory: false,
-    });
-    attempted.push(formatAttemptedQuery("permits/search", broadParams));
-    const broadSearch = await searchPermitStackPermits(broadParams, apiKey);
-    searchCalls += 1;
+  const primaryDiagnostic = attemptDiagnostics[attemptDiagnostics.length - 1];
 
-    if (broadSearch.error) {
-      return { error: broadSearch.error };
-    }
+  if (searchCalls < 2) {
+    let secondaryParams: Record<string, string> | null = null;
+    let secondaryResolvedJurisdiction = resolvedJurisdiction;
 
-    const broadResults = broadSearch.results ?? [];
-    if (broadResults.length > 0) {
-      return {
-        results: broadResults,
-        searchMode: "derived_from_permits" as PermitStackSearchMode,
-        resolvedJurisdiction,
-        attempted,
-        message: null,
-      };
-    }
-  }
-
-  if (searchCalls < 2 && !jurisdiction && resolvedJurisdictions[0]) {
-    const jurisdictionParams = buildPermitStackPermitParams(
-      {
-        ...input,
-        jurisdiction: resolvedJurisdictions[0],
-      },
-      {
-        includeJurisdiction: true,
+    if (
+      !jurisdiction &&
+      resolvedJurisdictions[0] &&
+      primaryDiagnostic?.permitTotal === 0
+    ) {
+      secondaryParams = buildPermitStackPermitParams(
+        {
+          ...input,
+          jurisdiction: resolvedJurisdictions[0],
+        },
+        {
+          includeJurisdiction: true,
+          includeCategory: false,
+          jurisdictionOnly: true,
+        }
+      );
+      secondaryResolvedJurisdiction = resolvedJurisdictions[0];
+    } else if (category) {
+      secondaryParams = buildPermitStackPermitParams(input, {
+        includeJurisdiction: !!jurisdiction,
         includeCategory: false,
-      }
-    );
-    attempted.push(formatAttemptedQuery("permits/search", jurisdictionParams));
-    const jurisdictionSearch = await searchPermitStackPermits(jurisdictionParams, apiKey);
-    searchCalls += 1;
-
-    if (jurisdictionSearch.error) {
-      return { error: jurisdictionSearch.error };
+      });
+    } else if (!jurisdiction && resolvedJurisdictions[0]) {
+      secondaryParams = buildPermitStackPermitParams(
+        {
+          ...input,
+          jurisdiction: resolvedJurisdictions[0],
+        },
+        {
+          includeJurisdiction: true,
+          includeCategory: false,
+          jurisdictionOnly: true,
+        }
+      );
+      secondaryResolvedJurisdiction = resolvedJurisdictions[0];
     }
 
-    const jurisdictionResults = jurisdictionSearch.results ?? [];
-    if (jurisdictionResults.length > 0) {
-      return {
-        results: jurisdictionResults,
-        searchMode: "derived_from_permits" as PermitStackSearchMode,
-        resolvedJurisdiction: resolvedJurisdictions[0],
-        attempted,
-        message: null,
-      };
+    if (secondaryParams) {
+      const secondaryAttempt = await runPermitSearchAttempt(
+        secondaryParams,
+        apiKey,
+        attemptDiagnostics
+      );
+      searchCalls += 1;
+
+      if ("error" in secondaryAttempt) {
+        return { error: secondaryAttempt.error };
+      }
+
+      if (secondaryAttempt.results.length > 0) {
+        return {
+          results: secondaryAttempt.results,
+          searchMode: "derived_from_permits" as PermitStackSearchMode,
+          resolvedJurisdiction: secondaryResolvedJurisdiction,
+          attemptDiagnostics,
+          message: null,
+        };
+      }
     }
   }
 
@@ -693,7 +832,7 @@ export async function runPermitStackSearch(
     results: [],
     searchMode: "derived_from_permits" as PermitStackSearchMode,
     resolvedJurisdiction,
-    attempted,
-    message: buildPermitStackEmptyMessage(input, coverage, attempted),
+    attemptDiagnostics,
+    message: buildPermitStackEmptyMessage(input, coverage, attemptDiagnostics),
   };
 }

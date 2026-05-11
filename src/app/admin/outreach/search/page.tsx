@@ -40,6 +40,13 @@ const permitStackSearchModeLabels: Record<string, string> = {
   derived_from_permits: "Permits search",
 };
 
+type PermitStackAttemptDiagnostic = {
+  query: string;
+  permitTotal: number;
+  permitRowsReturned: number;
+  contractorRowsDerived: number;
+};
+
 const defaultPermitStackInput: PermitStackSearchInput = {
   searchType: "area",
   city: "",
@@ -94,7 +101,9 @@ export default function ContractorFinderPage() {
   const [isAiAssisting, setIsAiAssisting] = useState(false);
   const [permitStackFormError, setPermitStackFormError] = useState<string | null>(null);
   const [resolvedJurisdiction, setResolvedJurisdiction] = useState<string | null>(null);
-  const [attemptedQueries, setAttemptedQueries] = useState<string[]>([]);
+  const [attemptDiagnostics, setAttemptDiagnostics] = useState<PermitStackAttemptDiagnostic[]>(
+    []
+  );
   const [recentSearches, setRecentSearches] = useState<any[]>([]);
   const router = useRouter();
 
@@ -146,7 +155,7 @@ export default function ContractorFinderPage() {
     setPermitStackMessage(null);
     setPermitStackSearchMode(null);
     setResolvedJurisdiction(null);
-    setAttemptedQueries([]);
+    setAttemptDiagnostics([]);
     setPermitStackFormError(null);
 
     let result;
@@ -189,12 +198,12 @@ export default function ContractorFinderPage() {
           searchMode?: string;
           message?: string | null;
           resolvedJurisdiction?: string | null;
-          attempted?: string[];
+          attemptDiagnostics?: PermitStackAttemptDiagnostic[];
         };
         setPermitStackSearchMode(permitStackResult.searchMode ?? null);
         setPermitStackMessage(permitStackResult.message ?? null);
         setResolvedJurisdiction(permitStackResult.resolvedJurisdiction ?? null);
-        setAttemptedQueries(permitStackResult.attempted ?? []);
+        setAttemptDiagnostics(permitStackResult.attemptDiagnostics ?? []);
       }
     } else {
       setResults([]);
@@ -479,10 +488,16 @@ export default function ContractorFinderPage() {
         </p>
       )}
 
-      {activeSource === "permitstack" && attemptedQueries.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          Attempted queries: {attemptedQueries.join(" · ")}
-        </p>
+      {activeSource === "permitstack" && attemptDiagnostics.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Search attempts</p>
+          {attemptDiagnostics.map((attempt, index) => (
+            <p key={`${attempt.query}-${index}`} className="text-xs text-muted-foreground">
+              {attempt.query} · permits total {attempt.permitTotal} · rows returned{" "}
+              {attempt.permitRowsReturned} · prospects derived {attempt.contractorRowsDerived}
+            </p>
+          ))}
+        </div>
       )}
 
       {activeSource === "permitstack" && hasSearched && results.length === 0 && permitStackMessage && (
@@ -513,6 +528,13 @@ export default function ContractorFinderPage() {
                       <span className="text-xs text-muted-foreground truncate max-w-[300px]">
                         {result.address}
                       </span>
+                      {activeSource === "permitstack" &&
+                        result.sourceKind &&
+                        result.sourceKind !== "named_contractor" && (
+                          <Badge variant="outline" className="w-fit text-[10px]">
+                            Derived from permit
+                          </Badge>
+                        )}
                       {result.alreadySaved && (
                         <Badge variant="outline" className="w-fit text-[10px]">
                           Already in CRM
