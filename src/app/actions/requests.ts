@@ -67,29 +67,32 @@ export async function submitRequestHelp(data: RequestHelpInput) {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    // Match existing lead/client by normalized email only (never companyName alone),
-    // so a coincidental company name cannot attach to another tenant.
-    let client = await prisma.client.findFirst({
+    // Upsert client by email to handle concurrent submissions
+    const client = await prisma.client.upsert({
       where: { email: normalizedEmail },
-      orderBy: { updatedAt: "desc" },
+      update: {
+        // Update contact info on subsequent submissions
+        companyName,
+        contactName: name,
+        phone,
+        website,
+        serviceArea,
+        role,
+        currentTools: tools,
+      },
+      create: {
+        companyName,
+        contactName: name,
+        email: normalizedEmail,
+        phone,
+        website,
+        serviceArea,
+        role,
+        currentTools: tools,
+        status: ClientStatus.LEAD,
+        planType: mapPlanType(plan),
+      },
     });
-
-    if (!client) {
-      client = await prisma.client.create({
-        data: {
-          companyName,
-          contactName: name,
-          email: normalizedEmail,
-          phone,
-          website,
-          serviceArea,
-          role,
-          currentTools: tools,
-          status: ClientStatus.LEAD,
-          planType: mapPlanType(plan),
-        },
-      });
-    }
 
     const supportRequest = await prisma.supportRequest.create({
       data: {
@@ -118,6 +121,7 @@ export async function submitRequestHelp(data: RequestHelpInput) {
           urgency,
           description: bottleneck,
           requestId: supportRequest.id,
+          clientId: client.id,
           kind: SupportRequestKind.PROSPECT_INTAKE,
         }),
       ]);

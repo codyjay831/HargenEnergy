@@ -1,0 +1,64 @@
+"use client";
+
+import { OnboardingSteps } from "./OnboardingSteps";
+import { WalkthroughDrawer } from "./WalkthroughDrawer";
+
+interface OnboardingWrapperProps {
+  client: {
+    id: string;
+    companyName: string;
+    contactName: string;
+    email: string;
+    status: string;
+    planType: string;
+    subscriptionStatus?: string | null;
+    stripeCustomerId?: string | null;
+    users: { id: string; email: string; name: string | null }[];
+  };
+  latestWalkthroughRequest: {
+    id: string;
+    clientId: string;
+    title: string;
+    supportNeeded: string | null;
+    description: string;
+    mostHelpful: string | null;
+    urgency: string;
+    status: string;
+    needsInfo: boolean;
+    internalNotes: string | null;
+    clientVisibleUpdate: string | null;
+    estimatedMinutes: number | null;
+    createdAt: Date;
+    client: {
+      planType: string;
+    };
+    timeEntries: Array<{
+      id: string;
+      description: string;
+      minutes: number;
+      date: Date;
+      billableType: string;
+    }>;
+  } | null;
+}
+
+export function OnboardingWrapper({ client, latestWalkthroughRequest }: OnboardingWrapperProps) {
+  return (
+    <>
+      <OnboardingSteps
+        client={client}
+        latestWalkthroughRequest={
+          latestWalkthroughRequest
+            ? {
+                id: latestWalkthroughRequest.id,
+                title: latestWalkthroughRequest.title,
+                status: latestWalkthroughRequest.status,
+                createdAt: latestWalkthroughRequest.createdAt,
+              }
+            : null
+        }
+      />
+      <WalkthroughDrawer request={latestWalkthroughRequest} />
+    </>
+  );
+}

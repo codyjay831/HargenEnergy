@@ -105,6 +105,7 @@ export async function sendInternalRequestAlert(data: {
   urgency?: string;
   description: string;
   requestId: string;
+  clientId?: string;
   kind?: SupportRequestKind;
 }) {
   const config = validateEmailConfig();
@@ -125,8 +126,8 @@ export async function sendInternalRequestAlert(data: {
   const safeDescription = escapeHtml(data.description);
   const isInboundLead = data.kind === SupportRequestKind.PROSPECT_INTAKE;
   const adminUrl = escapeHtml(
-    isInboundLead
-      ? adminIntakeRequestUrl(data.requestId)
+    isInboundLead && data.clientId
+      ? adminIntakeRequestUrl(data.clientId)
       : adminRequestUrl(data.requestId),
   );
   const subject = sanitizeEmailSubjectFragment(

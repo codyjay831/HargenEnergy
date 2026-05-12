@@ -1,17 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
-  Users, 
   AlertCircle, 
   Clock, 
-  CheckCircle2,
-  TrendingUp
+  TrendingUp,
+  Inbox,
+  UserCheck
 } from "lucide-react";
 import {
   RequestStatus,
   ClientStatus,
   BillableType,
-  OverflowStatus,
   SupportRequestKind,
 } from "@/generated/prisma/client";
 import { format, startOfWeek } from "date-fns";
@@ -19,15 +18,17 @@ import { calculateWeeklyUsage } from "@/lib/usage";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
+  // Funnel metrics
   const [
-    newInboundLeadsCount,
-    newOpsRequestsCount,
-    activeClientsCount,
-    inProgressCount,
+    newWalkthroughsCount,
+    prospectsAwaitingActivationCount,
+    newWorkRequestsCount,
+    inProgressWorkCount,
     needsInfoCount,
     includedTimeThisWeek,
     overflowTimeThisWeek,
@@ -35,10 +36,20 @@ export default async function AdminDashboard() {
     prisma.supportRequest.count({
       where: { kind: SupportRequestKind.PROSPECT_INTAKE, status: RequestStatus.NEW },
     }),
+    prisma.client.count({
+      where: {
+        status: ClientStatus.LEAD,
+        requests: {
+          some: {
+            kind: SupportRequestKind.PROSPECT_INTAKE,
+            status: { in: [RequestStatus.REVIEWED, RequestStatus.IN_PROGRESS] }
+          }
+        }
+      }
+    }),
     prisma.supportRequest.count({
       where: { kind: SupportRequestKind.CLIENT_OPS, status: RequestStatus.NEW },
     }),
-    prisma.client.count({ where: { status: ClientStatus.ACTIVE } }),
     prisma.supportRequest.count({
       where: { kind: SupportRequestKind.CLIENT_OPS, status: RequestStatus.IN_PROGRESS },
     }),
@@ -65,39 +76,68 @@ export default async function AdminDashboard() {
   const overflowHours = (overflowTimeThisWeek._sum.minutes || 0) / 60;
 
   const stats = [
-    { title: "New Inbound Leads", value: newInboundLeadsCount.toString(), icon: AlertCircle, color: "text-orange-600", bg: "bg-orange-50" },
-    { title: "New Ops Requests", value: newOpsRequestsCount.toString(), icon: AlertCircle, color: "text-amber-600", bg: "bg-amber-50" },
-    { title: "Active Clients", value: activeClientsCount.toString(), icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
-    { title: "In Progress", value: inProgressCount.toString(), icon: Clock, color: "text-indigo-600", bg: "bg-indigo-50" },
-    { title: "Needs Info", value: needsInfoCount.toString(), icon: AlertCircle, color: "text-red-600", bg: "bg-red-50" },
-    { title: "Included Hours (Week)", value: includedHours.toFixed(1), icon: TrendingUp, color: "text-green-600", bg: "bg-green-50" },
-    { title: "Overflow Hours (Week)", value: overflowHours.toFixed(1), icon: CheckCircle2, color: "text-purple-600", bg: "bg-purple-50" },
+    { 
+      title: `New ${PRODUCT_LANGUAGE.walkthrough.plural}`, 
+      value: newWalkthroughsCount.toString(), 
+      icon: Inbox, 
+      color: "text-amber-600", 
+      bg: "bg-amber-50",
+      link: "/admin/clients?status=LEAD&needsReview=1"
+    },
+    { 
+      title: `${PRODUCT_LANGUAGE.prospect.plural} Awaiting Activation`, 
+      value: prospectsAwaitingActivationCount.toString(), 
+      icon: UserCheck, 
+      color: "text-blue-600", 
+      bg: "bg-blue-50",
+      link: "/admin/clients"
+    },
+    { 
+      title: `New ${PRODUCT_LANGUAGE.workRequest.plural}`, 
+      value: newWorkRequestsCount.toString(), 
+      icon: AlertCircle, 
+      color: "text-orange-600", 
+      bg: "bg-orange-50",
+      link: "/admin/requests"
+    },
+    { 
+      title: "In Progress", 
+      value: inProgressWorkCount.toString(), 
+      icon: Clock, 
+      color: "text-indigo-600", 
+      bg: "bg-indigo-50",
+      link: "/admin/requests"
+    },
+    { 
+      title: "Needs Info", 
+      value: needsInfoCount.toString(), 
+      icon: AlertCircle, 
+      color: "text-red-600", 
+      bg: "bg-red-50",
+      link: "/admin/requests"
+    },
+    { 
+      title: `Capacity: ${includedHours.toFixed(1)}h + ${overflowHours.toFixed(1)}h overflow`, 
+      value: `${(includedHours + overflowHours).toFixed(1)}h`, 
+      icon: TrendingUp, 
+      color: "text-green-600", 
+      bg: "bg-green-50",
+      link: "/admin/time"
+    },
   ];
 
-  const recentInboundLeads = await prisma.supportRequest.findMany({
+  const recentWalkthroughs = await prisma.supportRequest.findMany({
     where: { kind: SupportRequestKind.PROSPECT_INTAKE },
     include: { client: true },
     orderBy: { createdAt: "desc" },
     take: 5,
   });
 
-  const recentOpsRequests = await prisma.supportRequest.findMany({
+  const recentWorkRequests = await prisma.supportRequest.findMany({
     where: { kind: SupportRequestKind.CLIENT_OPS },
     include: { client: true },
     orderBy: { createdAt: "desc" },
     take: 5,
-  });
-
-  const overflowRequests = await prisma.supportRequest.findMany({
-    where: {
-      kind: SupportRequestKind.CLIENT_OPS,
-      overflowStatus: {
-        in: [OverflowStatus.NEEDS_APPROVAL, OverflowStatus.DEFERRED]
-      }
-    },
-    include: { client: true },
-    orderBy: { createdAt: "desc" },
-    take: 5
   });
 
   const capacityClients = await prisma.client.findMany({
@@ -122,104 +162,95 @@ export default async function AdminDashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard Overview</h1>
-        <p className="text-muted-foreground">Welcome back, Admin. Here&apos;s what&apos;s happening today.</p>
+        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+        <p className="text-muted-foreground">Sales funnel and delivery pipeline at a glance.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {stats.map((stat, i) => (
-          <Card key={i}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                {stat.title}
-              </CardTitle>
-              <div className={`${stat.bg} p-2 rounded-md`}>
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-            </CardContent>
-          </Card>
+        {stats.map((stat) => (
+          <Link key={stat.title} href={stat.link}>
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {stat.title}
+                </CardTitle>
+                <div className={`${stat.bg} p-2 rounded-md`}>
+                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stat.value}</div>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card>
-          <CardHeader>
-            <CardTitle>Overflow Decisions Needed</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Recent {PRODUCT_LANGUAGE.walkthrough.plural}</CardTitle>
+            <Link href="/admin/clients?status=LEAD" className="text-xs text-primary hover:underline font-medium">
+              View All
+            </Link>
           </CardHeader>
           <CardContent>
-            {overflowRequests.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">No overflow decisions pending.</p>
+            {recentWalkthroughs.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">No {PRODUCT_LANGUAGE.walkthrough.plural.toLowerCase()} yet.</p>
             ) : (
               <div className="space-y-4">
-                {overflowRequests.map((request, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 border rounded-lg bg-orange-50/30 border-orange-100">
-                    <div>
-                      <p className="font-medium text-sm truncate max-w-[200px]">{request.title}</p>
-                      <p className="text-xs text-muted-foreground">{request.client.companyName} • {request.overflowStatus.replace("_", " ")}</p>
+                {recentWalkthroughs.map((request) => (
+                  <Link
+                    key={request.id}
+                    href={`/admin/clients/${request.clientId}?open=walkthrough`}
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{request.client.companyName}</p>
+                      <p className="text-xs text-muted-foreground truncate">{request.supportNeeded}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {format(new Date(request.createdAt), "MMM d, h:mm a")}
+                      </p>
                     </div>
-                    <Link 
-                      href={`/admin/requests/${request.id}`}
-                      className="text-xs font-semibold text-primary hover:underline"
-                    >
-                      Review
-                    </Link>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Inbound Leads</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {recentInboundLeads.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">No inbound leads yet.</p>
-            ) : (
-              <div className="space-y-4">
-                {recentInboundLeads.map((request, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="font-medium text-sm truncate max-w-[200px]">{request.title || request.supportNeeded}</p>
-                      <p className="text-xs text-muted-foreground">{request.client.companyName} • {format(new Date(request.createdAt), "MMM d")}</p>
-                    </div>
-                    <Link
-                      href={`/admin/requests/${request.id}`}
-                      className="text-xs font-semibold text-primary hover:underline"
-                    >
-                      Review
-                    </Link>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Ops Requests</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {recentOpsRequests.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">No client ops requests yet.</p>
-            ) : (
-              <div className="space-y-4">
-                {recentOpsRequests.map((request, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="font-medium text-sm truncate max-w-[200px]">{request.title || request.supportNeeded}</p>
-                      <p className="text-xs text-muted-foreground">{request.client.companyName} • {format(new Date(request.createdAt), "MMM d")}</p>
-                    </div>
-                    <div className="text-xs font-semibold px-2 py-1 rounded bg-slate-100">
+                    <Badge variant="outline" className="ml-2 shrink-0">
                       {request.status.replace("_", " ")}
+                    </Badge>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Recent {PRODUCT_LANGUAGE.workRequest.plural}</CardTitle>
+            <Link href="/admin/requests" className="text-xs text-primary hover:underline font-medium">
+              View All
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {recentWorkRequests.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">No {PRODUCT_LANGUAGE.workRequest.plural.toLowerCase()} yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {recentWorkRequests.map((request) => (
+                  <Link
+                    key={request.id}
+                    href={`/admin/requests/${request.id}`}
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{request.client.companyName}</p>
+                      <p className="text-xs text-muted-foreground truncate">{request.title}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {format(new Date(request.createdAt), "MMM d, h:mm a")}
+                      </p>
                     </div>
-                  </div>
+                    <Badge variant="outline" className="ml-2 shrink-0">
+                      {request.status.replace("_", " ")}
+                    </Badge>
+                  </Link>
                 ))}
               </div>
             )}
@@ -235,8 +266,8 @@ export default async function AdminDashboard() {
               <p className="text-sm text-muted-foreground py-4 text-center">No active clients yet.</p>
             ) : (
               <div className="space-y-6">
-                {capacityWatch.map((client, i) => (
-                  <div key={i} className="space-y-2">
+                {capacityWatch.map((client) => (
+                  <div key={client.id} className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <div className="flex flex-col">
                         <span className="font-medium">{client.companyName}</span>

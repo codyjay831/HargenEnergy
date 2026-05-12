@@ -12,15 +12,15 @@ import {
 import { LogoutButton } from "@/components/layout/LogoutButton";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import { NAV_LABELS } from "@/lib/product-language";
 
 export const dynamic = "force-dynamic";
 
 const sidebarItems = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Outreach", href: "/admin/outreach", icon: Megaphone },
-  { name: "Clients", href: "/admin/clients", icon: Users },
-  { name: "Inbound leads", href: "/admin/intake", icon: Inbox },
-  { name: "Ops queue", href: "/admin/requests", icon: ClipboardList },
+  { name: NAV_LABELS.adminClients, href: "/admin/clients", icon: Users },
+  { name: NAV_LABELS.adminWorkRequests, href: "/admin/requests", icon: ClipboardList },
   { name: "Time Tracking", href: "/admin/time", icon: Clock },
   { name: "Billing", href: "/admin/billing", icon: CreditCard },
   { name: "Account", href: "/admin/account", icon: UserCog },
