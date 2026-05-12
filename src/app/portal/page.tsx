@@ -9,12 +9,19 @@ import {
   AlertCircle, 
   TrendingUp,
   PlusCircle,
-  UserCircle
+  UserCircle,
+  Inbox,
+  ArrowRight,
+  CheckCircle2,
+  Circle
 } from "lucide-react";
 import Link from "next/link";
 import { format, startOfWeek } from "date-fns";
 import { cn } from "@/lib/utils";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Progress } from "@/components/ui/progress";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +47,8 @@ export default async function PortalDashboard() {
             gte: startOfWeek(new Date(), { weekStartsOn: 1 })
           }
         }
-      }
+      },
+      systemAccesses: true
     }
   });
 
@@ -57,15 +65,44 @@ export default async function PortalDashboard() {
     }
   });
 
-  const needsInfoCount = await prisma.supportRequest.count({
+  const needsInfoRequests = await prisma.supportRequest.findMany({
     where: { 
       clientId,
       OR: [
         { status: "NEEDS_INFO" },
         { needsInfo: true }
       ]
-    }
+    },
+    orderBy: { updatedAt: "desc" }
   });
+
+  const needsInfoCount = needsInfoRequests.length;
+
+  // Onboarding Checklist
+  const onboardingSteps = [
+    { 
+      id: "billing", 
+      label: "Setup Billing", 
+      completed: !!client.stripeSubscriptionId,
+      href: "/portal/account" 
+    },
+    { 
+      id: "access", 
+      label: "Provide System Access", 
+      completed: client.systemAccesses.length > 0,
+      href: "/portal/access" 
+    },
+    { 
+      id: "request", 
+      label: "Submit First Request", 
+      completed: client.requests.length > 0,
+      href: "/portal/requests/new" 
+    },
+  ];
+
+  const completedSteps = onboardingSteps.filter(s => s.completed).length;
+  const onboardingProgress = Math.round((completedSteps / onboardingSteps.length) * 100);
+  const showOnboarding = onboardingProgress < 100 || client.status === "LEAD";
 
   const stats = [
     { title: "Open Requests", value: openRequestsCount.toString(), icon: ClipboardList, color: "text-blue-600", bg: "bg-blue-50" },
@@ -88,6 +125,86 @@ export default async function PortalDashboard() {
           Submit work
         </Link>
       </div>
+
+      {/* Action Needed Section */}
+      {needsInfoCount > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-sm font-bold text-orange-800 uppercase tracking-wider flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            Action Needed ({needsInfoCount})
+          </h2>
+          <div className="grid grid-cols-1 gap-3">
+            {needsInfoRequests.map((request) => (
+              <div 
+                key={request.id}
+                className="flex items-center justify-between p-4 bg-orange-50 border border-orange-200 rounded-xl shadow-sm"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="mt-1 p-2 bg-white rounded-full text-orange-600 shadow-sm">
+                    <AlertCircle className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-orange-900">{request.title}</p>
+                    <p className="text-xs text-orange-700 mt-0.5">We need more information to proceed with this request.</p>
+                  </div>
+                </div>
+                <Link 
+                  href={`/portal/requests/${request.id}`}
+                  className={cn(
+                    buttonVariants({ variant: "default", size: "sm" }), 
+                    "bg-orange-600 hover:bg-orange-700 text-white border-none"
+                  )}
+                >
+                  Resolve Now
+                  <ArrowRight className="ml-2 h-3.5 w-3.5" />
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Onboarding Checklist */}
+      {showOnboarding && (
+        <Card className="border-blue-200 bg-blue-50/30">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-bold text-blue-900 flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-blue-600" />
+                Getting Started
+              </CardTitle>
+              <span className="text-sm font-bold text-blue-700">{onboardingProgress}% Complete</span>
+            </div>
+            <Progress value={onboardingProgress} className="h-2 bg-blue-100 mt-2" />
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {onboardingSteps.map((step) => (
+                <Link 
+                  key={step.id} 
+                  href={step.href}
+                  className={cn(
+                    "flex items-center gap-3 p-3 rounded-lg border transition-all",
+                    step.completed 
+                      ? "bg-white border-blue-200 text-blue-900 opacity-75" 
+                      : "bg-white border-blue-300 text-blue-900 shadow-sm hover:border-blue-400 hover:shadow-md"
+                  )}
+                >
+                  {step.completed ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+                  ) : (
+                    <Circle className="h-5 w-5 text-blue-300 shrink-0" />
+                  )}
+                  <span className={cn("text-sm font-semibold", step.completed && "line-through text-slate-400")}>
+                    {step.label}
+                  </span>
+                  {!step.completed && <ArrowRight className="ml-auto h-4 w-4 text-blue-400" />}
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Capacity Card */}
       <Card className="border-primary/20 bg-primary/[0.02]">
@@ -188,7 +305,15 @@ export default async function PortalDashboard() {
           </CardHeader>
           <CardContent>
             {client.requests.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">No requests yet.</p>
+              <EmptyState
+                icon={Inbox}
+                title="No requests yet"
+                description="Submit your first work request to get started with your Solar Ops Desk support."
+                action={{
+                  label: "Submit Work Request",
+                  href: "/portal/requests/new",
+                }}
+              />
             ) : (
               <div className="space-y-4">
                 {client.requests.map((request) => (
@@ -205,9 +330,7 @@ export default async function PortalDashboard() {
                       {(request.status === "NEEDS_INFO" || request.needsInfo) && (
                         <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4">Action Needed</Badge>
                       )}
-                      <Badge variant="outline" className="text-[10px]">
-                        {request.status.replace("_", " ")}
-                      </Badge>
+                      <StatusBadge status={request.status} />
                     </div>
                   </Link>
                 ))}

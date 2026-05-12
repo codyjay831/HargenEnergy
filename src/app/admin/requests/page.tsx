@@ -12,6 +12,9 @@ import {
 } from "@/components/ui/table";
 import { Urgency, OverflowStatus, SupportRequestKind } from "@/generated/prisma/client";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { PriorityButtons } from "@/components/admin/PriorityButtons";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -24,9 +27,10 @@ export default async function AdminRequests() {
         select: { minutes: true }
       }
     },
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: [
+      { priorityRank: "asc" },
+      { createdAt: "desc" }
+    ],
   });
 
   return (
@@ -40,12 +44,13 @@ export default async function AdminRequests() {
           No {PRODUCT_LANGUAGE.workRequest.plural.toLowerCase()} yet. Portal submissions and logged off-channel work will appear here.
         </div>
       ) : (
-        <div className="bg-white border rounded-lg overflow-hidden">
+        <div className="bg-white border rounded-lg overflow-hidden shadow-sm">
           <Table>
             <TableHeader>
-              <TableRow>
+              <TableRow className="bg-slate-50/50">
+                <TableHead className="w-[80px]">Priority</TableHead>
                 <TableHead>Company</TableHead>
-                <TableHead>Contact</TableHead>
+                <TableHead>Request Title</TableHead>
                 <TableHead>Urgency</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Time</TableHead>
@@ -55,26 +60,41 @@ export default async function AdminRequests() {
             </TableHeader>
             <TableBody>
               {requests.map((request) => (
-                <TableRow key={request.id}>
-                  <TableCell className="font-medium">
-                    {request.client.companyName}
-                    {request.needsInfo && (
-                      <Badge variant="destructive" className="ml-2 text-[10px] px-1 py-0">
-                        Needs Info
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>{request.client.contactName}</TableCell>
+                <TableRow key={request.id} className="hover:bg-slate-50/50 transition-colors">
                   <TableCell>
-                    <Badge variant={getUrgencyVariant(request.urgency)}>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600 shrink-0">
+                        {request.priorityRank ? `#${request.priorityRank}` : "—"}
+                      </div>
+                      <PriorityButtons requestId={request.id} currentPriority={request.priorityRank} />
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex flex-col">
+                      <span className="text-sm">{request.client.companyName}</span>
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-tight">{request.client.contactName}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Link href={`/admin/requests/${request.id}`} className="text-sm font-semibold hover:underline truncate max-w-[200px]">
+                        {request.title}
+                      </Link>
+                      {request.needsInfo && (
+                        <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4">
+                          Needs Info
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={getUrgencyVariant(request.urgency)} className="text-[10px] uppercase">
                       {request.urgency.replace("_", " ")}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1">
-                      <Badge variant="outline">
-                        {request.status.replace("_", " ")}
-                      </Badge>
+                      <StatusBadge status={request.status} />
                       {request.overflowStatus !== OverflowStatus.NOT_NEEDED && (
                         <Badge variant={getOverflowVariant(request.overflowStatus)} className="text-[10px] px-1 py-0 w-fit">
                           {request.overflowStatus.replace("_", " ")}
@@ -84,7 +104,7 @@ export default async function AdminRequests() {
                   </TableCell>
                   <TableCell>
                     {request.timeEntries.length > 0 ? (
-                      <span className="text-sm font-medium">
+                      <span className="text-sm font-bold text-slate-700">
                         {request.timeEntries.reduce((acc, curr) => acc + curr.minutes, 0)}m
                       </span>
                     ) : (
@@ -92,14 +112,14 @@ export default async function AdminRequests() {
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">
-                    {format(new Date(request.createdAt), "MMM d, yyyy")}
+                    {format(new Date(request.createdAt), "MMM d")}
                   </TableCell>
                   <TableCell className="text-right">
                     <Link 
                       href={`/admin/requests/${request.id}`}
-                      className="text-primary hover:underline text-sm font-medium"
+                      className={buttonVariants({ variant: "ghost", size: "sm" })}
                     >
-                      View Details
+                      View
                     </Link>
                   </TableCell>
                 </TableRow>

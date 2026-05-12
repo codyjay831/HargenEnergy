@@ -95,18 +95,91 @@ export function RequestHelpForm() {
   if (isSubmitted) {
     return (
       <Card className="rounded-xl border border-amber-200/80 bg-amber-50/40 shadow-sm">
-        <CardContent className="px-6 py-10 text-center sm:px-10">
-          <h3 className="font-heading text-xl font-semibold text-stone-900">{FORM_COPY.walkthroughSuccess.title}</h3>
-          <p className="mt-3 text-sm text-stone-600 leading-relaxed">
-            {FORM_COPY.walkthroughSuccess.body}
-          </p>
-          <Button
-            variant="outline"
-            className="mt-8 border-stone-200"
-            onClick={() => setIsSubmitted(false)}
-          >
-            Send another request
-          </Button>
+        <CardContent className="px-6 py-10 sm:px-10">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-500 mb-4">
+              <svg
+                className="w-8 h-8 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+            </div>
+            <h3 className="font-heading text-2xl font-semibold text-stone-900">
+              {FORM_COPY.walkthroughSuccess.title}
+            </h3>
+            <p className="mt-2 text-sm text-stone-600 leading-relaxed max-w-lg mx-auto">
+              {FORM_COPY.walkthroughSuccess.body}
+            </p>
+          </div>
+
+          <div className="border-t border-amber-200/60 pt-8 mb-8">
+            <h4 className="text-sm font-semibold text-stone-900 mb-6 text-center uppercase tracking-wider">
+              What Happens Next
+            </h4>
+            <div className="space-y-6 max-w-md mx-auto">
+              <div className="flex gap-4">
+                <div className="flex flex-col items-center">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-500 text-white text-sm font-bold">
+                    1
+                  </div>
+                  <div className="w-0.5 h-full bg-amber-200 mt-2"></div>
+                </div>
+                <div className="flex-1 pb-6">
+                  <h5 className="font-semibold text-sm text-stone-900">Request Received</h5>
+                  <p className="text-xs text-stone-600 mt-1 leading-relaxed">
+                    Your walkthrough request has been received. You should see a confirmation email shortly.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex flex-col items-center">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-500 text-white text-sm font-bold">
+                    2
+                  </div>
+                  <div className="w-0.5 h-full bg-amber-200 mt-2"></div>
+                </div>
+                <div className="flex-1 pb-6">
+                  <h5 className="font-semibold text-sm text-stone-900">Review & Alignment</h5>
+                  <p className="text-xs text-stone-600 mt-1 leading-relaxed">
+                    We&apos;ll reach out within 1 business day to discuss your bottleneck, scope, and support level.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex flex-col items-center">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-500 text-white text-sm font-bold">
+                    3
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h5 className="font-semibold text-sm text-stone-900">Activation</h5>
+                  <p className="text-xs text-stone-600 mt-1 leading-relaxed">
+                    After contract and payment setup, you&apos;ll get portal access and we start the work.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center">
+            <Button
+              variant="outline"
+              className="border-stone-300 hover:bg-stone-100"
+              onClick={() => setIsSubmitted(false)}
+            >
+              Send another request
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );

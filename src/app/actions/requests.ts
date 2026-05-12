@@ -283,3 +283,23 @@ export async function updateRequest(
     return { error: "Failed to update request." };
   }
 }
+
+export async function updateRequestPriority(id: string, priorityRank: number | null) {
+  const session = await auth();
+
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { error: "Unauthorized. Admin access required." };
+  }
+
+  try {
+    const request = await prisma.supportRequest.update({
+      where: { id },
+      data: { priorityRank },
+    });
+
+    return { success: true, request };
+  } catch (error) {
+    console.error("Error updating request priority:", error);
+    return { error: "Failed to update request priority." };
+  }
+}

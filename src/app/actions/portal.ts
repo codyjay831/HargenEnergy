@@ -35,6 +35,7 @@ export async function submitPortalRequest(data: {
   utilityAhj?: string;
   toolsContext?: string;
   desiredOutcome?: string;
+  attachments?: Array<{ url: string; name: string; type: string; size: number }>;
 }) {
   const session = await auth();
   const clientId = session?.user?.clientId;
@@ -113,6 +114,16 @@ Desired Outcome: ${desiredOutcome || "N/A"}
         description: fullDescription,
         urgency: urgencyEnum,
         status: RequestStatus.NEW,
+        attachments: data.attachments?.length
+          ? {
+              create: data.attachments.map((file) => ({
+                clientId,
+                fileName: file.name,
+                fileUrl: file.url,
+                fileType: file.type,
+              })),
+            }
+          : undefined,
       },
     });
 

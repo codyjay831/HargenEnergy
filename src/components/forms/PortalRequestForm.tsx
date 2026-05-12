@@ -15,12 +15,15 @@ import {
 } from "@/components/ui/select";
 import { URGENCY_OPTIONS, type UrgencyValue } from "@/lib/ui-enums";
 import { submitPortalRequest } from "@/app/actions/portal";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, Paperclip } from "lucide-react";
+import { FileUpload, type UploadedFile } from "@/components/ui/file-upload";
+import { toast } from "sonner";
 
 export function PortalRequestForm() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<UploadedFile[]>([]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -37,18 +40,24 @@ export function PortalRequestForm() {
       utilityAhj: formData.get("utilityAhj") as string,
       toolsContext: formData.get("toolsContext") as string,
       desiredOutcome: formData.get("desiredOutcome") as string,
+      attachments,
     };
 
     try {
       const result = await submitPortalRequest(data);
 
       if ("success" in result && result.success) {
+        toast.success("Request submitted successfully!");
         router.push(`/portal/requests/${result.requestId}`);
       } else {
-        setError("error" in result ? result.error : "Failed to submit request.");
+        const errorMsg = "error" in result ? result.error : "Failed to submit request.";
+        setError(errorMsg);
+        toast.error(errorMsg);
       }
     } catch {
-      setError("An unexpected error occurred.");
+      const errorMsg = "An unexpected error occurred.";
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setIsLoading(false);
     }
@@ -133,6 +142,24 @@ export function PortalRequestForm() {
             <Input id="desiredOutcome" name="desiredOutcome" placeholder="e.g. Application submitted" />
           </div>
         </div>
+      </div>
+
+      <div className="pt-6 border-t border-slate-200">
+        <div className="flex items-center gap-2 mb-4">
+          <Paperclip className="h-4 w-4 text-slate-600" />
+          <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+            Attachments (Optional)
+          </h3>
+        </div>
+        <p className="text-xs text-slate-600 mb-4">
+          Upload plan sets, utility bills, photos, or other relevant documents (PDF, JPG, PNG - max 8MB each)
+        </p>
+        <FileUpload
+          endpoint="supportAttachment"
+          value={attachments}
+          onChange={setAttachments}
+          maxFiles={5}
+        />
       </div>
 
       <div className="flex items-center justify-end gap-4 pt-4">

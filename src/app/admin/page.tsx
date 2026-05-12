@@ -5,8 +5,17 @@ import {
   Clock, 
   TrendingUp,
   Inbox,
-  UserCheck
+  UserCheck,
+  FileText,
+  Users,
+  PlusCircle,
+  Clock3,
+  CreditCard,
+  ChevronRight,
+  ArrowUpCircle,
+  ClipboardList
 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   RequestStatus,
   ClientStatus,
@@ -18,7 +27,10 @@ import { calculateWeeklyUsage } from "@/lib/usage";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
+import { PriorityButtons } from "@/components/admin/PriorityButtons";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +44,7 @@ export default async function AdminDashboard() {
     needsInfoCount,
     includedTimeThisWeek,
     overflowTimeThisWeek,
+    prioritizedRequests,
   ] = await Promise.all([
     prisma.supportRequest.count({
       where: { kind: SupportRequestKind.PROSPECT_INTAKE, status: RequestStatus.NEW },
@@ -69,6 +82,15 @@ export default async function AdminDashboard() {
         date: { gte: startOfWeek(new Date(), { weekStartsOn: 1 }) }
       },
       _sum: { minutes: true }
+    }),
+    prisma.supportRequest.findMany({
+      where: { 
+        status: { notIn: [RequestStatus.COMPLETE, RequestStatus.CANCELLED] },
+        priorityRank: { not: null }
+      },
+      orderBy: { priorityRank: "asc" },
+      take: 5,
+      include: { client: true }
     }),
   ]);
 
@@ -161,9 +183,27 @@ export default async function AdminDashboard() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">Sales funnel and delivery pipeline at a glance.</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">Sales funnel and delivery pipeline at a glance.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Link 
+            href="/admin/clients" 
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "flex items-center gap-2")}
+          >
+            <Users className="h-4 w-4" />
+            Manage Clients
+          </Link>
+          <Link 
+            href="/admin/requests" 
+            className={cn(buttonVariants({ variant: "default", size: "sm" }), "flex items-center gap-2")}
+          >
+            <ClipboardList className="h-4 w-4" />
+            All Requests
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -186,6 +226,104 @@ export default async function AdminDashboard() {
         ))}
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Quick Actions Panel */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="text-lg font-bold">Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Link 
+              href="/admin/clients" 
+              className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-50 rounded text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                  <PlusCircle className="h-4 w-4" />
+                </div>
+                <span className="text-sm font-semibold">Invite New Client</span>
+              </div>
+              <ChevronRight className="h-4 w-4 text-slate-400" />
+            </Link>
+            <Link 
+              href="/admin/time" 
+              className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-50 rounded text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                  <Clock3 className="h-4 w-4" />
+                </div>
+                <span className="text-sm font-semibold">Log Time</span>
+              </div>
+              <ChevronRight className="h-4 w-4 text-slate-400" />
+            </Link>
+            <Link 
+              href="/admin/billing" 
+              className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-50 rounded text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                  <CreditCard className="h-4 w-4" />
+                </div>
+                <span className="text-sm font-semibold">New Disbursement</span>
+              </div>
+              <ChevronRight className="h-4 w-4 text-slate-400" />
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* Priority Management Panel */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg font-bold flex items-center gap-2">
+              <ArrowUpCircle className="h-5 w-5 text-primary" />
+              Priority Management
+            </CardTitle>
+            <Link href="/admin/requests" className="text-xs text-primary hover:underline font-medium">View All</Link>
+          </CardHeader>
+          <CardContent>
+            {prioritizedRequests.length === 0 ? (
+              <div className="py-8 text-center border-2 border-dashed rounded-lg">
+                <p className="text-sm text-muted-foreground">No requests have a priority rank assigned.</p>
+                <Link 
+                  href="/admin/requests" 
+                  className={cn(buttonVariants({ variant: "link", size: "sm" }), "mt-2")}
+                >
+                  Assign Priority
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {prioritizedRequests.map((request) => (
+                  <div 
+                    key={request.id}
+                    className="flex items-center justify-between p-3 border rounded-lg bg-white shadow-sm"
+                  >
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600 shrink-0">
+                        #{request.priorityRank}
+                      </div>
+                      <div className="min-w-0">
+                        <Link href={`/admin/requests/${request.id}`} className="text-sm font-bold truncate hover:underline block">
+                          {request.title}
+                        </Link>
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {request.client.companyName}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <StatusBadge status={request.status} className="hidden sm:inline-flex" />
+                      <PriorityButtons requestId={request.id} currentPriority={request.priorityRank} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
@@ -196,7 +334,15 @@ export default async function AdminDashboard() {
           </CardHeader>
           <CardContent>
             {recentWalkthroughs.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">No {PRODUCT_LANGUAGE.walkthrough.plural.toLowerCase()} yet.</p>
+              <EmptyState
+                icon={FileText}
+                title={`No ${PRODUCT_LANGUAGE.walkthrough.plural.toLowerCase()} yet`}
+                description="New prospect intake requests will appear here. Share your public request form to get started."
+                action={{
+                  label: "View Request Form",
+                  href: "/request-help",
+                }}
+              />
             ) : (
               <div className="space-y-4">
                 {recentWalkthroughs.map((request) => (
@@ -212,9 +358,7 @@ export default async function AdminDashboard() {
                         {format(new Date(request.createdAt), "MMM d, h:mm a")}
                       </p>
                     </div>
-                    <Badge variant="outline" className="ml-2 shrink-0">
-                      {request.status.replace("_", " ")}
-                    </Badge>
+                    <StatusBadge status={request.status} className="ml-2 shrink-0" />
                   </Link>
                 ))}
               </div>
@@ -231,7 +375,15 @@ export default async function AdminDashboard() {
           </CardHeader>
           <CardContent>
             {recentWorkRequests.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">No {PRODUCT_LANGUAGE.workRequest.plural.toLowerCase()} yet.</p>
+              <EmptyState
+                icon={Inbox}
+                title={`No ${PRODUCT_LANGUAGE.workRequest.plural.toLowerCase()} yet`}
+                description="Client work requests will appear here once you have active clients in the system."
+                action={{
+                  label: "View All Clients",
+                  href: "/admin/clients",
+                }}
+              />
             ) : (
               <div className="space-y-4">
                 {recentWorkRequests.map((request) => (
@@ -247,9 +399,7 @@ export default async function AdminDashboard() {
                         {format(new Date(request.createdAt), "MMM d, h:mm a")}
                       </p>
                     </div>
-                    <Badge variant="outline" className="ml-2 shrink-0">
-                      {request.status.replace("_", " ")}
-                    </Badge>
+                    <StatusBadge status={request.status} className="ml-2 shrink-0" />
                   </Link>
                 ))}
               </div>
@@ -263,7 +413,15 @@ export default async function AdminDashboard() {
           </CardHeader>
           <CardContent>
             {capacityWatch.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">No active clients yet.</p>
+              <EmptyState
+                icon={Users}
+                title="No active clients yet"
+                description="Activate clients to start tracking their weekly capacity usage and support hours."
+                action={{
+                  label: "Manage Clients",
+                  href: "/admin/clients",
+                }}
+              />
             ) : (
               <div className="space-y-6">
                 {capacityWatch.map((client) => (
