@@ -23,7 +23,7 @@ function getResend() {
   return new Resend(apiKey);
 }
 
-const FROM_EMAIL = process.env.SUPPORT_FROM_EMAIL || "Hargen Energy Solar Ops Desk <onboarding@resend.dev>";
+const FROM_EMAIL = process.env.SUPPORT_FROM_EMAIL;
 const ADMIN_EMAIL = process.env.SUPPORT_NOTIFICATION_EMAIL;
 
 function formatMoney(amountCents: number, currency: string): string {
@@ -59,7 +59,10 @@ function clientEmailHeader(data: {
 function validateEmailConfig() {
   const resend = getResend();
   if (!resend) return { error: "Email provider not configured (RESEND_API_KEY missing)." };
-  if (!FROM_EMAIL) return { error: "Sender email not configured (SUPPORT_FROM_EMAIL missing)." };
+  if (!FROM_EMAIL) {
+    console.error("[Email] SUPPORT_FROM_EMAIL is missing. This will cause Resend 403 errors in production.");
+    return { error: "Sender email not configured (SUPPORT_FROM_EMAIL missing)." };
+  }
   return { resend };
 }
 
