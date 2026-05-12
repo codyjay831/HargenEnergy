@@ -163,8 +163,8 @@ export default async function PortalDashboard() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {stats.map((stat, i) => (
-          <Card key={i}>
+        {stats.map((stat) => (
+          <Card key={stat.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
                 {stat.title}
@@ -191,9 +191,9 @@ export default async function PortalDashboard() {
               <p className="text-sm text-muted-foreground py-4 text-center">No requests yet.</p>
             ) : (
               <div className="space-y-4">
-                {client.requests.map((request, i) => (
+                {client.requests.map((request) => (
                   <Link 
-                    key={i} 
+                    key={request.id} 
                     href={`/portal/requests/${request.id}`}
                     className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors"
                   >

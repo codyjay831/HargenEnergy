@@ -39,14 +39,21 @@ export async function createTimeEntry(data: {
     if (data.supportRequestId) {
       const request = await prisma.supportRequest.findUnique({
         where: { id: data.supportRequestId },
-        select: { kind: true },
+        select: { kind: true, clientId: true },
       });
 
-      if (request) {
-        const billableError = assertBillableTimeOnRequest(request.kind, billableType);
-        if (billableError) {
-          return billableError;
-        }
+      if (!request) {
+        return { error: "Support request not found." };
+      }
+
+      // Ensure the request belongs to the specified client
+      if (request.clientId !== data.clientId) {
+        return { error: "Support request does not belong to the specified client." };
+      }
+
+      const billableError = assertBillableTimeOnRequest(request.kind, billableType);
+      if (billableError) {
+        return billableError;
       }
     }
 

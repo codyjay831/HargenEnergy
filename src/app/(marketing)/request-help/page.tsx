@@ -1,5 +1,6 @@
 import { RequestHelpForm } from "@/components/forms/RequestHelpForm";
 import { cn } from "@/lib/utils";
+import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import {
   marketingShell,
   marketingSectionY,
@@ -22,7 +23,7 @@ export default function RequestHelpPage() {
         <div className={cn(marketingShell)}>
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_280px] lg:gap-14">
             <div>
-              <h1 className={marketingH1}>Request a walkthrough</h1>
+              <h1 className={marketingH1}>{PRODUCT_LANGUAGE.walkthrough.action}</h1>
               <p className={cn(marketingLead, "mt-4 max-w-xl")}>
                 Tell us where you are stuck. We start with a walkthrough and activation conversation, not a support ticket. Most companies hear back within one business day.
               </p>

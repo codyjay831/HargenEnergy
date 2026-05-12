@@ -11,6 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Urgency, OverflowStatus, SupportRequestKind } from "@/generated/prisma/client";
+import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 
 export const dynamic = "force-dynamic";
 
@@ -31,12 +32,12 @@ export default async function AdminRequests() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Ops queue</h1>
+        <h1 className="text-2xl font-bold">{PRODUCT_LANGUAGE.workRequest.listTitle}</h1>
       </div>
 
       {requests.length === 0 ? (
         <div className="bg-white border rounded-lg p-12 text-center text-muted-foreground">
-          No client ops requests yet. Portal submissions and logged off-channel work will appear here.
+          No {PRODUCT_LANGUAGE.workRequest.plural.toLowerCase()} yet. Portal submissions and logged off-channel work will appear here.
         </div>
       ) : (
         <div className="bg-white border rounded-lg overflow-hidden">

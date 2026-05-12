@@ -11,7 +11,6 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { LogoutButton } from "@/components/layout/LogoutButton";
-import { cn } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -27,36 +26,24 @@ export default async function PortalLayout({
     redirect("/login");
   }
 
-  // Admin can access portal, but we should warn them or handle it
-  const isAdmin = session.user.role === "ADMIN";
+  // Redirect admins to admin panel
+  if (session.user.role === "ADMIN") {
+    redirect("/admin");
+  }
   
-  if (!isAdmin && !session.user.clientId) {
-    // If a client user is not tied to a client, they shouldn't be here
-    // For now, redirect to a contact page or similar
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-        <div className="max-w-md w-full bg-white p-8 rounded-lg border shadow-sm text-center">
-          <h1 className="text-xl font-bold text-slate-900">Account Setup Required</h1>
-          <p className="mt-2 text-slate-600">Your user account is not yet linked to a solar company. Please contact Hargen Energy to complete your portal setup.</p>
-          <div className="mt-6">
-            <LogoutButton />
-          </div>
-        </div>
-      </div>
-    );
+  // Client users must have a clientId
+  if (!session.user.clientId) {
+    redirect("/portal/access");
   }
 
-  const client =
-    !isAdmin && session.user.clientId
-      ? await prisma.client.findUnique({
-          where: { id: session.user.clientId },
-          select: {
-            companyName: true,
-            logoUrl: true,
-            brandAccent: true,
-          },
-        })
-      : null;
+  const client = await prisma.client.findUnique({
+    where: { id: session.user.clientId },
+    select: {
+      companyName: true,
+      logoUrl: true,
+      brandAccent: true,
+    },
+  });
 
   const navItems = [
     { name: "Dashboard", href: "/portal", icon: LayoutDashboard },
@@ -109,7 +96,6 @@ export default async function PortalLayout({
           <div className="px-3 py-2">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Logged in as</p>
             <p className="text-sm font-medium text-slate-200 truncate">{session.user.name || session.user.email}</p>
-            {isAdmin && <Badge variant="secondary" className="mt-1 text-[10px]">ADMIN VIEW</Badge>}
           </div>
           <div className="mt-2">
             <LogoutButton />
@@ -136,17 +122,5 @@ export default async function PortalLayout({
         </div>
       </main>
     </div>
-  );
-}
-
-function Badge({ children, variant, className }: { children: React.ReactNode, variant?: string, className?: string }) {
-  return (
-    <span className={cn(
-      "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium",
-      variant === "secondary" ? "bg-slate-100 text-slate-800" : "bg-primary/10 text-primary",
-      className
-    )}>
-      {children}
-    </span>
   );
 }

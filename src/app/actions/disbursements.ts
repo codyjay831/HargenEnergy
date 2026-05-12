@@ -83,17 +83,22 @@ export async function createDisbursementRequest(
     },
   });
 
-  await sendDisbursementApprovalRequestEmail({
-    to: request.client.email,
-    companyName: request.client.companyName,
-    requestTitle: request.title,
-    requestId: request.id,
-    vendor: disbursement.vendor,
-    purpose: disbursement.purpose,
-    amountCents: disbursement.amountCents,
-    currency: disbursement.currency,
-    logoUrl: request.client.logoUrl,
-  });
+  try {
+    await sendDisbursementApprovalRequestEmail({
+      to: request.client.email,
+      companyName: request.client.companyName,
+      requestTitle: request.title,
+      requestId: request.id,
+      vendor: disbursement.vendor,
+      purpose: disbursement.purpose,
+      amountCents: disbursement.amountCents,
+      currency: disbursement.currency,
+      logoUrl: request.client.logoUrl,
+    });
+  } catch (emailError) {
+    console.error("Failed to send disbursement approval email:", emailError);
+    // Continue - disbursement was created successfully
+  }
 
   revalidatePath(`/admin/requests/${request.id}`);
   revalidatePath(`/portal/requests/${request.id}`);
@@ -124,14 +129,21 @@ export async function approveDisbursementRequest(disbursementId: string) {
     return { error: "This disbursement is no longer awaiting approval." };
   }
 
-  await prisma.disbursementRequest.update({
-    where: { id: disbursement.id },
+  const result = await prisma.disbursementRequest.updateMany({
+    where: { 
+      id: disbursement.id,
+      status: DisbursementStatus.PENDING_APPROVAL,
+    },
     data: {
       status: DisbursementStatus.APPROVED,
       approvedAt: new Date(),
       approvedById: session.user.id,
     },
   });
+
+  if (result.count === 0) {
+    return { error: "This disbursement was already processed by another request." };
+  }
 
   await sendInternalDisbursementDecisionAlert({
     companyName: disbursement.client.companyName,
@@ -172,14 +184,21 @@ export async function declineDisbursementRequest(disbursementId: string) {
     return { error: "This disbursement is no longer awaiting approval." };
   }
 
-  await prisma.disbursementRequest.update({
-    where: { id: disbursement.id },
+  const result = await prisma.disbursementRequest.updateMany({
+    where: { 
+      id: disbursement.id,
+      status: DisbursementStatus.PENDING_APPROVAL,
+    },
     data: {
       status: DisbursementStatus.DECLINED,
       declinedAt: new Date(),
       approvedById: session.user.id,
     },
   });
+
+  if (result.count === 0) {
+    return { error: "This disbursement was already processed by another request." };
+  }
 
   await sendInternalDisbursementDecisionAlert({
     companyName: disbursement.client.companyName,

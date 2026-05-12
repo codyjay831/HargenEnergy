@@ -18,6 +18,7 @@ import { submitRequestHelp } from "@/app/actions/requests";
 import { RequestHelpInput } from "@/lib/validations";
 import { cn } from "@/lib/utils";
 import { marketingAmberCta } from "@/components/marketing/marketing-styles";
+import { PRODUCT_LANGUAGE, FORM_COPY } from "@/lib/product-language";
 
 const supportOptions = [
   { id: "quote", label: "Quote building / proposal support" },
@@ -40,6 +41,8 @@ export function RequestHelpForm() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSupport, setSelectedSupport] = useState<string[]>([]);
+  const [plan, setPlan] = useState<RequestHelpInput["plan"]>("not-sure");
+  const [urgency, setUrgency] = useState<RequestHelpInput["urgency"]>("normal");
 
   const handleCheckboxChange = (id: string, checked: boolean) => {
     if (checked) {
@@ -71,8 +74,8 @@ export function RequestHelpForm() {
       serviceArea: formData.get("serviceArea") as string,
       supportNeeded: selectedSupport.map(id => supportOptions.find(o => o.id === id)?.label || id),
       bottleneck: formData.get("bottleneck") as string,
-      plan: formData.get("plan") as RequestHelpInput["plan"],
-      urgency: formData.get("urgency") as RequestHelpInput["urgency"],
+      plan: plan,
+      urgency: urgency,
       tools: formData.get("tools") as string,
       takeOffPlate: formData.get("takeOffPlate") as string,
       websiteUrlHoneypot: String(formData.get("websiteUrlHoneypot") ?? ""),
@@ -93,9 +96,9 @@ export function RequestHelpForm() {
     return (
       <Card className="rounded-xl border border-amber-200/80 bg-amber-50/40 shadow-sm">
         <CardContent className="px-6 py-10 text-center sm:px-10">
-          <h3 className="font-heading text-xl font-semibold text-stone-900">Walkthrough request received</h3>
+          <h3 className="font-heading text-xl font-semibold text-stone-900">{FORM_COPY.walkthroughSuccess.title}</h3>
           <p className="mt-3 text-sm text-stone-600 leading-relaxed">
-            We will review where you are stuck and follow up by email, usually within one business day. Portal access for ongoing client work comes after walkthrough, contract, and payment.
+            {FORM_COPY.walkthroughSuccess.body}
           </p>
           <Button
             variant="outline"
@@ -198,7 +201,7 @@ export function RequestHelpForm() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
           <Label htmlFor="plan">Preferred Support Level</Label>
-          <Select name="plan" defaultValue="not-sure">
+          <Select name="plan" value={plan} onValueChange={(v) => setPlan(v as RequestHelpInput["plan"])}>
             <SelectTrigger>
               <SelectValue placeholder="Select a support block" />
             </SelectTrigger>
@@ -213,7 +216,7 @@ export function RequestHelpForm() {
         </div>
         <div className="space-y-2">
           <Label htmlFor="urgency">Urgency</Label>
-          <Select name="urgency" defaultValue="normal">
+          <Select name="urgency" value={urgency} onValueChange={(v) => setUrgency(v as RequestHelpInput["urgency"])}>
             <SelectTrigger>
               <SelectValue placeholder="How soon do you need help?" />
             </SelectTrigger>
@@ -250,7 +253,7 @@ export function RequestHelpForm() {
         className={cn(buttonVariants(), "h-12 w-full text-base font-medium", marketingAmberCta)}
         disabled={isSubmitting}
       >
-        {isSubmitting ? "Sending..." : "Request Solar Ops Support"}
+        {isSubmitting ? "Sending..." : PRODUCT_LANGUAGE.walkthrough.action}
       </Button>
       
       <p className="text-center text-xs text-muted-foreground">
