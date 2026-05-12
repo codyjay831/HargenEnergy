@@ -481,7 +481,7 @@ export async function sendPortalInviteEmail(data: {
   const safeHref = escapeHtml(data.resetUrl);
 
   try {
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from: FROM_EMAIL,
       to: data.to,
       subject: "Your Hargen Energy client portal is ready",
@@ -501,6 +501,7 @@ export async function sendPortalInviteEmail(data: {
         </div>
       `,
     });
+    console.log(`[Email] Portal invite sent to ${data.to}. Resend ID: ${result.data?.id}`);
     return { success: true };
   } catch (error) {
     console.error("Error sending portal invite email:", error);

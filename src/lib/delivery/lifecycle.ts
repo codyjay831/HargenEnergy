@@ -56,11 +56,11 @@ export function assertActiveClientForPortalSubmit(clientStatus: ClientStatus): {
   return null;
 }
 
-// Validation: Portal invite only for ACTIVE clients
+// Validation: Portal invite only for ACTIVE or LEAD clients
 export function assertPortalInviteAllowed(clientStatus: ClientStatus): { error: string } | null {
-  if (clientStatus !== ClientStatus.ACTIVE) {
+  if (clientStatus !== ClientStatus.ACTIVE && clientStatus !== ClientStatus.LEAD) {
     return {
-      error: "Portal invites are only sent to active clients. Complete activation and billing first.",
+      error: "Portal invites are only sent to active clients or leads. Complete initial setup first.",
     };
   }
   return null;

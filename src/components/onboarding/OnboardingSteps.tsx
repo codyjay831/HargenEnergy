@@ -175,7 +175,7 @@ export function OnboardingSteps({ client, latestWalkthroughRequest }: Onboarding
                   />
                 )}
 
-                {step.number === 4 && isActive && (
+                {step.number === 4 && (isActive || client.status === ClientStatus.LEAD) && (
                   <ClientPortalAccessManager
                     clientId={client.id}
                     clientStatus={client.status as ClientStatus}
