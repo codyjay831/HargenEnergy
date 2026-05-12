@@ -49,8 +49,8 @@ export function EnrichmentTools({ companyId }: EnrichmentToolsProps) {
 
     const result = await enrichWithYelp(companyId, selectedBusinessId);
 
-    if ("requiresSelection" in result && result.requiresSelection && result.candidates) {
-      setYelpCandidates(result.candidates);
+    if ("requiresSelection" in result && result.requiresSelection) {
+      setYelpCandidates(result.candidates || []);
       setYelpMessage(result.message || "Select the correct Yelp business.");
       setLoading(null);
       return;
@@ -61,7 +61,8 @@ export function EnrichmentTools({ companyId }: EnrichmentToolsProps) {
       setYelpMessage(null);
       router.refresh();
     } else {
-      alert(result.error);
+      const errorMessage = "error" in result ? (result.error as string) : "An unknown error occurred";
+      alert(errorMessage);
     }
 
     setLoading(null);
