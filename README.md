@@ -37,6 +37,6 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Documentation
 
-- [Product / System / UX Roadmap](docs/product-roadmap.md)
+- [Product / System / UX Roadmap](docs/product-system-ux-roadmap.md)
 - [Deployment Guide](DEPLOYMENT.md)
 - [Agent Instructions](AGENTS.md)
