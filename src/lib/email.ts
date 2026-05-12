@@ -23,7 +23,6 @@ function getResend() {
   return new Resend(apiKey);
 }
 
-const FROM_EMAIL = process.env.SUPPORT_FROM_EMAIL;
 const ADMIN_EMAIL = process.env.SUPPORT_NOTIFICATION_EMAIL;
 
 function formatMoney(amountCents: number, currency: string): string {
@@ -58,24 +57,25 @@ function clientEmailHeader(data: {
  */
 function validateEmailConfig() {
   const resend = getResend();
+  const fromEmail = process.env.SUPPORT_FROM_EMAIL;
   if (!resend) return { error: "Email provider not configured (RESEND_API_KEY missing)." };
-  if (!FROM_EMAIL) {
+  if (!fromEmail) {
     console.error("[Email] SUPPORT_FROM_EMAIL is missing. This will cause Resend 403 errors in production.");
     return { error: "Sender email not configured (SUPPORT_FROM_EMAIL missing)." };
   }
-  return { resend };
+  return { resend, fromEmail };
 }
 
 export async function sendRequestConfirmation(to: string, companyName: string) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
-  const { resend } = config;
+  const { resend, fromEmail } = config;
 
   const safeCompany = escapeHtml(companyName);
 
   try {
     await resend.emails.send({
-      from: FROM_EMAIL,
+      from: fromEmail,
       to,
       subject: "Hargen Energy received your solar operations support request",
       html: `
@@ -117,7 +117,7 @@ export async function sendInternalRequestAlert(data: {
     console.warn("SUPPORT_NOTIFICATION_EMAIL is missing. Internal alert not sent.");
     return { error: "Internal notification email not configured." };
   }
-  const { resend } = config;
+  const { resend, fromEmail } = config;
 
   const safeCompany = escapeHtml(data.companyName);
   const safeContact = escapeHtml(data.contactName);
@@ -142,7 +142,7 @@ export async function sendInternalRequestAlert(data: {
 
   try {
     await resend.emails.send({
-      from: FROM_EMAIL,
+      from: fromEmail,
       to: ADMIN_EMAIL,
       subject,
       html: `
@@ -181,7 +181,7 @@ export async function sendClientUpdateEmail(data: {
 }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
-  const { resend } = config;
+  const { resend, fromEmail } = config;
 
   const safeTitle = escapeHtml(data.requestTitle);
   const safeStatus = escapeHtml(data.status.replace(/_/g, " "));
@@ -208,7 +208,7 @@ export async function sendClientUpdateEmail(data: {
 
   try {
     await resend.emails.send({
-      from: FROM_EMAIL,
+      from: fromEmail,
       to: data.to,
       subject,
       html: `
@@ -247,7 +247,7 @@ export async function sendOverflowApprovalEmail(data: {
 }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
-  const { resend } = config;
+  const { resend, fromEmail } = config;
 
   const safeTitle = escapeHtml(data.requestTitle);
   const overflowBlock = escapeHtml(
@@ -258,7 +258,7 @@ export async function sendOverflowApprovalEmail(data: {
 
   try {
     await resend.emails.send({
-      from: FROM_EMAIL,
+      from: fromEmail,
       to: data.to,
       subject: "Overflow approval needed for your Hargen Energy support request",
       html: `
@@ -296,7 +296,7 @@ export async function sendDeferredUpdateEmail(data: {
 }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
-  const { resend } = config;
+  const { resend, fromEmail } = config;
 
   const safeTitle = escapeHtml(data.requestTitle);
   const dateStr = data.deferredUntil
@@ -313,7 +313,7 @@ export async function sendDeferredUpdateEmail(data: {
 
   try {
     await resend.emails.send({
-      from: FROM_EMAIL,
+      from: fromEmail,
       to: data.to,
       subject,
       html: `
@@ -349,14 +349,14 @@ export async function sendPasswordResetEmail(data: {
 }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
-  const { resend } = config;
+  const { resend, fromEmail } = config;
 
   const safeHref = escapeHtml(data.resetUrl);
   const expires = escapeHtml(String(data.expiresInMinutes));
 
   try {
     await resend.emails.send({
-      from: FROM_EMAIL,
+      from: fromEmail,
       to: data.to,
       subject: "Reset your Hargen Energy password",
       html: `
@@ -391,11 +391,11 @@ export async function sendPasswordResetEmail(data: {
 export async function sendPasswordChangedNotificationEmail(data: { to: string }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
-  const { resend } = config;
+  const { resend, fromEmail } = config;
 
   try {
     await resend.emails.send({
-      from: FROM_EMAIL,
+      from: fromEmail,
       to: data.to,
       subject: "Your Hargen Energy password was changed",
       html: `
@@ -429,7 +429,7 @@ export async function sendOverflowApprovedEmail(data: {
 }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
-  const { resend } = config;
+  const { resend, fromEmail } = config;
 
   const safeTitle = escapeHtml(data.requestTitle);
   const safeUpdate = escapeHtml(
@@ -442,7 +442,7 @@ export async function sendOverflowApprovedEmail(data: {
 
   try {
     await resend.emails.send({
-      from: FROM_EMAIL,
+      from: fromEmail,
       to: data.to,
       subject,
       html: `
@@ -479,13 +479,13 @@ export async function sendPortalInviteEmail(data: {
 }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
-  const { resend } = config;
+  const { resend, fromEmail } = config;
 
   const safeHref = escapeHtml(data.resetUrl);
 
   try {
     const result = await resend.emails.send({
-      from: FROM_EMAIL,
+      from: fromEmail,
       to: data.to,
       subject: "Your Hargen Energy client portal is ready",
       html: `
@@ -523,7 +523,7 @@ export async function sendInternalClientCommentAlert(data: {
   if (!ADMIN_EMAIL) {
     return { error: "Internal notification email not configured." };
   }
-  const { resend } = config;
+  const { resend, fromEmail } = config;
 
   const safeCompany = escapeHtml(data.companyName);
   const safeTitle = escapeHtml(data.requestTitle);
@@ -532,7 +532,7 @@ export async function sendInternalClientCommentAlert(data: {
 
   try {
     await resend.emails.send({
-      from: FROM_EMAIL,
+      from: fromEmail,
       to: ADMIN_EMAIL,
       subject: sanitizeEmailSubjectFragment(
         `Client reply: ${data.companyName} — ${data.requestTitle}`,
@@ -570,14 +570,14 @@ export async function sendDisbursementApprovalRequestEmail(data: {
 }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
-  const { resend } = config;
+  const { resend, fromEmail } = config;
 
   const portalUrl = escapeHtml(portalRequestUrl(data.requestId));
   const amount = escapeHtml(formatMoney(data.amountCents, data.currency));
 
   try {
     await resend.emails.send({
-      from: FROM_EMAIL,
+      from: fromEmail,
       to: data.to,
       subject: sanitizeEmailSubjectFragment(
         `Approval needed: ${data.vendor} fee for ${data.requestTitle}`,
@@ -619,7 +619,7 @@ export async function sendDisbursementStatusEmail(data: {
 }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
-  const { resend } = config;
+  const { resend, fromEmail } = config;
 
   const portalUrl = escapeHtml(portalRequestUrl(data.requestId));
   const amount = escapeHtml(formatMoney(data.amountCents, data.currency));
@@ -630,7 +630,7 @@ export async function sendDisbursementStatusEmail(data: {
 
   try {
     await resend.emails.send({
-      from: FROM_EMAIL,
+      from: fromEmail,
       to: data.to,
       subject: sanitizeEmailSubjectFragment(
         `Payment update: ${data.vendor} — ${data.requestTitle}`,
@@ -672,14 +672,14 @@ export async function sendInternalDisbursementDecisionAlert(data: {
   if (!ADMIN_EMAIL) {
     return { error: "Internal notification email not configured." };
   }
-  const { resend } = config;
+  const { resend, fromEmail } = config;
 
   const adminUrl = escapeHtml(adminRequestUrl(data.requestId));
   const amount = escapeHtml(formatMoney(data.amountCents, data.currency));
 
   try {
     await resend.emails.send({
-      from: FROM_EMAIL,
+      from: fromEmail,
       to: ADMIN_EMAIL,
       subject: sanitizeEmailSubjectFragment(
         `Disbursement ${data.status}: ${data.companyName}`,
