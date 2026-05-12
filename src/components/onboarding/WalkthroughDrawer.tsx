@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +15,7 @@ import {
 import { UpdateRequestForm } from "@/components/forms/UpdateRequestForm";
 import { LogTimeForm } from "@/components/forms/LogTimeForm";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
+import { RequestStatusValue } from "@/lib/ui-enums";
 
 interface WalkthroughDrawerProps {
   request: {
@@ -26,7 +26,7 @@ interface WalkthroughDrawerProps {
     description: string;
     mostHelpful: string | null;
     urgency: string;
-    status: string;
+    status: RequestStatusValue;
     needsInfo: boolean;
     internalNotes: string | null;
     clientVisibleUpdate: string | null;
@@ -48,15 +48,10 @@ interface WalkthroughDrawerProps {
 export function WalkthroughDrawer({ request }: WalkthroughDrawerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    const shouldOpen = searchParams?.get("open") === "walkthrough" && request !== null;
-    setOpen(shouldOpen);
-  }, [searchParams, request]);
+  const open = searchParams?.get("open") === "walkthrough" && request !== null;
 
   const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen);
     if (!newOpen) {
       const params = new URLSearchParams(searchParams?.toString() || "");
       params.delete("open");

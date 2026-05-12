@@ -2,6 +2,7 @@
 
 import { OnboardingSteps } from "./OnboardingSteps";
 import { WalkthroughDrawer } from "./WalkthroughDrawer";
+import { ClientStatus, RequestStatus } from "@/lib/enums";
 
 interface OnboardingWrapperProps {
   client: {
@@ -9,7 +10,7 @@ interface OnboardingWrapperProps {
     companyName: string;
     contactName: string;
     email: string;
-    status: string;
+    status: ClientStatus;
     planType: string;
     subscriptionStatus?: string | null;
     stripeCustomerId?: string | null;
@@ -23,7 +24,7 @@ interface OnboardingWrapperProps {
     description: string;
     mostHelpful: string | null;
     urgency: string;
-    status: string;
+    status: RequestStatus;
     needsInfo: boolean;
     internalNotes: string | null;
     clientVisibleUpdate: string | null;

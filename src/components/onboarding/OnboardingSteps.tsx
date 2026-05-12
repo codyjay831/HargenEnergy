@@ -15,7 +15,7 @@ import { Check, Circle, Link as LinkIcon, Building2, CreditCard, Mail } from "lu
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ClientStatus } from "@/lib/enums";
+import { ClientStatus, RequestStatus } from "@/lib/enums";
 import { ClientPlanType } from "@/lib/billing-options";
 import { ActivateClientButton } from "@/components/forms/ActivateClientButton";
 import { ClientBillingManager } from "@/components/forms/ClientBillingManager";
@@ -38,7 +38,7 @@ interface OnboardingStepsProps {
   latestWalkthroughRequest?: {
     id: string;
     title: string;
-    status: string;
+    status: RequestStatus;
     createdAt: Date;
   } | null;
 }
@@ -69,7 +69,7 @@ export function OnboardingSteps({ client, latestWalkthroughRequest }: Onboarding
       number: 1,
       title: "Qualify",
       description: latestWalkthroughRequest
-        ? getQualificationStatusLabel(latestWalkthroughRequest.status as any)
+        ? getQualificationStatusLabel(latestWalkthroughRequest.status)
         : "No walkthrough request yet",
       icon: <LinkIcon className="h-5 w-5" />,
       status: latestWalkthroughRequest ? "complete" : "current",
