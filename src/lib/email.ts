@@ -57,13 +57,36 @@ function clientEmailHeader(data: {
  */
 function validateEmailConfig() {
   const resend = getResend();
-  const fromEmail = process.env.SUPPORT_FROM_EMAIL;
   if (!resend) return { error: "Email provider not configured (RESEND_API_KEY missing)." };
-  if (!fromEmail) {
-    console.error("[Email] SUPPORT_FROM_EMAIL is missing. This will cause Resend 403 errors in production.");
-    return { error: "Sender email not configured (SUPPORT_FROM_EMAIL missing)." };
+
+  const resendFromEmail = process.env.RESEND_FROM_EMAIL;
+  const resendFromName = process.env.RESEND_FROM_NAME || "Hargen Energy Solar Ops Desk";
+  const legacyFromEmail = process.env.SUPPORT_FROM_EMAIL;
+
+  let from: string | undefined;
+
+  if (resendFromEmail) {
+    from = `${resendFromName} <${resendFromEmail}>`;
+  } else if (legacyFromEmail) {
+    from = legacyFromEmail;
   }
-  return { resend, fromEmail };
+
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (!from) {
+    if (isProduction) {
+      console.error("[Email] RESEND_FROM_EMAIL is not configured. Verify a domain in Resend and set RESEND_FROM_EMAIL.");
+      return { error: "Resend sender domain is not configured. Verify a domain in Resend and set RESEND_FROM_EMAIL." };
+    }
+    return { error: "Sender email not configured (RESEND_FROM_EMAIL missing)." };
+  }
+
+  if (isProduction && from.includes("@resend.dev")) {
+    console.error(`[Email] Production email cannot be sent from ${from}. Resend.dev is for testing only.`);
+    return { error: "Production email cannot be sent from a resend.dev address. Please use a verified domain." };
+  }
+
+  return { resend, fromEmail: from };
 }
 
 export async function sendRequestConfirmation(to: string, companyName: string) {

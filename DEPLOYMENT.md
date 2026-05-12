@@ -16,7 +16,8 @@ Ensure all required environment variables are set in your production environment
 
 ### Required for Email (Resend)
 - `RESEND_API_KEY`: Your Resend API key.
-- `SUPPORT_FROM_EMAIL`: The verified sender email in Resend.
+- `RESEND_FROM_EMAIL`: The verified sender email in Resend (e.g., `no-reply@hargenenergy.com`).
+- `RESEND_FROM_NAME`: Optional. The display name for emails (defaults to `Hargen Energy Solar Ops Desk`).
 - `SUPPORT_NOTIFICATION_EMAIL`: The internal email address for admin alerts.
 
 ### Required for Stripe
@@ -84,8 +85,9 @@ Signed-in admins can change their password under `/admin/account`. The form requ
 ## 4. Resend Configuration
 
 1. **Domain Verification**:
-    - Verify your domain in the Resend dashboard to use a custom `SUPPORT_FROM_EMAIL`.
+    - Verify your domain in the Resend dashboard to use a custom `RESEND_FROM_EMAIL`.
     - Until verified, you may be restricted to sending to your own email address or using the default Resend testing domain.
+    - Production emails must NOT use the `@resend.dev` domain.
 
 ## 5. Security Verification
 
@@ -103,7 +105,7 @@ Signed-in admins can change their password under `/admin/account`. The form requ
 - [ ] `APP_URL` and `NEXT_PUBLIC_APP_URL` set to the production domain.
 - [ ] Stripe products and prices created in the appropriate mode (Test/Live).
 - [ ] Resend sender domain verified in the Resend dashboard.
-- [ ] `SUPPORT_FROM_EMAIL` matches the verified domain.
+- [ ] `RESEND_FROM_EMAIL` matches the verified domain.
 - [ ] `SUPPORT_NOTIFICATION_EMAIL` set to the intended admin recipient.
 
 ### Deploy
