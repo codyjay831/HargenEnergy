@@ -22,6 +22,9 @@ import {
   SystemAccessType,
   SystemAccessMethod,
   SystemAccessStatus,
+  EngagementType,
+  HandoffTier,
+  PricingMode,
 } from "@/generated/prisma/client";
 
 // Re-export Prisma enums
@@ -41,6 +44,9 @@ export {
   SystemAccessType,
   SystemAccessMethod,
   SystemAccessStatus,
+  EngagementType,
+  HandoffTier,
+  PricingMode,
 };
 
 // Zod schemas for validation
@@ -59,6 +65,9 @@ export const ZDisbursementPaymentMethod = z.nativeEnum(DisbursementPaymentMethod
 export const ZSystemAccessType = z.nativeEnum(SystemAccessType);
 export const ZSystemAccessMethod = z.nativeEnum(SystemAccessMethod);
 export const ZSystemAccessStatus = z.nativeEnum(SystemAccessStatus);
+export const ZEngagementType = z.nativeEnum(EngagementType);
+export const ZHandoffTier = z.nativeEnum(HandoffTier);
+export const ZPricingMode = z.nativeEnum(PricingMode);
 
 // Helper functions for UI option generation
 export function getRequestStatusOptions() {

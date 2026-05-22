@@ -10,7 +10,13 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Urgency, OverflowStatus, SupportRequestKind } from "@/generated/prisma/client";
+import {
+  EngagementType,
+  Urgency,
+  OverflowStatus,
+  SupportRequestKind,
+} from "@/generated/prisma/client";
+import { getEngagementLabel } from "@/lib/engagement";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { PriorityButtons } from "@/components/admin/PriorityButtons";
@@ -73,6 +79,9 @@ export default async function AdminRequests() {
                     <div className="flex flex-col">
                       <span className="text-sm">{request.client.companyName}</span>
                       <span className="text-[10px] text-muted-foreground uppercase tracking-tight">{request.client.contactName}</span>
+                      <Badge variant="outline" className="text-[9px] w-fit mt-0.5">
+                        {getEngagementLabel(request.client.engagementType)}
+                      </Badge>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -98,6 +107,16 @@ export default async function AdminRequests() {
                       {request.overflowStatus !== OverflowStatus.NOT_NEEDED && (
                         <Badge variant={getOverflowVariant(request.overflowStatus)} className="text-[10px] px-1 py-0 w-fit">
                           {request.overflowStatus.replace("_", " ")}
+                        </Badge>
+                      )}
+                      {request.client.engagementType === EngagementType.ONE_OFF && request.handoffTier && (
+                        <Badge variant="secondary" className="text-[10px] px-1 py-0 w-fit">
+                          {request.handoffTier}
+                        </Badge>
+                      )}
+                      {request.client.engagementType === EngagementType.ONE_OFF && request.pricingMode && (
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 w-fit">
+                          {request.pricingMode.replace(/_/g, " ")}
                         </Badge>
                       )}
                     </div>

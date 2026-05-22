@@ -3,12 +3,18 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  EngagementType,
   RequestStatus,
   Urgency,
   AuthorType,
   SupportRequestKind,
   SupportRequestSource,
 } from "@/generated/prisma/client";
+import {
+  assertWorkTaskAllowedForClient,
+  canSubmitPortalWork,
+  resolveActiveWorkTask,
+} from "@/lib/engagement";
 import { assertActiveClientForPortalSubmit } from "@/lib/request-lifecycle";
 import { revalidatePath } from "next/cache";
 import {
@@ -25,6 +31,101 @@ const PORTAL_VALIDATION_ERROR =
   "Please shorten your input or fix the required fields and try again.";
 const PORTAL_RATE_LIMIT_ERROR =
   "Too many requests right now. Please wait a few minutes and try again.";
+
+export type PortalSubmitCategory = {
+  id: string;
+  name: string;
+  tasks: {
+    id: string;
+    name: string;
+    description: string | null;
+    requiredFields: unknown;
+    requiredDocs: unknown;
+  }[];
+};
+
+export async function getPortalSubmitOptions(clientId: string) {
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    include: {
+      approvedWorkTasks: { select: { workTaskId: true } },
+    },
+  });
+
+  if (!client) {
+    return { error: "Client not found." as const };
+  }
+
+  const submitCheck = canSubmitPortalWork(client);
+
+  if (client.engagementType === EngagementType.ONE_OFF) {
+    const categories = await prisma.serviceCategory.findMany({
+      where: { isActive: true },
+      include: {
+        tasks: {
+          where: { isActive: true },
+          orderBy: { basePriority: "asc" },
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            requiredFields: true,
+            requiredDocs: true,
+          },
+        },
+      },
+      orderBy: { name: "asc" },
+    });
+
+    return {
+      engagementType: client.engagementType,
+      categories: categories.filter((c) => c.tasks.length > 0),
+      canSubmit: categories.some((c) => c.tasks.length > 0),
+      blockMessage: categories.some((c) => c.tasks.length > 0)
+        ? undefined
+        : "No work types are available right now. Contact Hargen.",
+    };
+  }
+
+  const approvedIds = client.approvedWorkTasks.map((a) => a.workTaskId);
+  if (approvedIds.length === 0) {
+    return {
+      engagementType: client.engagementType,
+      categories: [] as PortalSubmitCategory[],
+      canSubmit: false,
+      blockMessage: submitCheck.blockMessage,
+    };
+  }
+
+  const categories = await prisma.serviceCategory.findMany({
+    where: { isActive: true },
+    include: {
+      tasks: {
+        where: { id: { in: approvedIds }, isActive: true },
+        orderBy: { basePriority: "asc" },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          requiredFields: true,
+          requiredDocs: true,
+        },
+      },
+    },
+    orderBy: { name: "asc" },
+  });
+
+  const filtered = categories
+    .map((c) => ({ id: c.id, name: c.name, tasks: c.tasks }))
+    .filter((c) => c.tasks.length > 0);
+
+  return {
+    engagementType: client.engagementType,
+    categories: filtered,
+    canSubmit: submitCheck.canSubmit && filtered.length > 0,
+    blockMessage: submitCheck.blockMessage,
+  };
+}
 
 export async function submitPortalRequest(data: {
   title: string;
@@ -76,7 +177,6 @@ export async function submitPortalRequest(data: {
   const {
     title,
     workTaskId,
-    supportNeeded,
     description,
     urgency,
     customerName,
@@ -92,6 +192,7 @@ export async function submitPortalRequest(data: {
   try {
     const client = await prisma.client.findUnique({
       where: { id: clientId },
+      include: { approvedWorkTasks: { select: { workTaskId: true } } },
     });
 
     if (!client) {
@@ -102,6 +203,32 @@ export async function submitPortalRequest(data: {
     if (activeError) {
       return activeError;
     }
+
+    const submitCheck = canSubmitPortalWork(client);
+    if (!submitCheck.canSubmit) {
+      return { error: submitCheck.blockMessage ?? "Cannot submit work yet." };
+    }
+
+    if (!workTaskId) {
+      return { error: "Please select a work type." };
+    }
+
+    const taskResult = await resolveActiveWorkTask(workTaskId, (id) =>
+      prisma.workTask.findUnique({ where: { id } }),
+    );
+    if (!taskResult.ok) {
+      return { error: taskResult.error };
+    }
+
+    const allowed = assertWorkTaskAllowedForClient({
+      client,
+      workTaskId,
+    });
+    if (!allowed.ok) {
+      return { error: allowed.error };
+    }
+
+    const resolvedSupportNeeded = taskResult.workTask.name;
 
     let fullDescription = description;
 
@@ -146,7 +273,7 @@ ${metadataEntries.join("\n")}`;
         title,
         kind: SupportRequestKind.CLIENT_OPS,
         source: SupportRequestSource.PORTAL,
-        supportNeeded,
+        supportNeeded: resolvedSupportNeeded,
         description: fullDescription,
         metadata: metadata || undefined,
         projectUrl,
@@ -171,7 +298,7 @@ ${metadataEntries.join("\n")}`;
         contactName: client.contactName,
         email: client.email,
         phone: client.phone,
-        supportNeeded,
+        supportNeeded: resolvedSupportNeeded,
         plan: client.planType,
         urgency: urgencyEnum,
         description: fullDescription,

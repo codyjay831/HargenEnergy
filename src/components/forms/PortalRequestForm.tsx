@@ -6,27 +6,27 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { URGENCY_OPTIONS, type UrgencyValue } from "@/lib/ui-enums";
 import { submitPortalRequest } from "@/app/actions/portal";
+import { EngagementType } from "@/generated/prisma/client";
 import { Loader2, AlertCircle, Paperclip, Info } from "lucide-react";
 import { FileUpload, type UploadedFile } from "@/components/ui/file-upload";
 import { toast } from "sonner";
-
 import { type CustomField } from "@/app/actions/services";
+import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 
 interface Task {
   id: string;
   name: string;
   description: string | null;
-  maxMinutes: number | null;
-  requiredFields: CustomField[];
+  requiredFields: unknown;
   requiredDocs: unknown;
 }
 
@@ -37,46 +37,59 @@ interface Category {
 }
 
 interface PortalRequestFormProps {
-  initialServices: Category[];
+  engagementType: EngagementType;
+  categories: Category[];
+  canSubmit: boolean;
+  blockMessage?: string;
 }
 
-export function PortalRequestForm({ initialServices }: PortalRequestFormProps) {
+export function PortalRequestForm({
+  engagementType,
+  categories,
+  canSubmit,
+  blockMessage,
+}: PortalRequestFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<UploadedFile[]>([]);
-  
+
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [selectedTaskId, setSelectedTaskId] = useState<string>("");
 
-  const selectedCategory = useMemo(() => 
-    initialServices.find(c => c.id === selectedCategoryId),
-    [initialServices, selectedCategoryId]
+  const isOneOff = engagementType === EngagementType.ONE_OFF;
+
+  const selectedCategory = useMemo(
+    () => categories.find((c) => c.id === selectedCategoryId),
+    [categories, selectedCategoryId],
   );
 
-  const selectedTask = useMemo(() => 
-    selectedCategory?.tasks.find(t => t.id === selectedTaskId),
-    [selectedCategory, selectedTaskId]
+  const selectedTask = useMemo(
+    () => selectedCategory?.tasks.find((t) => t.id === selectedTaskId),
+    [selectedCategory, selectedTaskId],
   );
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!canSubmit) return;
+
+    if (!selectedTaskId) {
+      setError("Please select a work type.");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
     const formData = new FormData(e.currentTarget);
-    
-    // Collect metadata from dynamic fields
     const metadata: Record<string, string | number | boolean | null> = {};
-    
-    // 1. Collect legacy/common fields
+
     const commonFields = ["customerName", "utilityAhj", "designTool", "desiredOutcome"];
-    commonFields.forEach(field => {
+    commonFields.forEach((field) => {
       const val = formData.get(field);
       if (val) metadata[field] = val as string;
     });
 
-    // 2. Collect dynamic fields (prefixed with custom_)
     for (const [key, value] of formData.entries()) {
       if (key.startsWith("custom_")) {
         const fieldId = key.replace("custom_", "");
@@ -86,8 +99,8 @@ export function PortalRequestForm({ initialServices }: PortalRequestFormProps) {
 
     const data = {
       title: formData.get("title") as string,
-      workTaskId: selectedTaskId || undefined,
-      supportNeeded: selectedTask?.name || formData.get("supportNeeded") as string,
+      workTaskId: selectedTaskId,
+      supportNeeded: selectedTask?.name ?? "",
       description: formData.get("description") as string,
       urgency: formData.get("urgency") as UrgencyValue,
       projectUrl: formData.get("projectUrl") as string,
@@ -99,10 +112,10 @@ export function PortalRequestForm({ initialServices }: PortalRequestFormProps) {
       const result = await submitPortalRequest(data);
 
       if ("success" in result && result.success) {
-        toast.success("Request submitted successfully!");
+        toast.success("Work sent successfully!");
         router.push(`/portal/requests/${result.requestId}`);
       } else {
-        const errorMsg = "error" in result ? result.error : "Failed to submit request.";
+        const errorMsg = "error" in result ? result.error : "Failed to send work.";
         setError(errorMsg);
         toast.error(errorMsg);
       }
@@ -115,8 +128,26 @@ export function PortalRequestForm({ initialServices }: PortalRequestFormProps) {
     }
   };
 
+  if (!canSubmit) {
+    return (
+      <div className="p-6 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-sm">
+        <p className="font-semibold">Cannot send work yet</p>
+        <p className="mt-2">
+          {blockMessage ??
+            "Your account is still being configured. Hargen will notify you when you can send work."}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
+      <p className="text-sm text-muted-foreground">
+        {isOneOff
+          ? "Send a one-time job or task. Hargen will review the handoff and confirm pricing before work continues."
+          : "Send work inside your approved support areas."}
+      </p>
+
       {error && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-md flex items-center gap-3 text-red-800 text-sm">
           <AlertCircle className="h-4 w-4" />
@@ -127,8 +158,8 @@ export function PortalRequestForm({ initialServices }: PortalRequestFormProps) {
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <Label htmlFor="category">Service Category</Label>
-            <Select 
+            <Label htmlFor="category">Work area</Label>
+            <Select
               onValueChange={(val) => {
                 setSelectedCategoryId(val || "");
                 setSelectedTaskId("");
@@ -136,28 +167,27 @@ export function PortalRequestForm({ initialServices }: PortalRequestFormProps) {
               value={selectedCategoryId}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select a category" />
+                <SelectValue placeholder="Select a work area" />
               </SelectTrigger>
               <SelectContent>
-                {initialServices.map((c) => (
+                {categories.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.name}
                   </SelectItem>
                 ))}
-                <SelectItem value="OTHER">Other / General Support</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="task">Work Task</Label>
-            <Select 
+            <Label htmlFor="task">Work type</Label>
+            <Select
               onValueChange={(val) => setSelectedTaskId(val || "")}
               value={selectedTaskId}
-              disabled={!selectedCategoryId || selectedCategoryId === "OTHER"}
+              disabled={!selectedCategoryId}
             >
               <SelectTrigger>
-                <SelectValue placeholder={selectedCategoryId === "OTHER" ? "N/A" : "Select a task"} />
+                <SelectValue placeholder="Select a work type" />
               </SelectTrigger>
               <SelectContent>
                 {selectedCategory?.tasks.map((t) => (
@@ -179,12 +209,12 @@ export function PortalRequestForm({ initialServices }: PortalRequestFormProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <Label htmlFor="title">Request Title</Label>
-            <Input 
-              id="title" 
-              name="title" 
-              placeholder="e.g. Utility Application for Smith Job" 
-              required 
+            <Label htmlFor="title">Work title</Label>
+            <Input
+              id="title"
+              name="title"
+              placeholder="e.g. Utility Application for Smith Job"
+              required
             />
           </div>
           <div className="space-y-2">
@@ -204,35 +234,25 @@ export function PortalRequestForm({ initialServices }: PortalRequestFormProps) {
           </div>
         </div>
 
-        {selectedCategoryId === "OTHER" && (
-          <div className="space-y-2">
-            <Label htmlFor="supportNeeded">Support Needed / Request Type</Label>
-            <Input 
-              id="supportNeeded" 
-              name="supportNeeded" 
-              placeholder="e.g. PG&E Interconnection, Permit Follow-up" 
-              required 
-            />
-          </div>
-        )}
-
         <div className="space-y-2">
-          <Label htmlFor="description">Current Bottleneck / Details</Label>
-          <Textarea 
-            id="description" 
-            name="description" 
-            placeholder="Describe what's getting stuck and what you need help with..." 
+          <Label htmlFor="description">What needs to happen?</Label>
+          <Textarea
+            id="description"
+            name="description"
+            placeholder="Describe the job, what's stuck, and what you need Hargen to do..."
             className="min-h-[120px]"
-            required 
+            required
           />
         </div>
       </div>
 
       <div className="pt-6 border-t border-slate-200">
-        <h3 className="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wider">Project Context</h3>
+        <h3 className="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wider">
+          Project context
+        </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <Label htmlFor="customerName">Customer / Job Name</Label>
+            <Label htmlFor="customerName">Customer / job name</Label>
             <Input id="customerName" name="customerName" placeholder="e.g. John Smith" />
           </div>
           <div className="space-y-2">
@@ -240,33 +260,46 @@ export function PortalRequestForm({ initialServices }: PortalRequestFormProps) {
             <Input id="utilityAhj" name="utilityAhj" placeholder="e.g. PG&E, City of San Jose" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="projectUrl">CRM Link / Project URL</Label>
-            <Input id="projectUrl" name="projectUrl" placeholder="e.g. Link to JobNimbus or Aurora" />
+            <Label htmlFor="projectUrl">CRM link / project URL</Label>
+            <Input
+              id="projectUrl"
+              name="projectUrl"
+              placeholder="e.g. Link to JobNimbus or Aurora"
+            />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="desiredOutcome">Desired Outcome</Label>
-            <Input id="desiredOutcome" name="desiredOutcome" placeholder="e.g. Application submitted" />
+            <Label htmlFor="desiredOutcome">Desired outcome</Label>
+            <Input
+              id="desiredOutcome"
+              name="desiredOutcome"
+              placeholder="e.g. Application submitted"
+            />
           </div>
-          
-          {/* Dynamic Fields */}
-          {selectedTask?.requiredFields && (
-            (typeof selectedTask.requiredFields === 'string' 
-              ? JSON.parse(selectedTask.requiredFields) 
-              : selectedTask.requiredFields).map((field: CustomField) => (
+
+          {selectedTask?.requiredFields &&
+            (typeof selectedTask.requiredFields === "string"
+              ? JSON.parse(selectedTask.requiredFields)
+              : selectedTask.requiredFields
+            ).map((field: CustomField) => (
               <div key={field.id} className="space-y-2">
                 <Label htmlFor={field.id}>
                   {field.label} {field.required && <span className="text-red-500">*</span>}
                 </Label>
-                <Input 
-                  id={field.id} 
-                  name={`custom_${field.id}`} 
-                  type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
+                <Input
+                  id={field.id}
+                  name={`custom_${field.id}`}
+                  type={
+                    field.type === "date"
+                      ? "date"
+                      : field.type === "number"
+                        ? "number"
+                        : "text"
+                  }
                   required={field.required}
                   placeholder={`Enter ${field.label.toLowerCase()}...`}
                 />
               </div>
-            ))
-          )}
+            ))}
         </div>
       </div>
 
@@ -277,20 +310,25 @@ export function PortalRequestForm({ initialServices }: PortalRequestFormProps) {
             Attachments
           </h3>
         </div>
-        {selectedTask?.requiredDocs && (
-          <div className="mb-4 p-3 bg-amber-50 border border-amber-100 rounded-md text-amber-800 text-xs">
-            <p className="font-bold mb-1">Required Documents:</p>
-            <ul className="list-disc pl-4">
-              {(typeof selectedTask.requiredDocs === 'string' 
-                ? JSON.parse(selectedTask.requiredDocs) 
-                : selectedTask.requiredDocs).map((doc: string, i: number) => (
-                <li key={i}>{doc}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {(() => {
+          const docs = selectedTask?.requiredDocs;
+          if (!docs) return null;
+          const list = (typeof docs === "string" ? JSON.parse(docs) : docs) as string[];
+          if (!Array.isArray(list) || list.length === 0) return null;
+          return (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-100 rounded-md text-amber-800 text-xs">
+              <p className="font-bold mb-1">Suggested documents:</p>
+              <ul className="list-disc pl-4">
+                {list.map((doc, i) => (
+                  <li key={i}>{doc}</li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
         <p className="text-xs text-slate-600 mb-4">
-          Upload plan sets, utility bills, photos, or other relevant documents (PDF, JPG, PNG - max 8MB each)
+          Upload plan sets, utility bills, photos, or other relevant documents (PDF, JPG, PNG -
+          max 8MB each)
         </p>
         <FileUpload
           endpoint="supportAttachment"
@@ -301,22 +339,17 @@ export function PortalRequestForm({ initialServices }: PortalRequestFormProps) {
       </div>
 
       <div className="flex items-center justify-end gap-4 pt-4">
-        <Button 
-          type="button" 
-          variant="ghost" 
-          onClick={() => router.back()}
-          disabled={isLoading}
-        >
+        <Button type="button" variant="ghost" onClick={() => router.back()} disabled={isLoading}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isLoading} className="px-8">
+        <Button type="submit" disabled={isLoading || !selectedTaskId} className="px-8">
           {isLoading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Submitting...
+              Sending...
             </>
           ) : (
-            "Submit Support Request"
+            PRODUCT_LANGUAGE.workRequest.action
           )}
         </Button>
       </div>

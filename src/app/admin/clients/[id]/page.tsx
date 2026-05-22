@@ -12,7 +12,18 @@ import { ClientBrandingManager } from "@/components/forms/ClientBrandingManager"
 import { ClientPortalAccessManager } from "@/components/forms/ClientPortalAccessManager";
 import { ClientSystemAccessManager } from "@/components/forms/ClientSystemAccessManager";
 import { LogTimeForm } from "@/components/forms/LogTimeForm";
-import { ClientStatus, Role, SupportRequestKind, Client, SupportRequest, TimeEntry, ClientSystemAccess } from "@/generated/prisma/client";
+import {
+  ClientStatus,
+  Role,
+  SupportRequestKind,
+  Client,
+  SupportRequest,
+  TimeEntry,
+  ClientSystemAccess,
+  EngagementType,
+} from "@/generated/prisma/client";
+import { ClientEngagementManager } from "@/components/admin/ClientEngagementManager";
+import { getEngagementLabel } from "@/lib/engagement";
 import { ActivateClientButton } from "@/components/forms/ActivateClientButton";
 import { LogClientOpsForm } from "@/components/forms/LogClientOpsForm";
 import { calculateWeeklyUsage, type WeeklyUsage } from "@/lib/usage";
@@ -47,6 +58,7 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
         where: { role: Role.CLIENT },
         select: { id: true, email: true, name: true },
       },
+      approvedWorkTasks: { select: { workTaskId: true } },
       systemAccesses: {
         orderBy: { createdAt: "asc" },
       },
@@ -59,7 +71,22 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
         take: 10
       }
     }
-  }) as ClientWithRelations | null;
+  }) as (ClientWithRelations & {
+    engagementType: EngagementType;
+    approvedWorkTasks: { workTaskId: string }[];
+  }) | null;
+
+  const catalogCategories = await prisma.serviceCategory.findMany({
+    where: { isActive: true },
+    include: {
+      tasks: {
+        where: { isActive: true },
+        orderBy: { basePriority: "asc" },
+        select: { id: true, name: true },
+      },
+    },
+    orderBy: { name: "asc" },
+  });
 
   if (!client) {
     notFound();
@@ -68,25 +95,20 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
   const isProspect = client.status === ClientStatus.LEAD;
   const usage = calculateWeeklyUsage(client.timeEntries, client.weeklyHours);
 
-  // Get latest walkthrough request for prospects
-  const latestWalkthrough = isProspect
-    ? await prisma.supportRequest.findFirst({
-        where: {
-          clientId: client.id,
-          kind: SupportRequestKind.PROSPECT_INTAKE,
-        },
-        orderBy: { createdAt: "desc" },
-        include: {
-          client: {
-            select: { planType: true },
-          },
-          timeEntries: {
-            orderBy: { date: "desc" },
-            take: 10,
-          },
-        },
-      })
-    : null;
+  const latestWalkthrough = await prisma.supportRequest.findFirst({
+    where: {
+      clientId: client.id,
+      kind: SupportRequestKind.PROSPECT_INTAKE,
+    },
+    orderBy: { createdAt: "desc" },
+    include: {
+      client: { select: { planType: true } },
+      timeEntries: { orderBy: { date: "desc" }, take: 10 },
+    },
+  });
+
+  const walkthroughMetadata = latestWalkthrough?.metadata as { intakePlan?: string } | null;
+  const walkthroughPlanOneTime = walkthroughMetadata?.intakePlan === "one-time";
 
   return (
     <div className="space-y-8">
@@ -103,6 +125,9 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
             <Badge variant={client.status === ClientStatus.ACTIVE ? "default" : "secondary"}>
               {client.status === ClientStatus.ACTIVE ? "Active client" : "Prospect"}
             </Badge>
+            {client.status === ClientStatus.ACTIVE && (
+              <Badge variant="outline">{getEngagementLabel(client.engagementType)}</Badge>
+            )}
           </div>
           <p className="text-muted-foreground">
             {client.status === ClientStatus.ACTIVE && client.activatedAt
@@ -206,7 +231,14 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
             </div>
 
             <div className="space-y-8">
-              {renderUsageCard(client, usage)}
+              <ClientEngagementManager
+                clientId={client.id}
+                engagementType={client.engagementType}
+                approvedWorkTaskIds={client.approvedWorkTasks.map((a) => a.workTaskId)}
+                categories={catalogCategories}
+                walkthroughPlanOneTime={walkthroughPlanOneTime}
+              />
+              {client.engagementType === EngagementType.BLOCK_SUPPORT && renderUsageCard(client, usage)}
               {renderTimeLogging(client)}
               {renderClientOpsLogging(client)}
               {renderSystemAccess(client)}

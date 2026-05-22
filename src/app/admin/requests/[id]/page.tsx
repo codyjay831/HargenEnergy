@@ -14,10 +14,17 @@ import { RequestCommentForm } from "@/components/forms/RequestCommentForm";
 import { buttonVariants } from "@/components/ui/button";
 import { cn, safeExternalHref } from "@/lib/utils";
 import { calculateWeeklyUsage } from "@/lib/usage";
-import { OverflowStatus, SupportRequestKind } from "@/generated/prisma/client";
+import {
+  EngagementType,
+  OverflowStatus,
+  RequestStatus,
+  SupportRequestKind,
+} from "@/generated/prisma/client";
 import { startOfWeek } from "date-fns";
-
 import { RequestTimer } from "@/components/admin/RequestTimer";
+import { RequestHandoffPricingForm } from "@/components/forms/RequestHandoffPricingForm";
+import { getEngagementLabel, isOneOffPricingComplete } from "@/lib/engagement";
+import type { HandoffTierValue, PricingModeValue } from "@/lib/ui-enums";
 
 export const dynamic = "force-dynamic";
 
@@ -75,8 +82,15 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
     redirect(`/admin/clients/${request.clientId}?open=walkthrough`);
   }
 
+  const isBlockClient = request.client.engagementType === EngagementType.BLOCK_SUPPORT;
+  const isOneOffClient = request.client.engagementType === EngagementType.ONE_OFF;
   const usage = calculateWeeklyUsage(request.client.timeEntries, request.client.weeklyHours);
-  const isNearOrOverLimit = usage.isNearLimit || usage.isOverLimit;
+  const isNearOrOverLimit =
+    isBlockClient && (usage.isNearLimit || usage.isOverLimit);
+  const pricingIncomplete =
+    isOneOffClient && !isOneOffPricingComplete(request);
+  const showPricingWarning =
+    pricingIncomplete && request.status === RequestStatus.IN_PROGRESS;
   const listHref = "/admin/requests";
 
   return (
@@ -98,6 +112,7 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
               Client ops
             </Badge>
             <Badge variant="secondary">{request.source.replace("_", " ")}</Badge>
+            <Badge variant="outline">{getEngagementLabel(request.client.engagementType)}</Badge>
           </div>
         </div>
       </div>
@@ -105,6 +120,16 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column: Request Info */}
         <div className="lg:col-span-2 space-y-8">
+          {showPricingWarning && (
+            <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 flex items-start gap-3 text-amber-900">
+              <AlertCircle className="h-5 w-5 mt-0.5" />
+              <p className="text-sm">
+                This one-off request is in progress without handoff tier and pricing set. Set
+                pricing before continuing work.
+              </p>
+            </div>
+          )}
+
           {isNearOrOverLimit && (
             <div className={cn(
               "p-4 rounded-lg border flex items-start gap-3",
@@ -166,6 +191,31 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
             </CardContent>
           </Card>
 
+          {isOneOffClient && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Pricing & handoff</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Classify the handoff and set how this one-off job is priced.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <RequestHandoffPricingForm
+                  requestId={request.id}
+                  handoffTier={request.handoffTier as HandoffTierValue | null}
+                  pricingMode={request.pricingMode as PricingModeValue | null}
+                  flatPriceCents={request.flatPriceCents}
+                  suggestedHandoffTier={
+                    request.workTask?.suggestedHandoffTier as HandoffTierValue | null
+                  }
+                  suggestedPricingMode={
+                    request.workTask?.suggestedPricingMode as PricingModeValue | null
+                  }
+                />
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>Update Status & Notes</CardTitle>
@@ -175,6 +225,7 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
             </CardContent>
           </Card>
 
+          {isBlockClient && (
           <Card className={cn(
             "border-2",
             request.overflowStatus === OverflowStatus.NEEDS_APPROVAL ? "border-orange-200 bg-orange-50/30" : 
@@ -190,6 +241,7 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
               <OverflowPrioritizationForm request={request} />
             </CardContent>
           </Card>
+          )}
 
           <Card>
             <CardHeader>

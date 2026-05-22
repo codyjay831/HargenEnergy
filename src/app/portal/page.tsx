@@ -22,6 +22,9 @@ import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { EngagementType } from "@/generated/prisma/client";
+import { PRODUCT_LANGUAGE } from "@/lib/product-language";
+import { isOneOffPricingComplete } from "@/lib/engagement";
 
 export const dynamic = "force-dynamic";
 
@@ -56,8 +59,10 @@ export default async function PortalDashboard() {
     return <div>Client not found.</div>;
   }
 
+  const isBlockSupport = client.engagementType === EngagementType.BLOCK_SUPPORT;
+  const isOneOff = client.engagementType === EngagementType.ONE_OFF;
   const usage = calculateWeeklyUsage(client.timeEntries, client.weeklyHours);
-  
+
   const openRequestsCount = await prisma.supportRequest.count({
     where: { 
       clientId,
@@ -78,6 +83,10 @@ export default async function PortalDashboard() {
 
   const needsInfoCount = needsInfoRequests.length;
 
+  const pendingPricingRequests = isOneOff
+    ? client.requests.filter((r) => !isOneOffPricingComplete(r))
+    : [];
+
   // Onboarding Checklist
   const onboardingSteps = [
     { 
@@ -94,7 +103,7 @@ export default async function PortalDashboard() {
     },
     { 
       id: "request", 
-      label: "Submit First Request", 
+      label: "Send first work", 
       completed: client.requests.length > 0,
       href: "/portal/requests/new" 
     },
@@ -104,25 +113,36 @@ export default async function PortalDashboard() {
   const onboardingProgress = Math.round((completedSteps / onboardingSteps.length) * 100);
   const showOnboarding = onboardingProgress < 100 || client.status === "LEAD";
 
-  const stats = [
-    { title: "Open Requests", value: openRequestsCount.toString(), icon: ClipboardList, color: "text-blue-600", bg: "bg-blue-50" },
-    { title: "Needs Info", value: needsInfoCount.toString(), icon: AlertCircle, color: "text-orange-600", bg: "bg-orange-50" },
-    { title: "Included Hours (Week)", value: (usage.includedMinutesThisWeek / 60).toFixed(1), icon: Clock, color: "text-green-600", bg: "bg-green-50" },
-  ];
+  const stats = isBlockSupport
+    ? [
+        { title: "Open work", value: openRequestsCount.toString(), icon: ClipboardList, color: "text-blue-600", bg: "bg-blue-50" },
+        { title: "Needs info", value: needsInfoCount.toString(), icon: AlertCircle, color: "text-orange-600", bg: "bg-orange-50" },
+        { title: "Included hours (week)", value: (usage.includedMinutesThisWeek / 60).toFixed(1), icon: Clock, color: "text-green-600", bg: "bg-green-50" },
+      ]
+    : [
+        { title: "Open work", value: openRequestsCount.toString(), icon: ClipboardList, color: "text-blue-600", bg: "bg-blue-50" },
+        { title: "Needs info", value: needsInfoCount.toString(), icon: AlertCircle, color: "text-orange-600", bg: "bg-orange-50" },
+        { title: "Awaiting pricing", value: pendingPricingRequests.length.toString(), icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
+      ];
 
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Your Hargen Energy Solar Ops Desk</h1>
-          <p className="text-muted-foreground">{client.companyName} • {client.planType} Support Block</p>
+          <p className="text-muted-foreground">
+            {client.companyName} •{" "}
+            {isBlockSupport
+              ? `${client.planType} support block`
+              : PRODUCT_LANGUAGE.engagement.oneOff}
+          </p>
         </div>
         <Link 
           href="/portal/requests/new" 
           className={cn(buttonVariants({ variant: "default" }), "flex items-center gap-2")}
         >
           <PlusCircle className="h-4 w-4" />
-          Submit work
+          {PRODUCT_LANGUAGE.workRequest.action}
         </Link>
       </div>
 
@@ -206,7 +226,27 @@ export default async function PortalDashboard() {
         </Card>
       )}
 
-      {/* Capacity Card */}
+      {isOneOff && pendingPricingRequests.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50/40">
+          <CardHeader>
+            <CardTitle className="text-lg text-amber-900">Pricing review in progress</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {pendingPricingRequests.map((r) => (
+              <Link
+                key={r.id}
+                href={`/portal/requests/${r.id}`}
+                className="block text-sm text-amber-900 hover:underline"
+              >
+                {r.title} — {PRODUCT_LANGUAGE.engagement.pricingPending}
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Capacity Card — block clients only */}
+      {isBlockSupport && (
       <Card className="border-primary/20 bg-primary/[0.02]">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
@@ -278,6 +318,7 @@ export default async function PortalDashboard() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {stats.map((stat) => (

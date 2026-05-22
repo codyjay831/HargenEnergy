@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { 
+  EngagementType,
   RecurringFrequency, 
   SupportRequestKind, 
   SupportRequestSource, 
@@ -38,6 +39,17 @@ export async function createRecurringTask(data: {
   const session = await auth();
   if (!session?.user || session.user.role !== "ADMIN") {
     throw new Error("Unauthorized");
+  }
+
+  const client = await prisma.client.findUnique({
+    where: { id: data.clientId },
+    select: { engagementType: true },
+  });
+  if (!client) {
+    throw new Error("Client not found");
+  }
+  if (client.engagementType !== EngagementType.BLOCK_SUPPORT) {
+    throw new Error("Recurring templates are only for hourly support block clients.");
   }
 
   const task = await prisma.recurringTask.create({
@@ -87,7 +99,10 @@ export async function processRecurringTasks() {
   let createdCount = 0;
 
   for (const task of tasksToRun) {
-    // Create the support request
+    if (task.client.engagementType !== EngagementType.BLOCK_SUPPORT) {
+      continue;
+    }
+
     await prisma.supportRequest.create({
       data: {
         clientId: task.clientId,

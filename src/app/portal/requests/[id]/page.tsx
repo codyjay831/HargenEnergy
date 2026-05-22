@@ -10,7 +10,14 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PortalDisbursementPanel } from "@/components/forms/PortalDisbursementPanel";
 import { RequestCommentForm } from "@/components/forms/RequestCommentForm";
-import { OverflowStatus } from "@/generated/prisma/client";
+import { EngagementType, OverflowStatus } from "@/generated/prisma/client";
+import {
+  formatFlatPrice,
+  formatHandoffTier,
+  formatPricingMode,
+  isOneOffPricingComplete,
+} from "@/lib/engagement";
+import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +34,11 @@ export default async function PortalRequestDetailPage({ params }: PortalRequestD
   if (!id || !clientId) {
     notFound();
   }
+
+  const clientRecord = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { engagementType: true },
+  });
 
   const request = await prisma.supportRequest.findUnique({
     where: { id },
@@ -61,6 +73,9 @@ export default async function PortalRequestDetailPage({ params }: PortalRequestD
     .filter(e => e.billableType === "OVERFLOW")
     .reduce((acc, curr) => acc + curr.minutes, 0);
 
+  const isOneOff = clientRecord?.engagementType === EngagementType.ONE_OFF;
+  const pricingSet = isOneOffPricingComplete(request);
+
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-4">
@@ -91,11 +106,30 @@ export default async function PortalRequestDetailPage({ params }: PortalRequestD
 
           <Card>
             <CardHeader>
-              <CardTitle>Request Overview</CardTitle>
+              <CardTitle>Work overview</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+              {isOneOff && (
+                <div className="p-4 rounded-lg border border-slate-200 bg-slate-50">
+                  <Label className="text-muted-foreground text-xs uppercase tracking-wider">Pricing</Label>
+                  {pricingSet ? (
+                    <div className="mt-2 space-y-1 text-sm">
+                      <p><span className="text-muted-foreground">Handoff:</span> {formatHandoffTier(request.handoffTier)}</p>
+                      <p><span className="text-muted-foreground">Billing:</span> {formatPricingMode(request.pricingMode)}</p>
+                      {request.pricingMode === "FLAT" && request.flatPriceCents && (
+                        <p><span className="text-muted-foreground">Agreed price:</span> {formatFlatPrice(request.flatPriceCents)}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm font-medium text-amber-800">
+                      {PRODUCT_LANGUAGE.engagement.pricingPending}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div>
-                <Label className="text-muted-foreground">Support Needed</Label>
+                <Label className="text-muted-foreground">Work type</Label>
                 <p className="mt-1 font-medium">{request.supportNeeded}</p>
               </div>
 
@@ -213,11 +247,12 @@ export default async function PortalRequestDetailPage({ params }: PortalRequestD
             </Card>
           )}
 
+          {!isOneOff && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Clock className="h-4 w-4 text-primary" />
-                Time Tracked
+                Time tracked
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -234,10 +269,11 @@ export default async function PortalRequestDetailPage({ params }: PortalRequestD
                 <span>{includedMinutes + overflowMinutes}m</span>
               </div>
               <p className="text-[10px] text-muted-foreground mt-2 italic">
-                * Time is updated as work progresses.
+                Time is updated as work progresses against your support block.
               </p>
             </CardContent>
           </Card>
+          )}
         </div>
       </div>
     </div>

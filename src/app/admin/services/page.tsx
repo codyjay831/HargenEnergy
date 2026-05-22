@@ -1,4 +1,5 @@
 import { getServiceCategories } from "@/app/actions/services";
+import { EngagementType } from "@/generated/prisma/client";
 import { getRecurringTasks } from "@/app/actions/recurring";
 import { prisma } from "@/lib/prisma";
 import { ServiceManagement } from "@/components/admin/ServiceManagement";
@@ -12,7 +13,10 @@ export default async function AdminServicesPage() {
   const [categories, recurringTasks, clients] = await Promise.all([
     getServiceCategories(),
     getRecurringTasks(),
-    prisma.client.findMany({ where: { status: "ACTIVE" }, select: { id: true, companyName: true } }),
+    prisma.client.findMany({
+      where: { status: "ACTIVE", engagementType: EngagementType.BLOCK_SUPPORT },
+      select: { id: true, companyName: true },
+    }),
   ]);
 
   const allTasks = categories.flatMap(c => c.tasks.map(t => ({ id: t.id, name: `${c.name}: ${t.name}` })));
@@ -25,7 +29,7 @@ export default async function AdminServicesPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Service Management</h1>
-          <p className="text-muted-foreground">Configure the work types and tasks offered in the client portal.</p>
+          <p className="text-muted-foreground">Configure scope-based work types and internal scheduled templates.</p>
         </div>
       </div>
 

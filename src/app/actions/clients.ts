@@ -6,6 +6,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import {
   ClientStatus,
+  EngagementType,
   RequestStatus,
   Role,
   SupportRequestKind,
@@ -13,7 +14,12 @@ import {
   Urgency,
 } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { isUrgencyValue } from "@/lib/ui-enums";
+import {
+  assertWorkTaskAllowedForClient,
+  resolveActiveWorkTask,
+} from "@/lib/engagement";
+import { isUrgencyValue, isEngagementTypeValue } from "@/lib/ui-enums";
+import { updateClientEngagementSchema } from "@/lib/validations";
 import { sendInternalRequestAlert } from "@/lib/email";
 
 async function requireAdmin() {
@@ -61,7 +67,116 @@ const logOpsRequestSchema = z.object({
   source: z.enum(["EMAIL", "PHONE", "TEXT", "VOICEMAIL", "ADMIN"]),
   urgency: z.string().optional(),
   supportNeeded: z.string().trim().max(500).optional(),
+  workTaskId: z.string().min(1).max(128).optional(),
+  adminOverride: z.boolean().optional(),
+  overrideReason: z.string().trim().max(2000).optional(),
 });
+
+export async function updateClientEngagement(data: {
+  clientId: string;
+  engagementType: string;
+  approvedWorkTaskIds: string[];
+}) {
+  await requireAdmin();
+
+  const parsed = updateClientEngagementSchema.safeParse(data);
+  if (!parsed.success) {
+    return { error: "Invalid engagement configuration." };
+  }
+
+  const { clientId, engagementType, approvedWorkTaskIds } = parsed.data;
+
+  if (!isEngagementTypeValue(engagementType)) {
+    return { error: "Invalid engagement type." };
+  }
+
+  const client = await prisma.client.findUnique({ where: { id: clientId } });
+  if (!client) {
+    return { error: "Client not found." };
+  }
+
+  if (engagementType === EngagementType.BLOCK_SUPPORT && approvedWorkTaskIds.length > 0) {
+    const activeCount = await prisma.workTask.count({
+      where: { id: { in: approvedWorkTaskIds }, isActive: true },
+    });
+    if (activeCount !== approvedWorkTaskIds.length) {
+      return { error: "One or more approved work types are inactive or invalid." };
+    }
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.clientApprovedWorkTask.deleteMany({ where: { clientId } });
+
+      if (engagementType === EngagementType.BLOCK_SUPPORT && approvedWorkTaskIds.length > 0) {
+        await tx.clientApprovedWorkTask.createMany({
+          data: approvedWorkTaskIds.map((workTaskId) => ({ clientId, workTaskId })),
+        });
+      }
+
+      await tx.client.update({
+        where: { id: clientId },
+        data: {
+          engagementType,
+          weeklyHours:
+            engagementType === EngagementType.ONE_OFF ? 0 : client.weeklyHours,
+        },
+      });
+    });
+
+    revalidatePath("/admin/clients");
+    revalidatePath(`/admin/clients/${clientId}`);
+    revalidatePath("/portal/requests/new");
+
+    return {
+      success: true,
+      engagementType,
+      approvedCount:
+        engagementType === EngagementType.BLOCK_SUPPORT
+          ? approvedWorkTaskIds.length
+          : 0,
+      warnings:
+        engagementType === EngagementType.BLOCK_SUPPORT &&
+        approvedWorkTaskIds.length === 0
+          ? ["No approved work types yet. Portal submit will be blocked."]
+          : [],
+    };
+  } catch (error) {
+    console.error("Error updating client engagement:", error);
+    return { error: "Failed to update engagement settings." };
+  }
+}
+
+export async function getClientEngagementConfig(clientId: string) {
+  await requireAdmin();
+
+  const [client, categories] = await Promise.all([
+    prisma.client.findUnique({
+      where: { id: clientId },
+      include: { approvedWorkTasks: { select: { workTaskId: true } } },
+    }),
+    prisma.serviceCategory.findMany({
+      where: { isActive: true },
+      include: {
+        tasks: { where: { isActive: true }, orderBy: { basePriority: "asc" } },
+      },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
+  if (!client) {
+    return { error: "Client not found." };
+  }
+
+  return {
+    client: {
+      id: client.id,
+      engagementType: client.engagementType,
+      approvedWorkTaskIds: client.approvedWorkTasks.map((a) => a.workTaskId),
+    },
+    categories,
+  };
+}
 
 export async function logClientOpsRequest(data: {
   clientId: string;
@@ -70,6 +185,9 @@ export async function logClientOpsRequest(data: {
   source: string;
   urgency?: string;
   supportNeeded?: string;
+  workTaskId?: string;
+  adminOverride?: boolean;
+  overrideReason?: string;
 }) {
   await requireAdmin();
 
@@ -78,12 +196,24 @@ export async function logClientOpsRequest(data: {
     return { error: "Please check the request fields and try again." };
   }
 
-  const { clientId, title, description, source, supportNeeded } = parsed.data;
+  const {
+    clientId,
+    title,
+    description,
+    source,
+    supportNeeded,
+    workTaskId,
+    adminOverride,
+    overrideReason,
+  } = parsed.data;
   const urgency = parsed.data.urgency && isUrgencyValue(parsed.data.urgency)
     ? parsed.data.urgency
     : Urgency.NORMAL;
 
-  const client = await prisma.client.findUnique({ where: { id: clientId } });
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    include: { approvedWorkTasks: { select: { workTaskId: true } } },
+  });
   if (!client) {
     return { error: "Client not found." };
   }
@@ -92,15 +222,43 @@ export async function logClientOpsRequest(data: {
     return { error: "Log client ops requests only for active clients." };
   }
 
+  let resolvedSupportNeeded = supportNeeded || null;
+  let finalDescription = description;
+
+  if (workTaskId) {
+    const taskResult = await resolveActiveWorkTask(workTaskId, (id) =>
+      prisma.workTask.findUnique({ where: { id } }),
+    );
+    if (!taskResult.ok) {
+      return { error: taskResult.error };
+    }
+
+    const allowed = assertWorkTaskAllowedForClient({
+      client,
+      workTaskId,
+      allowAdminOverride: adminOverride,
+    });
+    if (!allowed.ok) {
+      return { error: allowed.error };
+    }
+
+    if (adminOverride && overrideReason) {
+      finalDescription += `\n\n---\nAdmin override: ${overrideReason}`;
+    }
+
+    resolvedSupportNeeded = taskResult.workTask.name;
+  }
+
   try {
     const supportRequest = await prisma.supportRequest.create({
       data: {
         clientId,
+        workTaskId: workTaskId || null,
         title,
         kind: SupportRequestKind.CLIENT_OPS,
         source: source as SupportRequestSource,
-        supportNeeded: supportNeeded || null,
-        description,
+        supportNeeded: resolvedSupportNeeded,
+        description: finalDescription,
         urgency,
         status: RequestStatus.NEW,
       },

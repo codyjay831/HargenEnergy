@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-import { isUrgencyValue } from "@/lib/ui-enums";
+import {
+  isHandoffTierValue,
+  isPricingModeValue,
+  isUrgencyValue,
+  isEngagementTypeValue,
+} from "@/lib/ui-enums";
 
 const trimmedString = z.string().trim();
 
@@ -72,7 +77,7 @@ export const portalSubmitRequestSchema = z
     title: trimmedString
       .min(1, "Title is required.")
       .max(200, "Title must be at most 200 characters."),
-    workTaskId: trimmedString.optional(),
+    workTaskId: trimmedString.min(1, "Work type is required."),
     supportNeeded: trimmedString
       .min(1, "Support needed is required.")
       .max(500, "Support needed must be at most 500 characters."),
@@ -102,6 +107,37 @@ export const portalAddCommentSchema = z.object({
 });
 
 export type PortalAddCommentInput = z.infer<typeof portalAddCommentSchema>;
+
+export const updateClientEngagementSchema = z.object({
+  clientId: z.string().min(1).max(128),
+  engagementType: z.string().refine(isEngagementTypeValue, {
+    message: "Invalid engagement type.",
+  }),
+  approvedWorkTaskIds: z.array(z.string().min(1).max(128)).max(50),
+});
+
+export const updateRequestHandoffPricingSchema = z
+  .object({
+    requestId: z.string().min(1).max(128),
+    handoffTier: z.string().refine(isHandoffTierValue, {
+      message: "Invalid handoff tier.",
+    }),
+    pricingMode: z.string().refine(isPricingModeValue, {
+      message: "Invalid pricing mode.",
+    }),
+    flatPriceCents: z.number().int().positive().optional().nullable(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.pricingMode === "FLAT") {
+      if (!data.flatPriceCents || data.flatPriceCents <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Flat fee requires a price greater than zero.",
+          path: ["flatPriceCents"],
+        });
+      }
+    }
+  });
 
 export const passwordSchema = z
   .string()

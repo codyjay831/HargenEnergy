@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, CreditCard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PortalBillingPortalButton } from "@/components/forms/PortalBillingPortalButton";
+import { EngagementType } from "@/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -76,33 +77,45 @@ export default async function PortalAccount() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CreditCard className="h-5 w-5 text-primary" />
-              Support Plan
+              {client.engagementType === EngagementType.ONE_OFF
+                ? "Billing"
+                : "Support plan"}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Current Block</span>
-                <span className="text-lg font-bold">{client.planType} Support</span>
-              </div>
-              <Badge variant={client.subscriptionStatus === "active" ? "default" : "secondary"}>
-                {client.subscriptionStatus?.toUpperCase() || "PENDING"}
-              </Badge>
-            </div>
-
-            <div className="flex flex-col">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Weekly Reserved Hours</span>
-              <span className="text-sm font-medium">{client.weeklyHours} hours per week</span>
-            </div>
-
-            {client.stripeCustomerId ? (
-              <PortalBillingPortalButton />
+            {client.engagementType === EngagementType.ONE_OFF ? (
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                You are set up as a one-off work client. Each job is reviewed and priced
+                individually before work continues. Billing is per job or request, not a
+                weekly support block.
+              </p>
             ) : (
-              <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Retainer billing will appear here after your account manager enables Stripe billing.
-                </p>
-              </div>
+              <>
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Current block</span>
+                    <span className="text-lg font-bold">{client.planType} support</span>
+                  </div>
+                  <Badge variant={client.subscriptionStatus === "active" ? "default" : "secondary"}>
+                    {client.subscriptionStatus?.toUpperCase() || "PENDING"}
+                  </Badge>
+                </div>
+
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Weekly reserved hours</span>
+                  <span className="text-sm font-medium">{client.weeklyHours} hours per week</span>
+                </div>
+
+                {client.stripeCustomerId ? (
+                  <PortalBillingPortalButton />
+                ) : (
+                  <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Retainer billing will appear here after your account manager enables Stripe billing.
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>

@@ -109,8 +109,10 @@ export function RecurringTaskManagement({
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-lg font-bold">Recurring Tasks</h2>
-          <p className="text-sm text-muted-foreground">Automate repetitive work requests for specific clients.</p>
+          <h2 className="text-lg font-bold">Scheduled ticket templates</h2>
+          <p className="text-sm text-muted-foreground">
+            Internal recurring reminders for hourly support block clients — not the customer-facing definition of support.
+          </p>
         </div>
         <Button variant="outline" size="sm" onClick={handleProcess} disabled={isPending}>
           {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}

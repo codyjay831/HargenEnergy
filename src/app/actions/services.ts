@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { revalidatePath } from "next/cache";
+import { CATALOG_V2 } from "@/lib/catalog-v2-data";
 
 export async function getActiveServices() {
   return await prisma.serviceCategory.findMany({
@@ -159,6 +160,28 @@ export async function toggleWorkTask(id: string, isActive: boolean) {
   revalidatePath("/portal/requests/new");
 }
 
+async function insertCatalogV2(tx: Prisma.TransactionClient) {
+  for (const cat of CATALOG_V2) {
+    await tx.serviceCategory.create({
+      data: {
+        name: cat.name,
+        description: cat.description,
+        tasks: {
+          create: cat.tasks.map((task, index) => ({
+            name: task.name,
+            description: task.description,
+            maxMinutes: task.maxMinutes,
+            isActive: true,
+            basePriority: index,
+            suggestedHandoffTier: task.suggestedHandoffTier,
+            suggestedPricingMode: task.suggestedPricingMode,
+          })),
+        },
+      },
+    });
+  }
+}
+
 export async function seedInitialServices() {
   const session = await auth();
   if (!session?.user || session.user.role !== "ADMIN") {
@@ -168,81 +191,32 @@ export async function seedInitialServices() {
   const count = await prisma.serviceCategory.count();
   if (count > 0) return { message: "Already seeded" };
 
-  const initialData = [
-    {
-      name: "Solar",
-      description: "Residential solar installation and operations",
-      tasks: [
-        { name: "Site Assessment / Site Visit", maxMinutes: 120, isActive: false },
-        { name: "Preliminary Design & Proposal", maxMinutes: 45 },
-        { name: "Final Engineering & Plan Set Coordination", maxMinutes: 60 },
-        { name: "Permit Application Submission", maxMinutes: 45 },
-        { name: "AHJ Permit Follow-up & Corrections", maxMinutes: 30 },
-        { name: "Utility Interconnection Application", maxMinutes: 45 },
-        { name: "Utility Deficiency / Resubmittal Handling", maxMinutes: 30 },
-        { name: "Inspection Scheduling & Coordination", maxMinutes: 20 },
-        { name: "PTO Tracking", maxMinutes: 15 },
-        { name: "Monitoring Setup", maxMinutes: 20 },
-      ]
-    },
-    {
-      name: "Battery",
-      description: "Energy storage systems",
-      tasks: [
-        { name: "Storage Sizing & Load Calculations", maxMinutes: 45 },
-        { name: "Backup Circuit Design / Load Shedding Plan", maxMinutes: 60 },
-        { name: "Remote Commissioning Support", maxMinutes: 30 },
-        { name: "Battery Warranty Registration", maxMinutes: 15 },
-      ]
-    },
-    {
-      name: "Electrical",
-      description: "EV chargers and service upgrades",
-      tasks: [
-        { name: "EV Charger Load Calculations", maxMinutes: 30 },
-        { name: "EV Charger Permit Submission", maxMinutes: 30 },
-        { name: "Main Panel Upgrade (MPU) Coordination", maxMinutes: 45 },
-        { name: "Utility Service Upgrade Request", maxMinutes: 45 },
-      ]
-    },
-    {
-      name: "Roofing",
-      description: "Roofing operations",
-      tasks: [
-        { name: "Roofing Permit Submission", maxMinutes: 30 },
-        { name: "Material Take-off & Estimating", maxMinutes: 45 },
-        { name: "HOA Approval Application & Follow-up", maxMinutes: 30 },
-      ]
-    },
-    {
-      name: "Admin & Operations",
-      description: "General back-office support",
-      tasks: [
-        { name: "Lead Entry & CRM Audit", maxMinutes: 20 },
-        { name: "Daily Lead Follow-up", maxMinutes: 60 },
-        { name: "Customer Milestone Updates", maxMinutes: 30 },
-        { name: "CRM Cleanup & Document Filing", maxMinutes: 45 },
-      ]
-    }
-  ];
-
-  for (const cat of initialData) {
-    await prisma.serviceCategory.create({
-      data: {
-        name: cat.name,
-        description: cat.description,
-        tasks: {
-          create: cat.tasks.map((task, index) => ({
-            name: task.name,
-            maxMinutes: task.maxMinutes,
-            isActive: task.isActive ?? true,
-            basePriority: index,
-          }))
-        }
-      }
-    });
-  }
+  await prisma.$transaction(async (tx) => {
+    await insertCatalogV2(tx);
+  });
 
   revalidatePath("/admin/services");
-  return { message: "Seeded successfully" };
+  revalidatePath("/portal/requests/new");
+  return { message: "Seeded catalog v2 successfully" };
+}
+
+export async function replaceCatalogWithV2(confirmation: string) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    throw new Error("Unauthorized");
+  }
+
+  if (confirmation !== "REPLACE_CATALOG_V2") {
+    return { error: 'Type "REPLACE_CATALOG_V2" to confirm catalog replacement.' };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.workTask.updateMany({ data: { isActive: false } });
+    await tx.serviceCategory.updateMany({ data: { isActive: false } });
+    await insertCatalogV2(tx);
+  });
+
+  revalidatePath("/admin/services");
+  revalidatePath("/portal/requests/new");
+  return { message: "Catalog replaced with v2" };
 }

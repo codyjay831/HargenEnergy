@@ -93,3 +93,42 @@ export function isSupportRequestSourceValue(
 ): v is SupportRequestSourceValue {
   return (SUPPORT_REQUEST_SOURCE_VALUES as readonly string[]).includes(v);
 }
+
+export const ENGAGEMENT_TYPE_VALUES = ["BLOCK_SUPPORT", "ONE_OFF"] as const;
+export type EngagementTypeValue = (typeof ENGAGEMENT_TYPE_VALUES)[number];
+
+export function isEngagementTypeValue(v: string): v is EngagementTypeValue {
+  return (ENGAGEMENT_TYPE_VALUES as readonly string[]).includes(v);
+}
+
+export const HANDOFF_TIER_VALUES = ["CLEAN", "MESSY", "RECOVERY"] as const;
+export type HandoffTierValue = (typeof HANDOFF_TIER_VALUES)[number];
+
+export function isHandoffTierValue(v: string): v is HandoffTierValue {
+  return (HANDOFF_TIER_VALUES as readonly string[]).includes(v);
+}
+
+export const PRICING_MODE_VALUES = [
+  "FLAT",
+  "HOURLY",
+  "REVIEW_THEN_HOURLY",
+] as const;
+export type PricingModeValue = (typeof PRICING_MODE_VALUES)[number];
+
+export function isPricingModeValue(v: string): v is PricingModeValue {
+  return (PRICING_MODE_VALUES as readonly string[]).includes(v);
+}
+
+export const HANDOFF_TIER_OPTIONS: { value: HandoffTierValue; label: string }[] =
+  [
+    { value: "CLEAN", label: "Clean" },
+    { value: "MESSY", label: "Messy" },
+    { value: "RECOVERY", label: "Recovery" },
+  ];
+
+export const PRICING_MODE_OPTIONS: { value: PricingModeValue; label: string }[] =
+  [
+    { value: "FLAT", label: "Flat fee" },
+    { value: "HOURLY", label: "Hourly" },
+    { value: "REVIEW_THEN_HOURLY", label: "Review first, then hourly" },
+  ];

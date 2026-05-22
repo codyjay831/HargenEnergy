@@ -80,6 +80,23 @@ enum RecurringFrequency {
   MONTHLY
 }
 
+enum EngagementType {
+  BLOCK_SUPPORT
+  ONE_OFF
+}
+
+enum HandoffTier {
+  CLEAN
+  MESSY
+  RECOVERY
+}
+
+enum PricingMode {
+  FLAT
+  HOURLY
+  REVIEW_THEN_HOURLY
+}
+
 enum OverflowStatus {
   NOT_NEEDED
   NEEDS_APPROVAL
@@ -174,6 +191,7 @@ model Client {
   role               String?
   currentTools       String?
   status             ClientStatus     @default(LEAD)
+  engagementType     EngagementType   @default(BLOCK_SUPPORT)
   planType           PlanType         @default(LIGHT)
   weeklyHours        Float            @default(0)
   stripeCustomerId   String?
@@ -191,8 +209,20 @@ model Client {
   systemAccesses     ClientSystemAccess[]
   disbursements      DisbursementRequest[]
   recurringTasks     RecurringTask[]
+  approvedWorkTasks  ClientApprovedWorkTask[]
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
+}
+
+model ClientApprovedWorkTask {
+  clientId   String
+  workTaskId String
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  workTask   WorkTask @relation(fields: [workTaskId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([clientId, workTaskId])
+  @@index([workTaskId])
 }
 
 model SupportRequest {
@@ -225,6 +255,9 @@ model SupportRequest {
   deferredUntil       DateTime?
   priorityRank        Int?
   completedAt         DateTime?
+  handoffTier         HandoffTier?
+  pricingMode         PricingMode?
+  flatPriceCents      Int?
   timeEntries         TimeEntry[]
   attachments         Attachment[]
   comments            RequestComment[]
@@ -359,11 +392,14 @@ model WorkTask {
   maxMinutes      Int?
   requiredFields  Json?            // Array of strings or objects
   requiredDocs    Json?            // Array of strings or objects
-  basePriority    Int              @default(0)
-  requests        SupportRequest[]
-  recurringTasks  RecurringTask[]
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  basePriority           Int              @default(0)
+  suggestedHandoffTier   HandoffTier?
+  suggestedPricingMode   PricingMode?
+  requests               SupportRequest[]
+  recurringTasks         RecurringTask[]
+  approvedForClients     ClientApprovedWorkTask[]
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
 
   @@index([categoryId])
 }

@@ -4,7 +4,7 @@ services:
     image: postgres:16
     container_name: hargen-postgres
     ports:
-      - "5433:5432"
+      - "5434:5432"  # 5433 often used by other local Postgres (e.g. struxient_db)
     environment:
       POSTGRES_USER: hargen
       POSTGRES_PASSWORD: hargen_dev_password

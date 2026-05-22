@@ -6,6 +6,7 @@ import {
   toggleServiceCategory, 
   toggleWorkTask, 
   seedInitialServices,
+  replaceCatalogWithV2,
   upsertServiceCategory,
   upsertWorkTask
 } from "@/app/actions/services";
@@ -55,7 +56,7 @@ interface Task {
   isActive: boolean;
   maxMinutes: number | null;
   description?: string | null;
-  requiredFields?: CustomField[];
+  requiredFields?: CustomField[] | unknown;
 }
 
 interface Category {
@@ -266,11 +267,31 @@ export function ServiceManagement({ initialCategories }: ServiceManagementProps)
   const handleSeed = async () => {
     startTransition(async () => {
       try {
-        await seedInitialServices();
-        toast.success("Services seeded successfully");
+        const result = await seedInitialServices();
+        if ("message" in result) toast.success(result.message);
         router.refresh();
       } catch {
         toast.error("Failed to seed services");
+      }
+    });
+  };
+
+  const handleReplaceCatalog = async () => {
+    const confirmation = window.prompt(
+      'Type REPLACE_CATALOG_V2 to deactivate old tasks and install the v2 catalog.',
+    );
+    if (!confirmation) return;
+    startTransition(async () => {
+      try {
+        const result = await replaceCatalogWithV2(confirmation);
+        if ("error" in result && result.error) {
+          toast.error(result.error);
+        } else {
+          toast.success("message" in result ? result.message : "Catalog replaced");
+          router.refresh();
+        }
+      } catch {
+        toast.error("Failed to replace catalog");
       }
     });
   };
@@ -282,8 +303,7 @@ export function ServiceManagement({ initialCategories }: ServiceManagementProps)
           <Settings2 className="h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-lg font-semibold">No services configured</h3>
           <p className="text-muted-foreground mb-6 text-center max-w-sm">
-            You haven&apos;t set up any service categories or tasks yet. 
-            Start by seeding the default solar operations tasks.
+            Seed the v2 catalog: clear scope-based work types (permits, utility, CRM, etc.), not micro-actions.
           </p>
           <Button onClick={handleSeed} disabled={isPending}>
             {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
@@ -298,10 +318,15 @@ export function ServiceManagement({ initialCategories }: ServiceManagementProps)
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-lg font-semibold">Service Catalog</h2>
-          <p className="text-sm text-muted-foreground">Enable or disable services offered to clients.</p>
+          <h2 className="text-lg font-semibold">Work type catalog</h2>
+          <p className="text-sm text-muted-foreground">
+            Scope-based work types for routing and pricing — internal SOP minutes are not client promises.
+          </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={handleReplaceCatalog} disabled={isPending}>
+            Replace with catalog v2
+          </Button>
           <Button variant="outline" size="sm" onClick={handleSeed} disabled={isPending}>
             <RefreshCw className="mr-2 h-3 w-3" />
             Reset to Defaults

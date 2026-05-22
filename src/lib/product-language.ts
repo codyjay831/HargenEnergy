@@ -35,11 +35,19 @@ export const PRODUCT_LANGUAGE = {
   workRequest: {
     singular: "Work request",
     plural: "Work requests",
-    action: "Submit a work request",
-    listTitle: "Work requests",
-    listSubtitle: "Ongoing client operations work.",
-    detailTitle: "Work Request",
+    action: "Send work",
+    listTitle: "Work",
+    listSubtitle: "Jobs and tasks you have sent to Hargen.",
+    detailTitle: "Work details",
     statusLabel: "Status",
+    newTitle: "Send work",
+    newSubtitle: "Tell us what needs to move forward.",
+  },
+
+  engagement: {
+    blockSupport: "Hourly support block",
+    oneOff: "One-off work",
+    pricingPending: "Pricing pending review",
   },
   
   // Outreach CRM
@@ -71,6 +79,7 @@ export const NAV_LABELS = {
   adminClients: "Clients",
   adminOutreach: "Outreach",
   portalSubmit: PRODUCT_LANGUAGE.workRequest.action,
+  portalWork: "My work",
   portalRequests: "My Requests",
   publicCTA: PRODUCT_LANGUAGE.walkthrough.action,
 } as const;

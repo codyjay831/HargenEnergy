@@ -1,9 +1,11 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requestHelpSchema, RequestHelpInput } from "@/lib/validations";
 import {
   PlanType,
+  PricingMode,
   Urgency,
   ClientStatus,
   RequestStatus,
@@ -11,6 +13,7 @@ import {
   SupportRequestKind,
   SupportRequestSource,
 } from "@/generated/prisma/client";
+import { updateRequestHandoffPricingSchema } from "@/lib/validations";
 import { buildIntakeTitle } from "@/lib/request-lifecycle";
 import {
   sendRequestConfirmation,
@@ -103,6 +106,7 @@ export async function submitRequestHelp(data: RequestHelpInput) {
         supportNeeded: supportNeeded.join(", "),
         description: bottleneck,
         mostHelpful: takeOffPlate,
+        metadata: { intakePlan: plan },
         urgency: mapUrgency(urgency),
         status: RequestStatus.NEW,
       },
@@ -281,6 +285,55 @@ export async function updateRequest(
   } catch (error) {
     console.error("Error updating request:", error);
     return { error: "Failed to update request." };
+  }
+}
+
+export async function updateRequestHandoffPricing(data: {
+  requestId: string;
+  handoffTier: string;
+  pricingMode: string;
+  flatPriceCents?: number | null;
+}) {
+  const session = await auth();
+
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { error: "Unauthorized. Admin access required." };
+  }
+
+  const parsed = updateRequestHandoffPricingSchema.safeParse({
+    requestId: data.requestId,
+    handoffTier: data.handoffTier,
+    pricingMode: data.pricingMode,
+    flatPriceCents: data.flatPriceCents ?? null,
+  });
+
+  if (!parsed.success) {
+    return { error: "Invalid handoff or pricing fields." };
+  }
+
+  const { requestId, handoffTier, pricingMode } = parsed.data;
+  const flatPriceCents =
+    pricingMode === PricingMode.FLAT ? parsed.data.flatPriceCents : null;
+
+  try {
+    const request = await prisma.supportRequest.update({
+      where: { id: requestId },
+      data: {
+        handoffTier,
+        pricingMode,
+        flatPriceCents,
+      },
+      include: { client: true },
+    });
+
+    revalidatePath(`/admin/requests/${requestId}`);
+    revalidatePath(`/portal/requests/${requestId}`);
+    revalidatePath("/admin/requests");
+
+    return { success: true, request };
+  } catch (error) {
+    console.error("Error updating handoff/pricing:", error);
+    return { error: "Failed to update handoff and pricing." };
   }
 }
 

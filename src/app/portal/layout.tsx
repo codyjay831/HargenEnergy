@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { LogoutButton } from "@/components/layout/LogoutButton";
 import { prisma } from "@/lib/prisma";
+import { NAV_LABELS } from "@/lib/product-language";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,7 @@ export default async function PortalLayout({
 
   const navItems = [
     { name: "Dashboard", href: "/portal", icon: LayoutDashboard },
-    { name: "My Requests", href: "/portal/requests", icon: ClipboardList },
+    { name: NAV_LABELS.portalWork, href: "/portal/requests", icon: ClipboardList },
     { name: "Submit Request", href: "/portal/requests/new", icon: PlusCircle },
     { name: "System Access", href: "/portal/access", icon: KeyRound },
     { name: "Account", href: "/portal/account", icon: UserCircle },
