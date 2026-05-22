@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   description:
     "Flexible back-office support for residential solar companies. Permits, utilities, customer updates, CRM cleanup, and stuck jobs. Add capacity without hiring another full-time office role.",
   icons: {
-    icon: "/hargen-icon.png",
+    icon: [{ url: "/hargen-icon.png", type: "image/png" }],
     apple: "/apple-icon.png",
   },
 };

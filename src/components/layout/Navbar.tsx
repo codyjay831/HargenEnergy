@@ -1,7 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { BRAND } from "@/lib/brand";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
@@ -36,9 +38,14 @@ export function Navbar() {
 
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2.5">
-            <span className="text-[0.9375rem] font-semibold tracking-tight text-stone-900">
-              Hargen Energy
-            </span>
+            <Image
+              src={BRAND.wordmarkSrc}
+              alt={BRAND.name}
+              width={761}
+              height={136}
+              className="h-9 w-auto sm:h-10"
+              priority
+            />
             <span className="hidden text-xs text-stone-500 border-l border-stone-200 pl-2.5 sm:block">
               Solar Ops Desk
             </span>
