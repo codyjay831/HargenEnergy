@@ -17,6 +17,8 @@ import { calculateWeeklyUsage } from "@/lib/usage";
 import { OverflowStatus, SupportRequestKind } from "@/generated/prisma/client";
 import { startOfWeek } from "date-fns";
 
+import { RequestTimer } from "@/components/admin/RequestTimer";
+
 export const dynamic = "force-dynamic";
 
 interface RequestDetailPageProps {
@@ -34,6 +36,7 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
   const request = await prisma.supportRequest.findUnique({
     where: { id },
     include: {
+      workTask: true,
       client: {
         include: {
           timeEntries: {
@@ -265,6 +268,13 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
         </div>
 
         <div className="space-y-8">
+          <RequestTimer 
+            requestId={request.id}
+            timerStartedAt={request.timerStartedAt}
+            blockerReason={request.blockerReason}
+            maxMinutes={request.workTask?.maxMinutes || null}
+          />
+
           <Card className="border-primary/20">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

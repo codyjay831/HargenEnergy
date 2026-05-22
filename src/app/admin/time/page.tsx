@@ -1,15 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { format } from "date-fns";
-import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
 import { 
   Dialog, 
   DialogContent, 
@@ -20,6 +9,8 @@ import {
 import { buttonVariants } from "@/components/ui/button";
 import { Plus, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
+import { TimeReview } from "@/components/admin/TimeReview";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +19,9 @@ export default async function AdminTime() {
     prisma.timeEntry.findMany({
       include: {
         client: true,
-        supportRequest: true,
+        supportRequest: {
+          select: { title: true }
+        },
       },
       orderBy: {
         date: "desc",
@@ -84,54 +77,7 @@ export default async function AdminTime() {
           No time entries yet. Once you start working on requests, you can log your time here.
         </div>
       ) : (
-        <div className="bg-white border rounded-lg overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Client</TableHead>
-                <TableHead>Request</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead className="text-right">Minutes</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {timeEntries.map((entry) => (
-                <TableRow key={entry.id}>
-                  <TableCell className="text-sm">
-                    {format(new Date(entry.date), "MMM d, yyyy")}
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/admin/clients/${entry.clientId}`} className="hover:underline font-medium">
-                      {entry.client.companyName}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    {entry.supportRequest ? (
-                      <Link href={`/admin/requests/${entry.supportRequestId}`} className="hover:underline text-xs text-muted-foreground truncate max-w-[150px] block">
-                        {entry.supportRequest.title}
-                      </Link>
-                    ) : (
-                      <span className="text-xs text-muted-foreground italic">General</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-[10px] uppercase">
-                      {entry.billableType.replace("_", " ")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm max-w-[300px] truncate">
-                    {entry.description}
-                  </TableCell>
-                  <TableCell className="text-right font-bold">
-                    {entry.minutes}m
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <TimeReview entries={timeEntries} />
       )}
     </div>
   );

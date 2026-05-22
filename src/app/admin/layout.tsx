@@ -7,6 +7,7 @@ import {
   CreditCard,
   UserCog,
   Megaphone,
+  Settings2,
 } from "lucide-react";
 import { LogoutButton } from "@/components/layout/LogoutButton";
 import { auth } from "@/auth";
@@ -22,6 +23,7 @@ const sidebarItems = [
   { name: NAV_LABELS.adminWorkRequests, href: "/admin/requests", icon: ClipboardList },
   { name: "Time Tracking", href: "/admin/time", icon: Clock },
   { name: "Billing", href: "/admin/billing", icon: CreditCard },
+  { name: "Service Catalog", href: "/admin/services", icon: Settings2 },
   { name: "Account", href: "/admin/account", icon: UserCog },
 ];
 

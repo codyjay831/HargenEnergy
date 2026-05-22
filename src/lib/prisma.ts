@@ -37,13 +37,14 @@ function getPrismaClient() {
   const pool = new pg.Pool({ connectionString: databaseUrl });
   const adapter = new PrismaPg(pool);
 
-  return new PrismaClient({
+  const client = new PrismaClient({
     adapter,
     log:
       process.env.NODE_ENV === "development"
         ? ["query", "error", "warn"]
         : ["error"],
   });
+  return client;
 }
 
 export const prisma = globalForPrisma.prisma ?? getPrismaClient();

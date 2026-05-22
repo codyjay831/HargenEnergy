@@ -72,6 +72,7 @@ export const portalSubmitRequestSchema = z
     title: trimmedString
       .min(1, "Title is required.")
       .max(200, "Title must be at most 200 characters."),
+    workTaskId: trimmedString.optional(),
     supportNeeded: trimmedString
       .min(1, "Support needed is required.")
       .max(500, "Support needed must be at most 500 characters."),
@@ -83,6 +84,8 @@ export const portalSubmitRequestSchema = z
     utilityAhj: portalMetadataString,
     toolsContext: portalMetadataString,
     desiredOutcome: portalMetadataString,
+    projectUrl: trimmedString.max(1000).optional(),
+    metadata: z.record(z.string(), z.any()).optional(),
   })
   .refine((data) => isUrgencyValue(data.urgency), {
     message: "Invalid urgency.",

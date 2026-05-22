@@ -28,6 +28,7 @@ const PORTAL_RATE_LIMIT_ERROR =
 
 export async function submitPortalRequest(data: {
   title: string;
+  workTaskId?: string;
   supportNeeded: string;
   description: string;
   urgency: string;
@@ -35,6 +36,8 @@ export async function submitPortalRequest(data: {
   utilityAhj?: string;
   toolsContext?: string;
   desiredOutcome?: string;
+  projectUrl?: string;
+  metadata?: Record<string, string | number | boolean | null>;
   attachments?: Array<{ url: string; name: string; type: string; size: number }>;
 }) {
   const session = await auth();
@@ -46,6 +49,7 @@ export async function submitPortalRequest(data: {
 
   const parsed = portalSubmitRequestSchema.safeParse({
     title: data.title,
+    workTaskId: data.workTaskId,
     supportNeeded: data.supportNeeded,
     description: data.description,
     urgency: data.urgency,
@@ -53,6 +57,8 @@ export async function submitPortalRequest(data: {
     utilityAhj: data.utilityAhj,
     toolsContext: data.toolsContext,
     desiredOutcome: data.desiredOutcome,
+    projectUrl: data.projectUrl,
+    metadata: data.metadata,
   });
 
   if (!parsed.success) {
@@ -69,6 +75,7 @@ export async function submitPortalRequest(data: {
 
   const {
     title,
+    workTaskId,
     supportNeeded,
     description,
     urgency,
@@ -76,6 +83,8 @@ export async function submitPortalRequest(data: {
     utilityAhj,
     toolsContext,
     desiredOutcome,
+    projectUrl,
+    metadata,
   } = parsed.data;
 
   const urgencyEnum = urgency as Urgency;
@@ -94,24 +103,53 @@ export async function submitPortalRequest(data: {
       return activeError;
     }
 
-    const fullDescription = `
-${description}
+    let fullDescription = description;
+
+    // Append legacy metadata if present
+    if (customerName || utilityAhj || toolsContext || desiredOutcome) {
+      fullDescription += `
 
 ---
 Customer/Job: ${customerName || "N/A"}
 Utility/AHJ: ${utilityAhj || "N/A"}
 Tools/Context: ${toolsContext || "N/A"}
-Desired Outcome: ${desiredOutcome || "N/A"}
-    `.trim();
+Desired Outcome: ${desiredOutcome || "N/A"}`;
+    }
+
+    // Append new metadata if present
+    if (metadata && Object.keys(metadata).length > 0) {
+      const metadataEntries = Object.entries(metadata)
+        .filter(([, value]) => value !== undefined && value !== null && value !== "")
+        .map(([key, value]) => {
+          // Format key: replace camelCase or snake_case with Title Case for better readability
+          const formattedKey = key
+            .replace(/([A-Z])/g, " $1")
+            .replace(/[_-]/g, " ")
+            .replace(/^\w/, (c) => c.toUpperCase());
+          
+          return `${formattedKey}: ${value}`;
+        });
+
+      if (metadataEntries.length > 0) {
+        fullDescription += `
+
+---
+Service Details:
+${metadataEntries.join("\n")}`;
+      }
+    }
 
     const supportRequest = await prisma.supportRequest.create({
       data: {
         clientId,
+        workTaskId,
         title,
         kind: SupportRequestKind.CLIENT_OPS,
         source: SupportRequestSource.PORTAL,
         supportNeeded,
         description: fullDescription,
+        metadata: metadata || undefined,
+        projectUrl,
         urgency: urgencyEnum,
         status: RequestStatus.NEW,
         attachments: data.attachments?.length

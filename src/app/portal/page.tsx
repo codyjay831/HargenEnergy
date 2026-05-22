@@ -18,7 +18,7 @@ import {
 import Link from "next/link";
 import { format, startOfWeek } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/ui/status-badge";

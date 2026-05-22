@@ -2,7 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { BillableType } from "@/generated/prisma/client";
+import { BillableType, TimeEntryStatus } from "@/generated/prisma/client";
 import { assertBillableTimeOnRequest } from "@/lib/request-lifecycle";
 import { revalidatePath } from "next/cache";
 import { isBillableTypeValue } from "@/lib/ui-enums";
@@ -65,6 +65,7 @@ export async function createTimeEntry(data: {
         minutes: data.minutes,
         description: data.description,
         billableType,
+        status: TimeEntryStatus.CONFIRMED, // Manual entries are confirmed by default
         createdById: session.user.id,
       },
     });
@@ -104,5 +105,65 @@ export async function deleteTimeEntry(id: string) {
   } catch (error) {
     console.error("Error deleting time entry:", error);
     return { error: "Failed to delete time entry." };
+  }
+}
+
+export async function confirmTimeEntry(id: string) {
+  const session = await auth();
+
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { error: "Unauthorized. Admin access required." };
+  }
+
+  try {
+    const timeEntry = await prisma.timeEntry.update({
+      where: { id },
+      data: { status: TimeEntryStatus.CONFIRMED },
+    });
+
+    revalidatePath("/admin/time");
+    revalidatePath(`/admin/clients/${timeEntry.clientId}`);
+    if (timeEntry.supportRequestId) {
+      revalidatePath(`/admin/requests/${timeEntry.supportRequestId}`);
+    }
+
+    return { success: true, timeEntry };
+  } catch (error) {
+    console.error("Error confirming time entry:", error);
+    return { error: "Failed to confirm time entry." };
+  }
+}
+
+export async function updateTimeEntry(id: string, data: {
+  minutes?: number;
+  description?: string;
+  billableType?: string;
+}) {
+  const session = await auth();
+
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { error: "Unauthorized. Admin access required." };
+  }
+
+  try {
+    const timeEntry = await prisma.timeEntry.update({
+      where: { id },
+      data: {
+        minutes: data.minutes,
+        description: data.description,
+        billableType: data.billableType as BillableType,
+      },
+    });
+
+    revalidatePath("/admin/time");
+    revalidatePath(`/admin/clients/${timeEntry.clientId}`);
+    if (timeEntry.supportRequestId) {
+      revalidatePath(`/admin/requests/${timeEntry.supportRequestId}`);
+    }
+
+    return { success: true, timeEntry };
+  } catch (error) {
+    console.error("Error updating time entry:", error);
+    return { error: "Failed to update time entry." };
   }
 }

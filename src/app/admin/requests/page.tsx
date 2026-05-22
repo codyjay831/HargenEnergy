@@ -14,7 +14,7 @@ import { Urgency, OverflowStatus, SupportRequestKind } from "@/generated/prisma/
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { PriorityButtons } from "@/components/admin/PriorityButtons";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 

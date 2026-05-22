@@ -69,6 +69,17 @@ enum BillableType {
   NON_BILLABLE
 }
 
+enum TimeEntryStatus {
+  STAGED
+  CONFIRMED
+}
+
+enum RecurringFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
 enum OverflowStatus {
   NOT_NEEDED
   NEEDS_APPROVAL
@@ -179,6 +190,7 @@ model Client {
   attachments        Attachment[]
   systemAccesses     ClientSystemAccess[]
   disbursements      DisbursementRequest[]
+  recurringTasks     RecurringTask[]
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 }
@@ -187,11 +199,15 @@ model SupportRequest {
   id                  String        @id @default(cuid())
   clientId            String
   client              Client        @relation(fields: [clientId], references: [id])
+  workTaskId          String?
+  workTask            WorkTask?     @relation(fields: [workTaskId], references: [id])
   title               String
   kind                SupportRequestKind   @default(CLIENT_OPS)
   source              SupportRequestSource @default(ADMIN)
   supportNeeded       String?
   description         String
+  metadata            Json?
+  projectUrl          String?
   mostHelpful         String?
   urgency             Urgency       @default(NORMAL)
   status              RequestStatus @default(NEW)
@@ -199,6 +215,8 @@ model SupportRequest {
   clientVisibleUpdate String?
   internalNotes       String?
   estimatedMinutes    Int?
+  timerStartedAt      DateTime?
+  blockerReason       String?
   overflowStatus      OverflowStatus @default(NOT_NEEDED)
   overflowReason      String?
   overflowApprovedAt  DateTime?
@@ -216,6 +234,7 @@ model SupportRequest {
 
   @@index([kind, status])
   @@index([clientId, kind])
+  @@index([workTaskId])
 }
 
 model ClientSystemAccess {
@@ -290,6 +309,7 @@ model TimeEntry {
   minutes          Int
   description      String
   billableType     BillableType   @default(INCLUDED)
+  status           TimeEntryStatus @default(CONFIRMED)
   createdById      String?
   createdBy        User?          @relation("TimeEntryCreator", fields: [createdById], references: [id])
   createdAt        DateTime       @default(now())
@@ -317,6 +337,51 @@ model SubscriptionPlan {
   stripePriceId      String?
   active             Boolean  @default(true)
   createdAt          DateTime @default(now())
+}
+
+model ServiceCategory {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean    @default(true)
+  tasks       WorkTask[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model WorkTask {
+  id              String           @id @default(cuid())
+  categoryId      String
+  category        ServiceCategory  @relation(fields: [categoryId], references: [id])
+  name            String
+  description     String?
+  isActive        Boolean          @default(true)
+  maxMinutes      Int?
+  requiredFields  Json?            // Array of strings or objects
+  requiredDocs    Json?            // Array of strings or objects
+  basePriority    Int              @default(0)
+  requests        SupportRequest[]
+  recurringTasks  RecurringTask[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([categoryId])
+}
+
+model RecurringTask {
+  id          String             @id @default(cuid())
+  workTaskId  String
+  workTask    WorkTask           @relation(fields: [workTaskId], references: [id])
+  clientId    String
+  client      Client             @relation(fields: [clientId], references: [id])
+  frequency   RecurringFrequency
+  nextRunAt   DateTime
+  isActive    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([workTaskId])
+  @@index([clientId])
 }
 
 enum OutreachCompanyStatus {

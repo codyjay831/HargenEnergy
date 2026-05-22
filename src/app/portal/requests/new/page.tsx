@@ -4,8 +4,13 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getActiveServices } from "@/app/actions/services";
 
-export default function NewPortalRequest() {
+export const dynamic = "force-dynamic";
+
+export default async function NewPortalRequest() {
+  const services = await getActiveServices();
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -26,7 +31,7 @@ export default function NewPortalRequest() {
           <CardTitle>Request Details</CardTitle>
         </CardHeader>
         <CardContent>
-          <PortalRequestForm />
+          <PortalRequestForm initialServices={services} />
         </CardContent>
       </Card>
     </div>

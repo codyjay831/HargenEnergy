@@ -18,6 +18,10 @@ export const metadata: Metadata = {
   title: "Hargen Energy | Solar Operations Support Desk",
   description:
     "Flexible back-office support for residential solar companies. Permits, utilities, customer updates, CRM cleanup, and stuck jobs. Add capacity without hiring another full-time office role.",
+  icons: {
+    icon: "/hargen-icon.png",
+    apple: "/apple-icon.png",
+  },
 };
 
 export default function RootLayout({
