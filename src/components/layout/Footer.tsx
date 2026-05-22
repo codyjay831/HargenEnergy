@@ -1,44 +1,73 @@
 import Link from "next/link";
-
-const companyLinks = [
-  { label: "About", href: "/about" },
-  { label: "Services", href: "/services" },
-  { label: "How It Works", href: "/how-it-works" },
-];
+import Image from "next/image";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { BRAND } from "@/lib/brand";
+import { PRIMARY_CTA } from "@/lib/marketing/constants";
+import { marketingNavItems } from "@/lib/marketing/nav";
+import { marketingAmberCta, marketingShell } from "@/components/marketing/marketing-styles";
 
 const supportLinks = [
   { label: "Pricing", href: "/pricing" },
-  { label: "Request Help", href: "/request-help" },
+  { label: PRIMARY_CTA, href: "/request-help" },
   { label: "Client Login", href: "/login" },
 ];
 
 export function Footer() {
   return (
     <footer className="border-t border-stone-200/90 bg-white">
-      <div className="max-w-6xl mx-auto px-6 py-10">
-        <div className="grid grid-cols-2 gap-8 sm:grid-cols-[1fr_auto_auto]">
+      <div className={cn(marketingShell, "py-8 border-b border-stone-200/80")}>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <p className="font-heading text-base font-semibold text-stone-900">
+              Ready to get stuck jobs moving again?
+            </p>
+            <p className="mt-1 text-sm text-stone-600">
+              Tell us where your solar operations need help. We reply within one business day.
+            </p>
+          </div>
+          <Link
+            href="/request-help"
+            className={cn(buttonVariants({ size: "lg" }), marketingAmberCta, "shrink-0 justify-center")}
+          >
+            {PRIMARY_CTA}
+          </Link>
+        </div>
+      </div>
 
+      <div className={cn(marketingShell, "py-10")}>
+        <div className="grid grid-cols-2 gap-8 sm:grid-cols-[1fr_auto_auto]">
           <div className="col-span-2 sm:col-span-1">
-            <Link href="/" className="text-sm font-semibold text-stone-900">
-              Hargen Energy LLC
+            <Link href="/" className="flex items-center gap-2.5 group w-fit">
+              <Image
+                src={BRAND.iconSrc}
+                alt=""
+                width={28}
+                height={28}
+                className="h-7 w-7 rounded-md"
+              />
+              <span className="text-sm font-semibold text-stone-900 group-hover:text-stone-950">
+                {BRAND.name}
+              </span>
             </Link>
-            <p className="mt-2 text-xs text-stone-600 leading-relaxed max-w-[240px]">
-              Flexible solar operations support for residential companies. We help keep office work moving so your team can stay focused on sales, installs, and customers.
+            <p className="mt-2 text-xs text-stone-600 leading-relaxed max-w-[260px]">
+              {BRAND.tagline} for residential solar companies. Permits, utilities, customer
+              updates, CRM cleanup, and stuck job follow-through.
             </p>
           </div>
 
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider mb-3 text-stone-900">
-              Company
+              Explore
             </p>
             <ul className="flex flex-col gap-2">
-              {companyLinks.map((l) => (
+              {marketingNavItems.map((l) => (
                 <li key={l.href}>
                   <Link
                     href={l.href}
                     className="text-xs text-stone-600 hover:text-stone-900 transition-colors"
                   >
-                    {l.label}
+                    {l.name}
                   </Link>
                 </li>
               ))}
@@ -47,7 +76,7 @@ export function Footer() {
 
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider mb-3 text-stone-900">
-              Support
+              Get started
             </p>
             <ul className="flex flex-col gap-2">
               {supportLinks.map((l) => (
@@ -62,7 +91,6 @@ export function Footer() {
               ))}
             </ul>
           </div>
-
         </div>
 
         <div className="mt-8 pt-6 border-t border-stone-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
@@ -70,10 +98,9 @@ export function Footer() {
             © {new Date().getFullYear()} Hargen Energy LLC. All rights reserved.
           </p>
           <p className="text-xs text-stone-500">
-            Built for solar companies, not solar sales to homeowners.
+            Built for solar companies, not homeowners shopping for solar.
           </p>
         </div>
-
       </div>
     </footer>
   );

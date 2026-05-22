@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PRIMARY_CTA } from "@/lib/marketing/constants";
+import { aboutMetadata } from "@/lib/marketing/metadata";
 import {
   marketingShell,
   marketingSectionY,
@@ -11,6 +14,8 @@ import {
   marketingLead,
   marketingAmberCta,
 } from "@/components/marketing/marketing-styles";
+
+export const metadata: Metadata = aboutMetadata;
 
 export default function AboutPage() {
   return (
@@ -26,7 +31,15 @@ export default function AboutPage() {
           <div className="max-w-2xl">
             <h1 className={marketingH1}>About Hargen Energy</h1>
             <p className={cn(marketingLead, "mt-4")}>
-              Solar operations support for residential contractors. Real people doing permit follow-up, utility paperwork, customer updates, CRM cleanup, and the jobs that stall between install milestones.
+              Solar operations support for residential contractors. Real people doing permit follow-up, utility paperwork, customer updates, CRM cleanup, and the jobs that stall between install milestones.{" "}
+              <Link href="/services" className="font-medium text-stone-900 underline-offset-4 hover:underline">
+                Explore services
+              </Link>{" "}
+              or{" "}
+              <Link href="/how-it-works" className="font-medium text-stone-900 underline-offset-4 hover:underline">
+                see how onboarding works
+              </Link>
+              .
             </p>
           </div>
         </div>
@@ -100,7 +113,7 @@ export default function AboutPage() {
               href="/request-help"
               className={cn(buttonVariants({ size: "lg" }), marketingAmberCta, "w-full text-center")}
             >
-              Work with us
+              {PRIMARY_CTA}
             </Link>
           </div>
         </div>

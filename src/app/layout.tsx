@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { SITE_URL } from "@/lib/marketing/constants";
+import { PAGE_INTENTS } from "@/lib/marketing/seo-intents";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,9 +17,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Hargen Energy | Solar Operations Support Desk",
-  description:
-    "Flexible back-office support for residential solar companies. Permits, utilities, customer updates, CRM cleanup, and stuck jobs. Add capacity without hiring another full-time office role.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: PAGE_INTENTS.home.title,
+    template: "%s | Hargen Energy",
+  },
+  description: PAGE_INTENTS.home.description,
   icons: {
     icon: [{ url: "/hargen-icon.png", type: "image/png" }],
     apple: "/apple-icon.png",

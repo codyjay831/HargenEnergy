@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Search, Layers, BarChart2, Eye, RefreshCw } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PRIMARY_CTA } from "@/lib/marketing/constants";
+import { howItWorksMetadata } from "@/lib/marketing/metadata";
 import {
   marketingShell,
   marketingSectionY,
@@ -12,6 +15,8 @@ import {
   marketingLead,
   marketingAmberCta,
 } from "@/components/marketing/marketing-styles";
+
+export const metadata: Metadata = howItWorksMetadata;
 
 const steps = [
   {
@@ -58,9 +63,17 @@ export default function HowItWorksPage() {
       >
         <div className={cn(marketingShell)}>
           <div className="max-w-2xl">
-            <h1 className={marketingH1}>How it works</h1>
+            <h1 className={marketingH1}>How solar operations support works</h1>
             <p className={cn(marketingLead, "mt-4")}>
-              Built to be easy to start and easy to run. You do not learn new software to get help. You send work, we execute, you see status.
+              Built to be easy to start and easy to run. You do not learn new software to get help. You send work, we execute, you see status.{" "}
+              <Link href="/pricing" className="font-medium text-stone-900 underline-offset-4 hover:underline">
+                Compare weekly support blocks
+              </Link>{" "}
+              or{" "}
+              <Link href="/services" className="font-medium text-stone-900 underline-offset-4 hover:underline">
+                browse services
+              </Link>
+              .
             </p>
           </div>
         </div>
@@ -126,7 +139,7 @@ export default function HowItWorksPage() {
                 href="/request-help"
                 className={cn(buttonVariants({ size: "lg" }), marketingAmberCta, "mt-8 w-full sm:mt-6")}
               >
-                Request a walkthrough
+                {PRIMARY_CTA}
               </Link>
             </div>
           </div>

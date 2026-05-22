@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   FileText,
@@ -10,6 +11,8 @@ import {
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PRIMARY_CTA } from "@/lib/marketing/constants";
+import { servicesMetadata } from "@/lib/marketing/metadata";
 import {
   marketingShell,
   marketingSectionY,
@@ -20,6 +23,8 @@ import {
   marketingLead,
   marketingAmberCta,
 } from "@/components/marketing/marketing-styles";
+
+export const metadata: Metadata = servicesMetadata;
 
 const services = [
   {
@@ -110,7 +115,11 @@ export default function ServicesPage() {
           <div className="max-w-2xl">
             <h1 className={marketingH1}>Solar operations services</h1>
             <p className={cn(marketingLead, "mt-4")}>
-              Back-office work for residential solar contractors. We focus on permits, utilities, customer updates, CRM hygiene, proposals, and equipment paperwork. Not a generic VA shop. Solar-specific follow-through.
+              Back-office work for residential solar contractors. We focus on permits, utilities, customer updates, CRM hygiene, proposals, and equipment paperwork. Not a generic VA shop. Solar-specific follow-through.{" "}
+              <Link href="/pricing" className="font-medium text-stone-900 underline-offset-4 hover:underline">
+                See weekly capacity options
+              </Link>
+              .
             </p>
           </div>
         </div>
@@ -168,7 +177,7 @@ export default function ServicesPage() {
               href="/request-help"
               className={cn(buttonVariants({ size: "lg" }), marketingAmberCta, "gap-2")}
             >
-              Request support
+              {PRIMARY_CTA}
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>

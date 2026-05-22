@@ -55,7 +55,7 @@ interface Task {
   isActive: boolean;
   maxMinutes: number | null;
   description?: string | null;
-  requiredFields?: any;
+  requiredFields?: CustomField[];
 }
 
 interface Category {
@@ -256,9 +256,9 @@ export function ServiceManagement({ initialCategories }: ServiceManagementProps)
         setAddingTaskToCategory(null);
         setTaskForm({ name: "", description: "", maxMinutes: "", requiredFields: [] });
         toast.success(`Task ${editingTask ? "updated" : "added"} successfully`);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Save task error:", error);
-        toast.error(error.message || "Failed to save task");
+        toast.error(error instanceof Error ? error.message : "Failed to save task");
       }
     });
   };

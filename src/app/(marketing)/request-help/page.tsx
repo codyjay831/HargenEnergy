@@ -1,6 +1,8 @@
+import type { Metadata } from "next";
 import { RequestHelpForm } from "@/components/forms/RequestHelpForm";
 import { cn } from "@/lib/utils";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
+import { requestHelpMetadata } from "@/lib/marketing/metadata";
 import {
   marketingShell,
   marketingSectionY,
@@ -8,6 +10,8 @@ import {
   marketingH1,
   marketingLead,
 } from "@/components/marketing/marketing-styles";
+
+export const metadata: Metadata = requestHelpMetadata;
 
 const checklist = [
   "Permit or utility file went quiet",

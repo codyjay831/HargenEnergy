@@ -26,9 +26,8 @@ interface Task {
   name: string;
   description: string | null;
   maxMinutes: number | null;
-  requiredFields: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  requiredDocs: any;
+  requiredFields: CustomField[];
+  requiredDocs: unknown;
 }
 
 interface Category {
