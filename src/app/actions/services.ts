@@ -26,8 +26,10 @@ export async function getServiceCategories() {
   }
 
   return await prisma.serviceCategory.findMany({
+    where: { isActive: true },
     include: {
       tasks: {
+        where: { isActive: true },
         orderBy: { basePriority: "asc" },
       },
     },
@@ -160,6 +162,41 @@ export async function toggleWorkTask(id: string, isActive: boolean) {
   revalidatePath("/portal/requests/new");
 }
 
+async function purgeInactiveCatalog(tx: Prisma.TransactionClient) {
+  await tx.clientApprovedWorkTask.deleteMany({
+    where: { workTask: { isActive: false } },
+  });
+  await tx.recurringTask.deleteMany({
+    where: { workTask: { isActive: false } },
+  });
+  await tx.supportRequest.updateMany({
+    where: { workTask: { isActive: false } },
+    data: { workTaskId: null },
+  });
+  await tx.workTask.deleteMany({ where: { isActive: false } });
+  await tx.serviceCategory.deleteMany({ where: { isActive: false } });
+}
+
+export async function purgeInactiveCatalogAction(confirmation: string) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    throw new Error("Unauthorized");
+  }
+
+  if (confirmation !== "PURGE_RETIRED_CATALOG") {
+    return { error: 'Type "PURGE_RETIRED_CATALOG" to confirm removal of retired catalog rows.' };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await purgeInactiveCatalog(tx);
+  });
+
+  revalidatePath("/admin/services");
+  revalidatePath("/portal/requests/new");
+  revalidatePath("/admin/clients");
+  return { message: "Retired catalog rows removed" };
+}
+
 async function insertCatalogV2(tx: Prisma.TransactionClient) {
   for (const cat of CATALOG_V2) {
     await tx.serviceCategory.create({
@@ -214,9 +251,11 @@ export async function replaceCatalogWithV2(confirmation: string) {
     await tx.workTask.updateMany({ data: { isActive: false } });
     await tx.serviceCategory.updateMany({ data: { isActive: false } });
     await insertCatalogV2(tx);
+    await purgeInactiveCatalog(tx);
   });
 
   revalidatePath("/admin/services");
   revalidatePath("/portal/requests/new");
-  return { message: "Catalog replaced with v2" };
+  revalidatePath("/admin/clients");
+  return { message: "Catalog replaced with v2; retired rows removed" };
 }

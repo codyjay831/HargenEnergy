@@ -7,6 +7,7 @@ import {
   toggleWorkTask, 
   seedInitialServices,
   replaceCatalogWithV2,
+  purgeInactiveCatalogAction,
   upsertServiceCategory,
   upsertWorkTask
 } from "@/app/actions/services";
@@ -278,7 +279,7 @@ export function ServiceManagement({ initialCategories }: ServiceManagementProps)
 
   const handleReplaceCatalog = async () => {
     const confirmation = window.prompt(
-      'Type REPLACE_CATALOG_V2 to deactivate old tasks and install the v2 catalog.',
+      'Type REPLACE_CATALOG_V2 to retire the current catalog, install v2, and permanently remove retired rows.',
     );
     if (!confirmation) return;
     startTransition(async () => {
@@ -292,6 +293,26 @@ export function ServiceManagement({ initialCategories }: ServiceManagementProps)
         }
       } catch {
         toast.error("Failed to replace catalog");
+      }
+    });
+  };
+
+  const handlePurgeRetiredCatalog = async () => {
+    const confirmation = window.prompt(
+      'Type PURGE_RETIRED_CATALOG to permanently delete all inactive categories and tasks (e.g. old v1 Battery).',
+    );
+    if (!confirmation) return;
+    startTransition(async () => {
+      try {
+        const result = await purgeInactiveCatalogAction(confirmation);
+        if ("error" in result && result.error) {
+          toast.error(result.error);
+        } else {
+          toast.success("message" in result ? result.message : "Retired catalog removed");
+          router.refresh();
+        }
+      } catch {
+        toast.error("Failed to remove retired catalog");
       }
     });
   };
@@ -324,6 +345,9 @@ export function ServiceManagement({ initialCategories }: ServiceManagementProps)
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={handlePurgeRetiredCatalog} disabled={isPending}>
+            Remove retired catalog
+          </Button>
           <Button variant="outline" size="sm" onClick={handleReplaceCatalog} disabled={isPending}>
             Replace with catalog v2
           </Button>
