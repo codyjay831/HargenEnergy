@@ -31,7 +31,7 @@ import { OnboardingWrapper } from "@/components/onboarding/OnboardingWrapper";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { formatIntakePlanLabel } from "@/lib/intake-plan";
 import { ClientSetupGuide } from "@/components/admin/ClientSetupGuide";
-import { deriveClientSetupReadiness } from "@/lib/client-setup-readiness";
+import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -121,50 +121,13 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
     walkthroughMetadata?.intakePlan === "one-time";
   const approvedWorkTaskCount = client.approvedWorkTasks.length;
   const planInterestLabel = formatIntakePlanLabel(walkthroughMetadata?.intakePlan);
-  const activeCatalogTaskIds = new Set(
-    catalogCategories.flatMap((category) => category.tasks.map((task) => task.id)),
-  );
-  const activeApprovedWorkTaskCount = client.approvedWorkTasks.filter((task) =>
-    activeCatalogTaskIds.has(task.workTaskId),
-  ).length;
-  const clientOpsRequestCount = await prisma.supportRequest.count({
-    where: {
-      clientId: client.id,
-      kind: SupportRequestKind.CLIENT_OPS,
-    },
-  });
-  const setupReadiness = deriveClientSetupReadiness({
-    clientId: client.id,
-    status: client.status,
-    engagementType: client.engagementType,
-    planType: client.planType,
-    weeklyHours: client.weeklyHours,
-    billingMode: client.billingMode,
-    billingOverrideReason: client.billingOverrideReason,
-    billingOverrideExpiresAt: client.billingOverrideExpiresAt,
-    billingOverrideCreatedAt: client.billingOverrideCreatedAt,
-    billingOverrideCreatedById: client.billingOverrideCreatedById,
-    stripeCustomerId: client.stripeCustomerId,
-    stripeSubscriptionId: client.stripeSubscriptionId,
-    subscriptionStatus: client.subscriptionStatus,
-    subscriptionCurrentPeriodEnd: client.subscriptionCurrentPeriodEnd,
-    approvedWorkTaskCount,
-    activeApprovedWorkTaskCount,
-    activeCatalogTaskCount: activeCatalogTaskIds.size,
-    clientPortalUserCount: client.users.length,
-    clientOpsRequestCount,
-    hasWalkthroughIntake: Boolean(latestWalkthrough),
-    systemAccessStatuses: client.systemAccesses.map((item) => item.status),
-    hrefs: {
-      adminClient: `/admin/clients/${client.id}`,
-      walkthrough: `/admin/clients/${client.id}?open=walkthrough`,
-      portalDashboard: "/portal",
-      portalAccount: "/portal/account",
-      portalAccess: "/portal/access",
-      portalNewRequest: "/portal/requests/new",
-      adminRequests: `/admin/requests?clientId=${client.id}`,
-    },
-  });
+  const setupReadinessResult = await getClientSetupReadiness(client.id);
+
+  if ("error" in setupReadinessResult) {
+    notFound();
+  }
+
+  const setupReadiness = setupReadinessResult;
 
   return (
     <div className="space-y-8">
@@ -193,7 +156,9 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
         </div>
       </div>
 
-      <ClientSetupGuide readiness={setupReadiness} />
+      <div id="setup-guide" className="scroll-mt-8">
+        <ClientSetupGuide readiness={setupReadiness} />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Status-Aware Layout */}
@@ -225,7 +190,7 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
                 latestWalkthroughRequest={latestWalkthrough}
               />
 
-              <Card>
+              <Card id="client-details" className="scroll-mt-8">
                 <CardHeader>
                   <CardTitle>Company Details</CardTitle>
                 </CardHeader>
@@ -266,15 +231,21 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
                 </CardContent>
               </Card>
 
-              <ClientEngagementManager
-                clientId={client.id}
-                engagementType={client.engagementType}
-                approvedWorkTaskIds={client.approvedWorkTasks.map((a) => a.workTaskId)}
-                categories={catalogCategories}
-                walkthroughPlanRequestBased={walkthroughPlanRequestBased}
-              />
+              <div id="engagement" className="scroll-mt-8">
+                <ClientEngagementManager
+                  clientId={client.id}
+                  engagementType={client.engagementType}
+                  approvedWorkTaskIds={client.approvedWorkTasks.map((a) => a.workTaskId)}
+                  categories={catalogCategories}
+                  walkthroughPlanRequestBased={walkthroughPlanRequestBased}
+                />
+              </div>
 
-              <Card className="border-amber-200 bg-amber-50/40">
+              <div id="system-access" className="scroll-mt-8">
+                {renderSystemAccess(client)}
+              </div>
+
+              <Card id="activation" className="scroll-mt-8 border-amber-200 bg-amber-50/40">
                 <CardHeader>
                   <CardTitle>Activation</CardTitle>
                 </CardHeader>
@@ -291,8 +262,12 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
           <>
             {/* Active Client View: Delivery Tools */}
             <div className="lg:col-span-2 space-y-8">
-              {renderCompanyDetailsCard(client)}
-              {renderRecentRequests(client)}
+              <div id="client-details" className="scroll-mt-8">
+                {renderCompanyDetailsCard(client)}
+              </div>
+              <div id="work-requests" className="scroll-mt-8">
+                {renderRecentRequests(client)}
+              </div>
               <Card>
                 <CardHeader>
                   <CardTitle>Internal Notes</CardTitle>
@@ -306,20 +281,28 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
             </div>
 
             <div className="space-y-8">
-              <ClientEngagementManager
-                clientId={client.id}
-                engagementType={client.engagementType}
-                approvedWorkTaskIds={client.approvedWorkTasks.map((a) => a.workTaskId)}
-                categories={catalogCategories}
-                walkthroughPlanRequestBased={walkthroughPlanRequestBased}
-              />
+              <div id="engagement" className="scroll-mt-8">
+                <ClientEngagementManager
+                  clientId={client.id}
+                  engagementType={client.engagementType}
+                  approvedWorkTaskIds={client.approvedWorkTasks.map((a) => a.workTaskId)}
+                  categories={catalogCategories}
+                  walkthroughPlanRequestBased={walkthroughPlanRequestBased}
+                />
+              </div>
               {client.engagementType === EngagementType.SUPPORT_BLOCK && renderUsageCard(client, usage)}
               {renderTimeLogging(client)}
               {renderClientOpsLogging(client)}
-              {renderSystemAccess(client)}
+              <div id="system-access" className="scroll-mt-8">
+                {renderSystemAccess(client)}
+              </div>
               {renderBranding(client)}
-              {renderBilling(client)}
-              {renderPortalAccess(client)}
+              <div id="billing" className="scroll-mt-8">
+                {renderBilling(client)}
+              </div>
+              <div id="portal-access" className="scroll-mt-8">
+                {renderPortalAccess(client)}
+              </div>
             </div>
           </>
         )}

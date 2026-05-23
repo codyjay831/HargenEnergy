@@ -105,16 +105,47 @@ export type DeriveClientSetupReadinessInput = {
   clientOpsRequestCount: number;
   hasWalkthroughIntake: boolean;
   systemAccessStatuses: SystemAccessStatus[];
-  hrefs: {
-    adminClient: string;
-    walkthrough: string;
-    portalDashboard: string;
-    portalAccount: string;
-    portalAccess: string;
-    portalNewRequest: string;
-    adminRequests: string;
-  };
+  hrefs: SetupGuideHrefs;
 };
+
+export type SetupGuideHrefs = {
+  adminClient: string;
+  walkthrough: string;
+  activation: string;
+  engagement: string;
+  approvedWork: string;
+  billing: string;
+  systemAccess: string;
+  portalAccessAdmin: string;
+  workRequests: string;
+  clientDetails: string;
+  portalDashboard: string;
+  portalAccount: string;
+  portalAccess: string;
+  portalNewRequest: string;
+  adminRequests: string;
+};
+
+export function buildSetupGuideHrefs(clientId: string): SetupGuideHrefs {
+  const adminBase = `/admin/clients/${clientId}`;
+  return {
+    adminClient: adminBase,
+    walkthrough: `${adminBase}?open=walkthrough`,
+    activation: `${adminBase}#activation`,
+    engagement: `${adminBase}#engagement`,
+    approvedWork: `${adminBase}#approved-work`,
+    billing: `${adminBase}#billing`,
+    systemAccess: `${adminBase}#system-access`,
+    portalAccessAdmin: `${adminBase}#portal-access`,
+    workRequests: `${adminBase}#work-requests`,
+    clientDetails: `${adminBase}#client-details`,
+    portalDashboard: "/portal",
+    portalAccount: "/portal/account",
+    portalAccess: "/portal/access",
+    portalNewRequest: "/portal/requests/new",
+    adminRequests: `/admin/requests?clientId=${clientId}`,
+  };
+}
 
 function describeSystemAccess(
   statuses: SystemAccessStatus[],
@@ -295,7 +326,7 @@ export function deriveClientSetupReadiness(
       blockers: ["informational"],
       required: true,
       actionLabel: "View client",
-      actionHref: input.hrefs.adminClient,
+      actionHref: input.hrefs.clientDetails,
       adminOnly: true,
       customerVisible: false,
     },
@@ -325,7 +356,7 @@ export function deriveClientSetupReadiness(
       blockers: ["blocks_invite", "blocks_submit"],
       required: true,
       actionLabel: "Open activation controls",
-      actionHref: input.hrefs.adminClient,
+      actionHref: input.hrefs.activation,
       adminOnly: true,
       customerVisible: false,
     },
@@ -341,7 +372,7 @@ export function deriveClientSetupReadiness(
       blockers: ["informational"],
       required: true,
       actionLabel: "Configure engagement",
-      actionHref: input.hrefs.adminClient,
+      actionHref: input.hrefs.engagement,
       adminOnly: true,
       customerVisible: false,
     },
@@ -362,7 +393,7 @@ export function deriveClientSetupReadiness(
           : ["blocks_invite", "blocks_submit"],
       required: input.engagementType === EngagementType.SUPPORT_BLOCK,
       actionLabel: "Configure approved work",
-      actionHref: input.hrefs.adminClient,
+      actionHref: input.hrefs.approvedWork,
       adminOnly: true,
       customerVisible: false,
     },
@@ -385,7 +416,7 @@ export function deriveClientSetupReadiness(
       blockers: ["informational"],
       required: input.engagementType === EngagementType.SUPPORT_BLOCK,
       actionLabel: "Review billing and plan",
-      actionHref: input.hrefs.adminClient,
+      actionHref: input.hrefs.billing,
       adminOnly: true,
       customerVisible: false,
     },
@@ -411,7 +442,7 @@ export function deriveClientSetupReadiness(
         input.engagementType === EngagementType.SUPPORT_BLOCK
           ? "Set billing"
           : "View billing details",
-      actionHref: input.hrefs.adminClient,
+      actionHref: input.hrefs.billing,
       adminOnly: true,
       customerVisible: true,
     },
@@ -436,7 +467,7 @@ export function deriveClientSetupReadiness(
       blockers: ["informational"],
       required: false,
       actionLabel: "Manage system access",
-      actionHref: input.hrefs.adminClient,
+      actionHref: input.hrefs.systemAccess,
       adminOnly: true,
       customerVisible: false,
     },
@@ -451,7 +482,7 @@ export function deriveClientSetupReadiness(
       blockers: ["blocks_invite"],
       required: true,
       actionLabel: "Send portal invite",
-      actionHref: input.hrefs.adminClient,
+      actionHref: input.hrefs.portalAccessAdmin,
       adminOnly: true,
       customerVisible: false,
     },
@@ -741,14 +772,6 @@ export async function getClientSetupReadiness(
     clientOpsRequestCount,
     hasWalkthroughIntake: hasWalkthrough > 0,
     systemAccessStatuses: client.systemAccesses.map((record) => record.status),
-    hrefs: {
-      adminClient: `/admin/clients/${clientId}`,
-      walkthrough: `/admin/clients/${clientId}?open=walkthrough`,
-      portalDashboard: "/portal",
-      portalAccount: "/portal/account",
-      portalAccess: "/portal/access",
-      portalNewRequest: "/portal/requests/new",
-      adminRequests: `/admin/requests?clientId=${clientId}`,
-    },
+    hrefs: buildSetupGuideHrefs(clientId),
   });
 }

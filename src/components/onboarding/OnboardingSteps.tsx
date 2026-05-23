@@ -1,27 +1,19 @@
 /**
- * OnboardingSteps Component
- *
- * Reusable 4-step onboarding workflow:
- * 1. Qualify (linked walkthrough)
- * 2. Activate client
- * 3. Set up billing (Support Block) or pricing model (Request-Based Work)
- * 4. Send portal access
+ * Setup action forms for prospect clients.
+ * Progress is owned by ClientSetupGuide — this card exposes inline actions only.
  */
 
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Check, Circle, Link as LinkIcon, Building2, CreditCard, Mail } from "lucide-react";
+import { Link as LinkIcon, CreditCard, Mail } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ClientStatus, RequestStatus } from "@/lib/enums";
 import { ClientPlanType } from "@/lib/billing-options";
-import { ActivateClientButton } from "@/components/forms/ActivateClientButton";
 import { ClientBillingManager } from "@/components/forms/ClientBillingManager";
 import { ClientPortalAccessManager } from "@/components/forms/ClientPortalAccessManager";
 import { getQualificationStatusLabel } from "@/lib/request-lifecycle";
-import { cn } from "@/lib/utils";
 import { BillingMode, EngagementType } from "@/generated/prisma/client";
 import { checkPortalInviteReadinessByCount } from "@/lib/engagement";
 import { getClientBillingReadiness } from "@/lib/client-billing-readiness";
@@ -55,14 +47,6 @@ interface OnboardingStepsProps {
   } | null;
 }
 
-interface Step {
-  number: number;
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  status: "complete" | "current" | "upcoming";
-}
-
 export function OnboardingSteps({
   client,
   walkthroughPlanRequestBased,
@@ -74,7 +58,6 @@ export function OnboardingSteps({
     client.engagementType === EngagementType.REQUEST_BASED ||
     (walkthroughPlanRequestBased &&
       client.engagementType === EngagementType.SUPPORT_BLOCK);
-  const hasPortalAccess = client.users.length > 0;
   const billing = getClientBillingReadiness({
     engagementType: client.engagementType,
     billingMode: client.billingMode,
@@ -86,10 +69,8 @@ export function OnboardingSteps({
     stripeSubscriptionId: client.stripeSubscriptionId,
     subscriptionStatus: client.subscriptionStatus,
   });
-  // Preserve existing onboarding step unlock semantics (any truthy subscriptionStatus).
-  const billingStepComplete = isRequestBased
-    ? true
-    : Boolean(client.subscriptionStatus);
+  const billingStepComplete =
+    billing.status === "healthy" || billing.status === "not_required";
   const scopeReadiness = checkPortalInviteReadinessByCount(
     client.engagementType,
     client.approvedWorkTaskCount,
@@ -106,183 +87,129 @@ export function OnboardingSteps({
     router.push(url.pathname + url.search);
   };
 
-  const steps: Step[] = [
-    {
-      number: 1,
-      title: "Qualify",
-      description: latestWalkthroughRequest
-        ? getQualificationStatusLabel(latestWalkthroughRequest.status)
-        : "No walkthrough request yet",
-      icon: <LinkIcon className="h-5 w-5" />,
-      status: latestWalkthroughRequest ? "complete" : "current",
-    },
-    {
-      number: 2,
-      title: "Activate Client",
-      description: isActive
-        ? "Client is active"
-        : "Mark active after walkthrough, contract, and payment",
-      icon: <Building2 className="h-5 w-5" />,
-      status: isActive ? "complete" : latestWalkthroughRequest ? "current" : "upcoming",
-    },
-    {
-      number: 3,
-      title: isRequestBased ? "Pricing model" : "Set up billing",
-      description: billing.description,
-      icon: <CreditCard className="h-5 w-5" />,
-      status: billingStepComplete ? "complete" : isActive ? "current" : "upcoming",
-    },
-    {
-      number: 4,
-      title: "Send portal access",
-      description: hasPortalAccess
-        ? `${client.users.length} user(s) invited`
-        : "Send portal invite after activation",
-      icon: <Mail className="h-5 w-5" />,
-      status: hasPortalAccess
-        ? "complete"
-        : isActive && billingStepComplete
-          ? "current"
-          : "upcoming",
-    },
-  ];
-
   return (
     <Card className="border-primary/20">
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>Onboarding Progress</CardTitle>
-          <Badge variant={isActive ? "default" : "secondary"}>
-            {isActive ? "Active" : "Prospect"}
-          </Badge>
-        </div>
+        <CardTitle>Setup actions</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Use Guided setup above for progress. Complete the actions below as needed.
+        </p>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="space-y-6">
-          {steps.map((step, index) => (
-            <div key={step.number} className="relative flex gap-4">
-              {index < steps.length - 1 && (
-                <div className="absolute left-[19px] top-[40px] h-[calc(100%+8px)] w-0.5 bg-border" />
-              )}
-
-              <div
-                className={cn(
-                  "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2",
-                  step.status === "complete"
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : step.status === "current"
-                      ? "border-primary bg-background text-primary"
-                      : "border-muted-foreground/30 bg-background text-muted-foreground",
-                )}
-              >
-                {step.status === "complete" ? (
-                  <Check className="h-5 w-5" />
-                ) : (
-                  <Circle className="h-2 w-2 fill-current" />
-                )}
-              </div>
-
-              <div className="flex-1 pt-1">
-                <div className="flex items-center justify-between mb-1">
-                  <h4 className="text-sm font-semibold">{step.title}</h4>
-                  {step.status === "upcoming" && (
-                    <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
-                      Locked
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mb-3">{step.description}</p>
-
-                {step.number === 1 && latestWalkthroughRequest && (
-                  <Button
-                    variant="link"
-                    size="sm"
-                    onClick={handleOpenWalkthrough}
-                    className="h-auto p-0 text-xs font-medium"
-                  >
-                    Review walkthrough →
-                  </Button>
-                )}
-
-                {step.number === 2 && !isActive && latestWalkthroughRequest && (
-                  <ActivateClientButton clientId={client.id} />
-                )}
-
-                {step.number === 3 && isActive && !isRequestBased && (
-                  <ClientBillingManager
-                    clientId={client.id}
-                    engagementType={client.engagementType}
-                    billingMode={client.billingMode}
-                    billingOverrideReason={client.billingOverrideReason}
-                    billingOverrideExpiresAt={client.billingOverrideExpiresAt}
-                    billingOverrideCreatedAt={client.billingOverrideCreatedAt}
-                    billingOverrideCreatedById={client.billingOverrideCreatedById}
-                    currentPlan={client.planType as ClientPlanType}
-                    stripeCustomerId={client.stripeCustomerId ?? null}
-                    stripeSubscriptionId={client.stripeSubscriptionId ?? null}
-                    subscriptionStatus={client.subscriptionStatus ?? null}
-                  />
-                )}
-
-                {step.number === 3 && isActive && isRequestBased && (
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    {billing.description}
-                  </p>
-                )}
-
-                {step.number === 4 && (isActive || client.status === ClientStatus.LEAD) && (
-                  <ClientPortalAccessManager
-                    clientId={client.id}
-                    clientStatus={client.status as ClientStatus}
-                    engagementType={client.engagementType}
-                    approvedWorkTaskCount={client.approvedWorkTaskCount}
-                    defaultEmail={client.email}
-                    defaultName={client.contactName}
-                    users={client.users}
-                  />
-                )}
-
-                {step.number === 4 && needsScopeBeforeInvite && (
-                  <p className="text-xs text-muted-foreground italic mt-2">
-                    Configure approved support areas, then send portal invite.
-                  </p>
-                )}
-
-                {step.number === 2 && !latestWalkthroughRequest && (
-                  <p className="text-xs text-muted-foreground italic">
-                    Waiting for walkthrough request
-                  </p>
-                )}
-
-                {step.number === 3 && !isActive && (
-                  <p className="text-xs text-muted-foreground italic">Activate client first</p>
-                )}
-
-                {step.number === 4 && !isActive && (
-                  <p className="text-xs text-muted-foreground italic">
-                    {isRequestBased
-                      ? "Complete activation first"
-                      : "Complete activation and billing first"}
-                  </p>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="pt-4 border-t">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">
-              {steps.filter((s) => s.status === "complete").length} of {steps.length} steps
-              complete
-            </span>
-            {isActive && hasPortalAccess && (
-              <Badge variant="default" className="text-[10px]">
-                Onboarding complete
-              </Badge>
-            )}
+      <CardContent className="space-y-8">
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <LinkIcon className="h-4 w-4 text-primary" aria-hidden />
+            <h3 className="text-sm font-semibold">Qualify</h3>
           </div>
-        </div>
+          <p className="text-sm text-muted-foreground">
+            {latestWalkthroughRequest
+              ? getQualificationStatusLabel(latestWalkthroughRequest.status)
+              : "No walkthrough request yet."}
+          </p>
+          {latestWalkthroughRequest ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenWalkthrough}
+            >
+              Review walkthrough
+            </Button>
+          ) : (
+            <p className="text-xs text-muted-foreground italic">
+              Waiting for walkthrough request.
+            </p>
+          )}
+        </section>
+
+        {!isActive && (
+          <section className="space-y-2 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+            <p>
+              Activation controls are in the sidebar under{" "}
+              <a href="#activation" className="font-medium text-primary underline-offset-4 hover:underline">
+                Activation
+              </a>
+              .
+            </p>
+          </section>
+        )}
+
+        <section id="billing" className="scroll-mt-8 space-y-3">
+          <div className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4 text-primary" aria-hidden />
+            <h3 className="text-sm font-semibold">
+              {isRequestBased ? "Pricing model" : "Set up billing"}
+            </h3>
+          </div>
+          <p className="text-sm text-muted-foreground">{billing.description}</p>
+
+          {isActive && !isRequestBased && (
+            <ClientBillingManager
+              clientId={client.id}
+              engagementType={client.engagementType}
+              billingMode={client.billingMode}
+              billingOverrideReason={client.billingOverrideReason}
+              billingOverrideExpiresAt={client.billingOverrideExpiresAt}
+              billingOverrideCreatedAt={client.billingOverrideCreatedAt}
+              billingOverrideCreatedById={client.billingOverrideCreatedById}
+              currentPlan={client.planType as ClientPlanType}
+              stripeCustomerId={client.stripeCustomerId ?? null}
+              stripeSubscriptionId={client.stripeSubscriptionId ?? null}
+              subscriptionStatus={client.subscriptionStatus ?? null}
+            />
+          )}
+
+          {isActive && isRequestBased && (
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Request-Based Work clients are priced per request after review.
+            </p>
+          )}
+
+          {!isActive && (
+            <p className="text-xs text-muted-foreground italic">Activate the client first.</p>
+          )}
+        </section>
+
+        <section id="portal-access" className="scroll-mt-8 space-y-3">
+          <div className="flex items-center gap-2">
+            <Mail className="h-4 w-4 text-primary" aria-hidden />
+            <h3 className="text-sm font-semibold">Send portal access</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {client.users.length > 0
+              ? `${client.users.length} user(s) invited.`
+              : "Send a portal invite after activation and billing are ready."}
+          </p>
+
+          {(isActive || client.status === ClientStatus.LEAD) && (
+            <ClientPortalAccessManager
+              clientId={client.id}
+              clientStatus={client.status as ClientStatus}
+              engagementType={client.engagementType}
+              approvedWorkTaskCount={client.approvedWorkTaskCount}
+              defaultEmail={client.email}
+              defaultName={client.contactName}
+              users={client.users}
+            />
+          )}
+
+          {needsScopeBeforeInvite && (
+            <p className="text-xs text-muted-foreground italic">
+              Configure approved support areas in{" "}
+              <a href="#approved-work" className="font-medium text-primary underline-offset-4 hover:underline">
+                Engagement & approved work
+              </a>
+              , then send the portal invite.
+            </p>
+          )}
+
+          {!isActive && (
+            <p className="text-xs text-muted-foreground italic">
+              {isRequestBased
+                ? "Complete activation first."
+                : "Complete activation and billing first."}
+            </p>
+          )}
+        </section>
       </CardContent>
     </Card>
   );

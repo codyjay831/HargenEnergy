@@ -125,7 +125,7 @@ export function ClientEngagementManager({
         </div>
 
         {engagementType === EngagementType.SUPPORT_BLOCK ? (
-          <div className="space-y-4 max-h-[360px] overflow-y-auto border rounded-md p-4">
+          <div id="approved-work" className="space-y-4 max-h-[360px] overflow-y-auto border rounded-md p-4 scroll-mt-8">
             {categories.length === 0 ? (
               <p className="text-sm text-muted-foreground italic">
                 No active work types in catalog. Run catalog v2 seed first.

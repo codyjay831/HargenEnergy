@@ -19,11 +19,11 @@ import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { EngagementType, Role, SupportRequestKind } from "@/generated/prisma/client";
+import { EngagementType } from "@/generated/prisma/client";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { isRequestBasedPricingComplete } from "@/lib/engagement";
 import { getClientPortalSupportSetup } from "@/lib/portal-support";
-import { deriveClientSetupReadiness } from "@/lib/client-setup-readiness";
+import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
 import { PortalSetupGuide } from "@/components/portal/PortalSetupGuide";
 
 export const dynamic = "force-dynamic";
@@ -51,12 +51,6 @@ export default async function PortalDashboard() {
           }
         }
       },
-      systemAccesses: true,
-      users: {
-        where: { role: Role.CLIENT },
-        select: { id: true },
-      },
-      approvedWorkTasks: { select: { workTaskId: true } },
     }
   });
 
@@ -65,6 +59,7 @@ export default async function PortalDashboard() {
   }
 
   const supportSetup = await getClientPortalSupportSetup(clientId);
+  const setupReadinessResult = await getClientSetupReadiness(clientId);
   const setupBlocked = !("error" in supportSetup) && !supportSetup.canSubmit;
 
   const isSupportBlock = client.engagementType === EngagementType.SUPPORT_BLOCK;
@@ -94,52 +89,6 @@ export default async function PortalDashboard() {
   const pendingPricingRequests = isRequestBased
     ? client.requests.filter((r) => !isRequestBasedPricingComplete(r))
     : [];
-  const activeCatalogTaskCount =
-    !("error" in supportSetup)
-      ? supportSetup.categories.reduce((total, category) => total + category.tasks.length, 0)
-      : 0;
-  const activeApprovedWorkTaskCount =
-    isSupportBlock && !("error" in supportSetup)
-      ? activeCatalogTaskCount
-      : 0;
-  const clientOpsRequestCount = await prisma.supportRequest.count({
-    where: {
-      clientId,
-      kind: SupportRequestKind.CLIENT_OPS,
-    },
-  });
-  const setupReadiness = deriveClientSetupReadiness({
-    clientId: client.id,
-    status: client.status,
-    engagementType: client.engagementType,
-    planType: client.planType,
-    weeklyHours: client.weeklyHours,
-    billingMode: client.billingMode,
-    billingOverrideReason: client.billingOverrideReason,
-    billingOverrideExpiresAt: client.billingOverrideExpiresAt,
-    billingOverrideCreatedAt: client.billingOverrideCreatedAt,
-    billingOverrideCreatedById: client.billingOverrideCreatedById,
-    stripeCustomerId: client.stripeCustomerId,
-    stripeSubscriptionId: client.stripeSubscriptionId,
-    subscriptionStatus: client.subscriptionStatus,
-    subscriptionCurrentPeriodEnd: client.subscriptionCurrentPeriodEnd,
-    approvedWorkTaskCount: client.approvedWorkTasks.length,
-    activeApprovedWorkTaskCount,
-    activeCatalogTaskCount,
-    clientPortalUserCount: client.users.length,
-    clientOpsRequestCount,
-    hasWalkthroughIntake: client.status === "LEAD",
-    systemAccessStatuses: client.systemAccesses.map((item) => item.status),
-    hrefs: {
-      adminClient: `/admin/clients/${client.id}`,
-      walkthrough: `/admin/clients/${client.id}?open=walkthrough`,
-      portalDashboard: "/portal",
-      portalAccount: "/portal/account",
-      portalAccess: "/portal/access",
-      portalNewRequest: "/portal/requests/new",
-      adminRequests: `/admin/requests?clientId=${client.id}`,
-    },
-  });
 
   const stats = isSupportBlock
     ? [
@@ -235,7 +184,9 @@ export default async function PortalDashboard() {
         </div>
       )}
 
-      <PortalSetupGuide readiness={setupReadiness} />
+      {!("error" in setupReadinessResult) && (
+        <PortalSetupGuide readiness={setupReadinessResult} />
+      )}
 
       {isRequestBased && pendingPricingRequests.length > 0 && (
         <Card className="border-amber-200 bg-amber-50/40">
