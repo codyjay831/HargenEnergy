@@ -4,6 +4,10 @@ import {
   getBillingBadgeVariant,
   getClientBillingReadiness,
 } from "@/lib/client-billing-readiness";
+import {
+  getAdminBillingListLabel,
+  hasStoredStripeBillingData,
+} from "@/lib/client-billing-mode";
 
 type BillingStatusBadgeProps = {
   engagementType: EngagementType;
@@ -43,7 +47,19 @@ export function BillingStatusBadge({
     subscriptionCurrentPeriodEnd,
   });
 
+  const showStripeDataNote =
+    billing.billingMode !== BillingMode.STRIPE && hasStoredStripeBillingData(billing);
+
   return (
-    <Badge variant={getBillingBadgeVariant(billing)}>{billing.statusLabel}</Badge>
+    <div className="flex flex-col gap-0.5">
+      <Badge variant={getBillingBadgeVariant(billing)} title={billing.description}>
+        {getAdminBillingListLabel(billing)}
+      </Badge>
+      {showStripeDataNote && (
+        <span className="text-[10px] leading-tight text-muted-foreground">
+          Stripe data on file
+        </span>
+      )}
+    </div>
   );
 }

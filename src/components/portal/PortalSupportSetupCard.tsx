@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { CreditCard } from "lucide-react";
 import { PortalBillingPortalButton } from "@/components/forms/PortalBillingPortalButton";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
+import { BillingMode } from "@/generated/prisma/client";
 import type { ClientPortalSupportSetup } from "@/lib/portal-support";
 import {
   getBillingBadgeVariant,
@@ -92,16 +93,17 @@ export function PortalSupportSetupCard({ setup }: PortalSupportSetupCardProps) {
               )}
             </div>
 
-            {setup.stripeCustomerId ? (
-              <PortalBillingPortalButton />
-            ) : (
-              <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Retainer billing will appear here after your account manager enables Stripe
-                  billing.
-                </p>
-              </div>
-            )}
+            {setup.billingMode === BillingMode.STRIPE &&
+              (setup.stripeCustomerId ? (
+                <PortalBillingPortalButton />
+              ) : (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs leading-relaxed text-slate-600">
+                    Retainer billing will appear here after your account manager enables Stripe
+                    billing.
+                  </p>
+                </div>
+              ))}
           </>
         )}
 

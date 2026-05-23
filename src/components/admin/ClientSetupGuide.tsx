@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { BillingMode } from "@/generated/prisma/client";
+import { getAdminBillingModeHeadline } from "@/lib/client-billing-mode";
 import type {
   ClientSetupReadiness,
   ClientSetupStep,
@@ -45,7 +47,10 @@ export function ClientSetupGuide({ readiness }: { readiness: ClientSetupReadines
             {readiness.canSubmitPortalWork ? "Submit ready" : "Submit blocked"}
           </Badge>
           <Badge variant={readiness.billingReady ? "outline" : "secondary"}>
-            Billing: {readiness.billing.statusLabel}
+            Billing:{" "}
+            {readiness.billing.billingMode !== BillingMode.STRIPE
+              ? getAdminBillingModeHeadline(readiness.billing)
+              : readiness.billing.statusLabel}
           </Badge>
         </div>
         {readiness.blockingMessages.length > 0 && (

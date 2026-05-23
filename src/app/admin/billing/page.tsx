@@ -13,7 +13,7 @@ import {
 import { ExternalLink, AlertTriangle } from "lucide-react";
 import { calculateWeeklyUsage } from "@/lib/usage";
 import { cn } from "@/lib/utils";
-import { OverflowStatus, EngagementType } from "@/generated/prisma/client";
+import { OverflowStatus, BillingMode, EngagementType } from "@/generated/prisma/client";
 import { BillingStatusBadge } from "@/components/admin/BillingStatusBadge";
 
 export const dynamic = "force-dynamic";
@@ -54,17 +54,35 @@ export default async function AdminBilling() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-lg border shadow-sm">
           <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Active Subscriptions</p>
-          <p className="text-3xl font-bold mt-2">{clients.filter(c => c.subscriptionStatus === "active").length}</p>
+          <p className="text-3xl font-bold mt-2">
+            {clients.filter(
+              (c) =>
+                c.billingMode === BillingMode.STRIPE && c.subscriptionStatus === "active",
+            ).length}
+          </p>
         </div>
         <div className="bg-white p-6 rounded-lg border shadow-sm">
           <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Total Weekly Hours</p>
           <p className="text-3xl font-bold mt-2">
-            {clients.reduce((acc, c) => acc + (c.subscriptionStatus === "active" ? c.weeklyHours : 0), 0)}
+            {clients.reduce(
+              (acc, c) =>
+                acc +
+                (c.billingMode === BillingMode.STRIPE && c.subscriptionStatus === "active"
+                  ? c.weeklyHours
+                  : 0),
+              0,
+            )}
           </p>
         </div>
         <div className="bg-white p-6 rounded-lg border shadow-sm">
           <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Pending Checkout</p>
-          <p className="text-3xl font-bold mt-2">{clients.filter(c => !c.subscriptionStatus).length}</p>
+          <p className="text-3xl font-bold mt-2">
+            {
+              clients.filter(
+                (c) => c.billingMode === BillingMode.STRIPE && !c.subscriptionStatus,
+              ).length
+            }
+          </p>
         </div>
       </div>
 
@@ -136,9 +154,20 @@ export default async function AdminBilling() {
                       />
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {client.subscriptionCurrentPeriodEnd 
-                        ? format(new Date(client.subscriptionCurrentPeriodEnd), "MMM d, yyyy")
-                        : "-"}
+                      {client.billingMode !== BillingMode.STRIPE ? (
+                        client.billingOverrideExpiresAt ? (
+                          <span title="Billing mode override expiration">
+                            Override:{" "}
+                            {format(new Date(client.billingOverrideExpiresAt), "MMM d, yyyy")}
+                          </span>
+                        ) : (
+                          "-"
+                        )
+                      ) : client.subscriptionCurrentPeriodEnd ? (
+                        format(new Date(client.subscriptionCurrentPeriodEnd), "MMM d, yyyy")
+                      ) : (
+                        "-"
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <Link 

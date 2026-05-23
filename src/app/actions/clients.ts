@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { auth } from "@/auth";
 import {
+  BillingMode,
   ClientStatus,
   EngagementType,
   RequestStatus,
@@ -13,6 +14,7 @@ import {
   SupportRequestSource,
   Urgency,
 } from "@/generated/prisma/client";
+import { validateClientBillingModeUpdate } from "@/lib/client-billing-mode";
 import { prisma } from "@/lib/prisma";
 import {
   assertWorkTaskAllowedForClient,
@@ -28,6 +30,61 @@ async function requireAdmin() {
     throw new Error("Unauthorized. Admin access required.");
   }
   return session;
+}
+
+export async function updateClientBillingMode(data: {
+  clientId: string;
+  billingMode: string;
+  reason?: string | null;
+  expiresAt?: string | null;
+}) {
+  const session = await requireAdmin();
+
+  const validated = validateClientBillingModeUpdate(data);
+  if (!validated.ok) {
+    return { error: validated.error };
+  }
+
+  const client = await prisma.client.findUnique({ where: { id: data.clientId } });
+  if (!client) {
+    return { error: "Client not found." };
+  }
+
+  const { billingMode, billingOverrideReason, billingOverrideExpiresAt } = validated.data;
+  const now = new Date();
+
+  try {
+    const updated = await prisma.client.update({
+      where: { id: data.clientId },
+      data:
+        billingMode === BillingMode.STRIPE
+          ? {
+              billingMode: BillingMode.STRIPE,
+              billingOverrideReason: null,
+              billingOverrideExpiresAt: null,
+              billingOverrideCreatedAt: null,
+              billingOverrideCreatedById: null,
+            }
+          : {
+              billingMode,
+              billingOverrideReason,
+              billingOverrideExpiresAt,
+              billingOverrideCreatedAt: now,
+              billingOverrideCreatedById: session.user.id,
+            },
+    });
+
+    revalidatePath("/admin/clients");
+    revalidatePath("/admin/billing");
+    revalidatePath(`/admin/clients/${data.clientId}`);
+    revalidatePath("/portal");
+    revalidatePath("/portal/account");
+
+    return { success: true, client: updated };
+  } catch (error) {
+    console.error("Error updating client billing mode:", error);
+    return { error: "Failed to update billing mode." };
+  }
 }
 
 export async function activateClient(clientId: string) {

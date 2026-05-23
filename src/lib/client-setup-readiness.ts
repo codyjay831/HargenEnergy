@@ -12,6 +12,7 @@ import {
   type ClientBillingReadiness,
   getClientBillingReadiness,
 } from "@/lib/client-billing-readiness";
+import { getAdminBillingModeHeadline } from "@/lib/client-billing-mode";
 
 export type SetupStepOwner = "admin" | "customer" | "system" | "stripe";
 export type SetupStepStatus =
@@ -391,8 +392,11 @@ export function deriveClientSetupReadiness(
     {
       id: "billing",
       title: "Billing readiness",
-      description: billing.description,
-      owner: "stripe",
+      description:
+        billing.billingMode !== BillingMode.STRIPE
+          ? `${getAdminBillingModeHeadline(billing)}. ${billing.description}`
+          : billing.description,
+      owner: billing.billingMode !== BillingMode.STRIPE ? "admin" : "stripe",
       status:
         billing.status === "healthy"
           ? "complete"
@@ -534,7 +538,12 @@ export function deriveClientSetupReadiness(
           : billing.status === "not_started"
             ? "Billing setup is still pending with Hargen."
             : billing.customerDescription,
-      owner: billing.status === "not_started" ? "admin" : "stripe",
+      owner:
+        billing.status === "not_started"
+          ? "admin"
+          : billing.billingMode !== BillingMode.STRIPE
+            ? "admin"
+            : "stripe",
       status:
         billing.status === "healthy"
           ? "complete"

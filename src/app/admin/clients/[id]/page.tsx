@@ -40,6 +40,7 @@ interface ClientDetailPageProps {
 }
 
 type ClientWithRelations = Client & {
+  billingOverrideCreatedBy?: { name: string | null; email: string } | null;
   users: { id: string; email: string; name: string | null }[];
   systemAccesses: ClientSystemAccess[];
   requests: SupportRequest[];
@@ -58,6 +59,9 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
   const client = await prisma.client.findUnique({
     where: { id },
     include: {
+      billingOverrideCreatedBy: {
+        select: { name: true, email: true },
+      },
       users: {
         where: { role: Role.CLIENT },
         select: { id: true, email: true, name: true },
@@ -545,7 +549,12 @@ function renderBranding(client: Client) {
   );
 }
 
-function renderBilling(client: Client & { engagementType: EngagementType }) {
+function renderBilling(
+  client: Client & {
+    engagementType: EngagementType;
+    billingOverrideCreatedBy?: { name: string | null; email: string } | null;
+  },
+) {
   const isRequestBased = client.engagementType === EngagementType.REQUEST_BASED;
 
   return (
@@ -571,6 +580,8 @@ function renderBilling(client: Client & { engagementType: EngagementType }) {
               billingOverrideExpiresAt={client.billingOverrideExpiresAt}
               billingOverrideCreatedAt={client.billingOverrideCreatedAt}
               billingOverrideCreatedById={client.billingOverrideCreatedById}
+              billingOverrideCreatedByName={client.billingOverrideCreatedBy?.name}
+              billingOverrideCreatedByEmail={client.billingOverrideCreatedBy?.email}
               currentPlan={client.planType}
               subscriptionStatus={client.subscriptionStatus}
               stripeCustomerId={client.stripeCustomerId}
