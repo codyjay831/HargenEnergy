@@ -127,6 +127,8 @@ export async function updateClientEngagement(data: {
     revalidatePath("/admin/clients");
     revalidatePath(`/admin/clients/${clientId}`);
     revalidatePath("/portal/requests/new");
+    revalidatePath("/portal/account");
+    revalidatePath("/portal");
 
     return {
       success: true,

@@ -25,6 +25,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { EngagementType } from "@/generated/prisma/client";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { isRequestBasedPricingComplete } from "@/lib/engagement";
+import { getClientPortalSupportSetup } from "@/lib/portal-support";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,9 @@ export default async function PortalDashboard() {
   if (!client) {
     return <div>Client not found.</div>;
   }
+
+  const supportSetup = await getClientPortalSupportSetup(clientId);
+  const setupBlocked = !("error" in supportSetup) && !supportSetup.canSubmit;
 
   const isSupportBlock = client.engagementType === EngagementType.SUPPORT_BLOCK;
   const isRequestBased = client.engagementType === EngagementType.REQUEST_BASED;
@@ -166,6 +170,22 @@ export default async function PortalDashboard() {
           Send work as needed. Hargen reviews each request and confirms pricing before work
           continues.
         </p>
+      )}
+
+      {setupBlocked && !("error" in supportSetup) && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 text-sm -mt-4">
+          <p className="font-semibold">{PRODUCT_LANGUAGE.supportSetup.blockedSubmitTitle}</p>
+          <p className="mt-2">
+            {supportSetup.blockMessage ??
+              "Your account is still being configured. Hargen will notify you when you can send work."}
+          </p>
+          <Link
+            href="/portal/account#support-setup"
+            className="mt-3 inline-block text-sm font-medium text-amber-900 underline underline-offset-2"
+          >
+            {PRODUCT_LANGUAGE.supportSetup.viewSetupLink}
+          </Link>
+        </div>
       )}
 
       {/* Action Needed Section */}

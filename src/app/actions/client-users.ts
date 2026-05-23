@@ -9,6 +9,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { Role } from "@/generated/prisma/client";
 import { assertPortalInviteAllowed } from "@/lib/request-lifecycle";
+import { checkPortalInviteReadiness } from "@/lib/engagement";
 import { prisma } from "@/lib/prisma";
 import {
   buildPasswordResetUrl,
@@ -50,7 +51,10 @@ export async function inviteClientPortalUser(data: {
 
   const client = await prisma.client.findUnique({
     where: { id: clientId },
-    include: { users: { where: { role: Role.CLIENT } } },
+    include: {
+      users: { where: { role: Role.CLIENT } },
+      approvedWorkTasks: { select: { workTaskId: true } },
+    },
   });
 
   if (!client) {
@@ -60,6 +64,11 @@ export async function inviteClientPortalUser(data: {
   const inviteError = assertPortalInviteAllowed(client.status);
   if (inviteError) {
     return inviteError;
+  }
+
+  const scopeReadiness = checkPortalInviteReadiness(client);
+  if (!scopeReadiness.ready) {
+    return { error: scopeReadiness.error };
   }
 
   const existingUser = await prisma.user.findUnique({ where: { email } });

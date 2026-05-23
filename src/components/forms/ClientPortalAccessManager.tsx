@@ -8,6 +8,8 @@ import {
   inviteClientPortalUser,
   resendClientPortalInvite,
 } from "@/app/actions/client-users";
+import { EngagementType } from "@/generated/prisma/client";
+import { checkPortalInviteReadinessByCount } from "@/lib/engagement";
 import { Loader2, Mail, UserPlus } from "lucide-react";
 
 interface PortalUser {
@@ -19,6 +21,8 @@ interface PortalUser {
 interface ClientPortalAccessManagerProps {
   clientId: string;
   clientStatus: "LEAD" | "ACTIVE" | "PAUSED" | "CANCELLED";
+  engagementType: EngagementType;
+  approvedWorkTaskCount: number;
   defaultEmail: string;
   defaultName: string;
   users: PortalUser[];
@@ -27,11 +31,19 @@ interface ClientPortalAccessManagerProps {
 export function ClientPortalAccessManager({
   clientId,
   clientStatus,
+  engagementType,
+  approvedWorkTaskCount,
   defaultEmail,
   defaultName,
   users,
 }: ClientPortalAccessManagerProps) {
-  const canInvite = clientStatus === "ACTIVE";
+  const canInviteByStatus = clientStatus === "ACTIVE";
+  const scopeReadiness = checkPortalInviteReadinessByCount(
+    engagementType,
+    approvedWorkTaskCount,
+  );
+  const canInvite = canInviteByStatus && scopeReadiness.ready;
+
   const [email, setEmail] = useState(defaultEmail);
   const [name, setName] = useState(defaultName);
   const [message, setMessage] = useState<string | null>(null);
@@ -85,9 +97,14 @@ export function ClientPortalAccessManager({
 
   return (
     <div className="space-y-4">
-      {!canInvite && (
+      {!canInviteByStatus && (
         <p className="text-sm text-muted-foreground">
           Activate the client before sending a portal invite.
+        </p>
+      )}
+      {canInviteByStatus && !scopeReadiness.ready && (
+        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-3">
+          {scopeReadiness.error}
         </p>
       )}
       {users.length > 0 && (
@@ -141,7 +158,12 @@ export function ClientPortalAccessManager({
           autoComplete="off"
         />
       </div>
-      <Button type="button" className="w-full" disabled={isLoading || !canInvite} onClick={handleInvite}>
+      <Button
+        type="button"
+        className="w-full"
+        disabled={isLoading || !canInvite}
+        onClick={handleInvite}
+      >
         {isLoading ? (
           <Loader2 className="h-4 w-4 animate-spin" />
         ) : (

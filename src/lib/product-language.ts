@@ -49,6 +49,20 @@ export const PRODUCT_LANGUAGE = {
     requestBased: "Request-Based Work",
     pricingPending: "Pricing pending review",
   },
+
+  supportSetup: {
+    title: "Your support setup",
+    approvedAreasTitle: "Approved support areas",
+    requestBasedExplainer:
+      "Send work as needed. Hargen reviews each request and confirms pricing before work continues.",
+    noApprovedAreas: "No support areas configured yet.",
+    changeScopePrompt:
+      "To add or remove support areas, contact your Hargen account manager.",
+    blockedSubmitTitle: "Cannot send work yet",
+    viewSetupLink: "View your support setup",
+    inviteScopeBlocked:
+      "Configure approved support areas in Engagement & approved work before sending a portal invite.",
+  },
   
   // Outreach CRM
   outreachCompany: {

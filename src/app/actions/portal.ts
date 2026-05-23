@@ -3,7 +3,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
-  EngagementType,
   RequestStatus,
   Urgency,
   AuthorType,
@@ -16,6 +15,9 @@ import {
   resolveActiveWorkTask,
 } from "@/lib/engagement";
 import { assertActiveClientForPortalSubmit } from "@/lib/request-lifecycle";
+import {
+  getClientPortalSupportSetup,
+} from "@/lib/portal-support";
 import { revalidatePath } from "next/cache";
 import {
   sendInternalClientCommentAlert,
@@ -32,98 +34,17 @@ const PORTAL_VALIDATION_ERROR =
 const PORTAL_RATE_LIMIT_ERROR =
   "Too many requests right now. Please wait a few minutes and try again.";
 
-export type PortalSubmitCategory = {
-  id: string;
-  name: string;
-  tasks: {
-    id: string;
-    name: string;
-    description: string | null;
-    requiredFields: unknown;
-    requiredDocs: unknown;
-  }[];
-};
-
 export async function getPortalSubmitOptions(clientId: string) {
-  const client = await prisma.client.findUnique({
-    where: { id: clientId },
-    include: {
-      approvedWorkTasks: { select: { workTaskId: true } },
-    },
-  });
-
-  if (!client) {
-    return { error: "Client not found." as const };
+  const setup = await getClientPortalSupportSetup(clientId);
+  if ("error" in setup) {
+    return setup;
   }
-
-  const submitCheck = canSubmitPortalWork(client);
-
-  if (client.engagementType === EngagementType.REQUEST_BASED) {
-    const categories = await prisma.serviceCategory.findMany({
-      where: { isActive: true },
-      include: {
-        tasks: {
-          where: { isActive: true },
-          orderBy: { basePriority: "asc" },
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            requiredFields: true,
-            requiredDocs: true,
-          },
-        },
-      },
-      orderBy: { name: "asc" },
-    });
-
-    return {
-      engagementType: client.engagementType,
-      categories: categories.filter((c) => c.tasks.length > 0),
-      canSubmit: categories.some((c) => c.tasks.length > 0),
-      blockMessage: categories.some((c) => c.tasks.length > 0)
-        ? undefined
-        : "No work types are available right now. Contact Hargen.",
-    };
-  }
-
-  const approvedIds = client.approvedWorkTasks.map((a) => a.workTaskId);
-  if (approvedIds.length === 0) {
-    return {
-      engagementType: client.engagementType,
-      categories: [] as PortalSubmitCategory[],
-      canSubmit: false,
-      blockMessage: submitCheck.blockMessage,
-    };
-  }
-
-  const categories = await prisma.serviceCategory.findMany({
-    where: { isActive: true },
-    include: {
-      tasks: {
-        where: { id: { in: approvedIds }, isActive: true },
-        orderBy: { basePriority: "asc" },
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          requiredFields: true,
-          requiredDocs: true,
-        },
-      },
-    },
-    orderBy: { name: "asc" },
-  });
-
-  const filtered = categories
-    .map((c) => ({ id: c.id, name: c.name, tasks: c.tasks }))
-    .filter((c) => c.tasks.length > 0);
 
   return {
-    engagementType: client.engagementType,
-    categories: filtered,
-    canSubmit: submitCheck.canSubmit && filtered.length > 0,
-    blockMessage: submitCheck.blockMessage,
+    engagementType: setup.engagementType,
+    categories: setup.categories,
+    canSubmit: setup.canSubmit,
+    blockMessage: setup.blockMessage,
   };
 }
 

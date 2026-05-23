@@ -125,6 +125,36 @@ export function getEngagementLabel(type: EngagementType): string {
     : PRODUCT_LANGUAGE.engagement.requestBased;
 }
 
+export const PORTAL_INVITE_SCOPE_ERROR = PRODUCT_LANGUAGE.supportSetup.inviteScopeBlocked;
+
+export type PortalInviteReadinessResult =
+  | { ready: true }
+  | { ready: false; error: string };
+
+export function checkPortalInviteReadiness(
+  client: ClientWithApprovals,
+): PortalInviteReadinessResult {
+  return checkPortalInviteReadinessByCount(
+    client.engagementType,
+    getApprovedWorkTaskIds(client).length,
+  );
+}
+
+export function checkPortalInviteReadinessByCount(
+  engagementType: EngagementType,
+  approvedWorkTaskCount: number,
+): PortalInviteReadinessResult {
+  if (engagementType === EngagementType.REQUEST_BASED) {
+    return { ready: true };
+  }
+
+  if (approvedWorkTaskCount === 0) {
+    return { ready: false, error: PORTAL_INVITE_SCOPE_ERROR };
+  }
+
+  return { ready: true };
+}
+
 export function canSubmitPortalWork(client: ClientWithApprovals): {
   canSubmit: boolean;
   blockMessage?: string;

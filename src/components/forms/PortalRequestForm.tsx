@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -131,10 +132,19 @@ export function PortalRequestForm({
   if (!canSubmit) {
     return (
       <div className="p-6 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-sm">
-        <p className="font-semibold">Cannot send work yet</p>
+        <p className="font-semibold">{PRODUCT_LANGUAGE.supportSetup.blockedSubmitTitle}</p>
         <p className="mt-2">
           {blockMessage ??
             "Your account is still being configured. Hargen will notify you when you can send work."}
+        </p>
+        <Link
+          href="/portal/account#support-setup"
+          className="mt-3 inline-block text-sm font-medium text-amber-900 underline underline-offset-2"
+        >
+          {PRODUCT_LANGUAGE.supportSetup.viewSetupLink}
+        </Link>
+        <p className="mt-4 text-xs text-amber-800/90">
+          {PRODUCT_LANGUAGE.supportSetup.changeScopePrompt}
         </p>
       </div>
     );

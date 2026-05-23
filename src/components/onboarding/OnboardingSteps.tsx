@@ -23,6 +23,7 @@ import { ClientPortalAccessManager } from "@/components/forms/ClientPortalAccess
 import { getQualificationStatusLabel } from "@/lib/request-lifecycle";
 import { cn } from "@/lib/utils";
 import { EngagementType } from "@/generated/prisma/client";
+import { checkPortalInviteReadinessByCount } from "@/lib/engagement";
 
 interface OnboardingStepsProps {
   client: {
@@ -33,6 +34,7 @@ interface OnboardingStepsProps {
     status: ClientStatus;
     planType: string;
     engagementType: EngagementType;
+    approvedWorkTaskCount: number;
     subscriptionStatus?: string | null;
     stripeCustomerId?: string | null;
     users: { id: string; email: string; name: string | null }[];
@@ -69,6 +71,15 @@ export function OnboardingSteps({
   const billingStepComplete = isRequestBased
     ? true
     : Boolean(client.subscriptionStatus);
+  const scopeReadiness = checkPortalInviteReadinessByCount(
+    client.engagementType,
+    client.approvedWorkTaskCount,
+  );
+  const needsScopeBeforeInvite =
+    isActive &&
+    billingStepComplete &&
+    !scopeReadiness.ready &&
+    client.engagementType === EngagementType.SUPPORT_BLOCK;
 
   const handleOpenWalkthrough = () => {
     const url = new URL(window.location.href);
@@ -202,10 +213,18 @@ export function OnboardingSteps({
                   <ClientPortalAccessManager
                     clientId={client.id}
                     clientStatus={client.status as ClientStatus}
+                    engagementType={client.engagementType}
+                    approvedWorkTaskCount={client.approvedWorkTaskCount}
                     defaultEmail={client.email}
                     defaultName={client.contactName}
                     users={client.users}
                   />
+                )}
+
+                {step.number === 4 && needsScopeBeforeInvite && (
+                  <p className="text-xs text-muted-foreground italic mt-2">
+                    Configure approved support areas, then send portal invite.
+                  </p>
                 )}
 
                 {step.number === 2 && !latestWalkthroughRequest && (

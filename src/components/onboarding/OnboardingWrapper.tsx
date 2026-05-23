@@ -14,6 +14,7 @@ interface OnboardingWrapperProps {
     status: ClientStatus;
     planType: string;
     engagementType: EngagementType;
+    approvedWorkTaskCount: number;
     subscriptionStatus?: string | null;
     stripeCustomerId?: string | null;
     users: { id: string; email: string; name: string | null }[];

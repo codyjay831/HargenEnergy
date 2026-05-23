@@ -29,6 +29,7 @@ import { LogClientOpsForm } from "@/components/forms/LogClientOpsForm";
 import { calculateWeeklyUsage, type WeeklyUsage } from "@/lib/usage";
 import { OnboardingWrapper } from "@/components/onboarding/OnboardingWrapper";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
+import { formatIntakePlanLabel } from "@/lib/intake-plan";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,7 @@ type ClientWithRelations = Client & {
   systemAccesses: ClientSystemAccess[];
   requests: SupportRequest[];
   timeEntries: TimeEntry[];
+  approvedWorkTasks?: { workTaskId: string }[];
 };
 
 export default async function ClientDetailPage({ params }: ClientDetailPageProps) {
@@ -111,6 +113,8 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
   const walkthroughPlanRequestBased =
     walkthroughMetadata?.intakePlan === "request-based" ||
     walkthroughMetadata?.intakePlan === "one-time";
+  const approvedWorkTaskCount = client.approvedWorkTasks.length;
+  const planInterestLabel = formatIntakePlanLabel(walkthroughMetadata?.intakePlan);
 
   return (
     <div className="space-y-8">
@@ -154,6 +158,7 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
                   status: client.status,
                   planType: client.planType,
                   engagementType: client.engagementType,
+                  approvedWorkTaskCount,
                   subscriptionStatus: client.subscriptionStatus,
                   stripeCustomerId: client.stripeCustomerId,
                   users: client.users,
@@ -194,7 +199,7 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
                   </div>
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Plan Interest</p>
-                    <p className="text-sm">{client.planType} Support</p>
+                    <p className="text-sm">{planInterestLabel}</p>
                   </div>
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Created</p>
@@ -202,6 +207,14 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
                   </div>
                 </CardContent>
               </Card>
+
+              <ClientEngagementManager
+                clientId={client.id}
+                engagementType={client.engagementType}
+                approvedWorkTaskIds={client.approvedWorkTasks.map((a) => a.workTaskId)}
+                categories={catalogCategories}
+                walkthroughPlanRequestBased={walkthroughPlanRequestBased}
+              />
 
               <Card className="border-amber-200 bg-amber-50/40">
                 <CardHeader>
@@ -520,7 +533,12 @@ function renderBilling(client: Client & { engagementType: EngagementType }) {
   );
 }
 
-function renderPortalAccess(client: ClientWithRelations) {
+function renderPortalAccess(
+  client: ClientWithRelations & {
+    engagementType: EngagementType;
+    approvedWorkTasks: { workTaskId: string }[];
+  },
+) {
   return (
     <Card>
       <CardHeader>
@@ -533,6 +551,8 @@ function renderPortalAccess(client: ClientWithRelations) {
         <ClientPortalAccessManager
           clientId={client.id}
           clientStatus={client.status}
+          engagementType={client.engagementType}
+          approvedWorkTaskCount={client.approvedWorkTasks.length}
           defaultEmail={client.email}
           defaultName={client.contactName}
           users={client.users}

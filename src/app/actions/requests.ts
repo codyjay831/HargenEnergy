@@ -75,6 +75,8 @@ export async function submitRequestHelp(data: RequestHelpInput) {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
+    const mappedPlanType = mapPlanType(plan);
+
     // Upsert client by email to handle concurrent submissions
     const client = await prisma.client.upsert({
       where: { email: normalizedEmail },
@@ -98,7 +100,7 @@ export async function submitRequestHelp(data: RequestHelpInput) {
         role,
         currentTools: tools,
         status: ClientStatus.LEAD,
-        planType: mapPlanType(plan),
+        ...(mappedPlanType ? { planType: mappedPlanType } : {}),
       },
     });
 
@@ -145,7 +147,7 @@ export async function submitRequestHelp(data: RequestHelpInput) {
   }
 }
 
-function mapPlanType(plan: string): PlanType {
+function mapPlanType(plan: string): PlanType | null {
   switch (plan) {
     case "light":
       return PlanType.LIGHT;
@@ -154,7 +156,7 @@ function mapPlanType(plan: string): PlanType {
     case "priority":
       return PlanType.PRIORITY;
     default:
-      return PlanType.LIGHT;
+      return null;
   }
 }
 
