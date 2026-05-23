@@ -3,7 +3,44 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { TimeEntryStatus } from "@/generated/prisma/client";
+import {
+  BillableType,
+  EngagementType,
+  HandoffTier,
+  PricingMode,
+  TimeEntryStatus,
+} from "@/generated/prisma/client";
+import { isRequestBasedPricingComplete } from "@/lib/engagement";
+
+type TimerRequestContext = {
+  timerStartedAt: Date | null;
+  clientId: string;
+  handoffTier: HandoffTier | null;
+  pricingMode: PricingMode | null;
+  flatPriceCents: number | null;
+  client: { engagementType: EngagementType };
+};
+
+const timerRequestSelect = {
+  timerStartedAt: true,
+  clientId: true,
+  handoffTier: true,
+  pricingMode: true,
+  flatPriceCents: true,
+  client: { select: { engagementType: true } },
+} as const;
+
+function billableTypeForTimerEntry(request: TimerRequestContext): BillableType {
+  if (request.client.engagementType !== EngagementType.REQUEST_BASED) {
+    return BillableType.INCLUDED;
+  }
+
+  if (!isRequestBasedPricingComplete(request)) {
+    return BillableType.NON_BILLABLE;
+  }
+
+  return BillableType.INCLUDED;
+}
 
 export async function startTimer(requestId: string) {
   const session = await auth();
@@ -30,24 +67,25 @@ export async function pauseTimer(requestId: string, reason: string) {
 
   const request = await prisma.supportRequest.findUnique({
     where: { id: requestId },
-    select: { timerStartedAt: true },
+    select: timerRequestSelect,
   });
 
   if (!request?.timerStartedAt) return;
 
   const now = new Date();
   const elapsedMinutes = Math.round(
-    (now.getTime() - request.timerStartedAt.getTime()) / 60000
+    (now.getTime() - request.timerStartedAt.getTime()) / 60000,
   );
 
   if (elapsedMinutes > 0) {
     await prisma.timeEntry.create({
       data: {
-        clientId: (await prisma.supportRequest.findUnique({ where: { id: requestId }, select: { clientId: true } }))!.clientId,
+        clientId: request.clientId,
         supportRequestId: requestId,
         date: now,
         minutes: elapsedMinutes,
         description: `Timer paused: ${reason}`,
+        billableType: billableTypeForTimerEntry(request),
         status: TimeEntryStatus.STAGED,
         createdById: session.user.id,
       },
@@ -73,14 +111,14 @@ export async function stopTimer(requestId: string) {
 
   const request = await prisma.supportRequest.findUnique({
     where: { id: requestId },
-    select: { timerStartedAt: true, clientId: true },
+    select: timerRequestSelect,
   });
 
   if (!request?.timerStartedAt) return;
 
   const now = new Date();
   const elapsedMinutes = Math.round(
-    (now.getTime() - request.timerStartedAt.getTime()) / 60000
+    (now.getTime() - request.timerStartedAt.getTime()) / 60000,
   );
 
   let timeEntryId = null;
@@ -92,6 +130,7 @@ export async function stopTimer(requestId: string) {
         date: now,
         minutes: elapsedMinutes,
         description: "Timer session",
+        billableType: billableTypeForTimerEntry(request),
         status: TimeEntryStatus.STAGED,
         createdById: session.user.id,
       },

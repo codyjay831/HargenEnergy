@@ -3,6 +3,7 @@
 import { OnboardingSteps } from "./OnboardingSteps";
 import { WalkthroughDrawer } from "./WalkthroughDrawer";
 import { ClientStatus, RequestStatus } from "@/lib/enums";
+import { EngagementType } from "@/generated/prisma/client";
 
 interface OnboardingWrapperProps {
   client: {
@@ -12,10 +13,12 @@ interface OnboardingWrapperProps {
     email: string;
     status: ClientStatus;
     planType: string;
+    engagementType: EngagementType;
     subscriptionStatus?: string | null;
     stripeCustomerId?: string | null;
     users: { id: string; email: string; name: string | null }[];
   };
+  walkthroughPlanRequestBased?: boolean;
   latestWalkthroughRequest: {
     id: string;
     clientId: string;
@@ -43,11 +46,16 @@ interface OnboardingWrapperProps {
   } | null;
 }
 
-export function OnboardingWrapper({ client, latestWalkthroughRequest }: OnboardingWrapperProps) {
+export function OnboardingWrapper({
+  client,
+  walkthroughPlanRequestBased,
+  latestWalkthroughRequest,
+}: OnboardingWrapperProps) {
   return (
     <>
       <OnboardingSteps
         client={client}
+        walkthroughPlanRequestBased={walkthroughPlanRequestBased}
         latestWalkthroughRequest={
           latestWalkthroughRequest
             ? {

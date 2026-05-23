@@ -111,7 +111,7 @@ export function RecurringTaskManagement({
         <div>
           <h2 className="text-lg font-bold">Scheduled ticket templates</h2>
           <p className="text-sm text-muted-foreground">
-            Internal recurring reminders for hourly support block clients — not the customer-facing definition of support.
+            Internal recurring reminders for Support Block clients — not the customer-facing definition of support.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={handleProcess} disabled={isPending}>

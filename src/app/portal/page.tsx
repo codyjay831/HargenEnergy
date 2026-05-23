@@ -24,7 +24,7 @@ import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EngagementType } from "@/generated/prisma/client";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
-import { isOneOffPricingComplete } from "@/lib/engagement";
+import { isRequestBasedPricingComplete } from "@/lib/engagement";
 
 export const dynamic = "force-dynamic";
 
@@ -59,8 +59,8 @@ export default async function PortalDashboard() {
     return <div>Client not found.</div>;
   }
 
-  const isBlockSupport = client.engagementType === EngagementType.BLOCK_SUPPORT;
-  const isOneOff = client.engagementType === EngagementType.ONE_OFF;
+  const isSupportBlock = client.engagementType === EngagementType.SUPPORT_BLOCK;
+  const isRequestBased = client.engagementType === EngagementType.REQUEST_BASED;
   const usage = calculateWeeklyUsage(client.timeEntries, client.weeklyHours);
 
   const openRequestsCount = await prisma.supportRequest.count({
@@ -83,37 +83,52 @@ export default async function PortalDashboard() {
 
   const needsInfoCount = needsInfoRequests.length;
 
-  const pendingPricingRequests = isOneOff
-    ? client.requests.filter((r) => !isOneOffPricingComplete(r))
+  const pendingPricingRequests = isRequestBased
+    ? client.requests.filter((r) => !isRequestBasedPricingComplete(r))
     : [];
 
   // Onboarding Checklist
-  const onboardingSteps = [
-    { 
-      id: "billing", 
-      label: "Setup Billing", 
-      completed: !!client.stripeSubscriptionId,
-      href: "/portal/account" 
-    },
-    { 
-      id: "access", 
-      label: "Provide System Access", 
-      completed: client.systemAccesses.length > 0,
-      href: "/portal/access" 
-    },
-    { 
-      id: "request", 
-      label: "Send first work", 
-      completed: client.requests.length > 0,
-      href: "/portal/requests/new" 
-    },
-  ];
+  const onboardingSteps = isSupportBlock
+    ? [
+        {
+          id: "billing",
+          label: "Setup Billing",
+          completed: !!client.stripeSubscriptionId,
+          href: "/portal/account",
+        },
+        {
+          id: "access",
+          label: "Provide System Access",
+          completed: client.systemAccesses.length > 0,
+          href: "/portal/access",
+        },
+        {
+          id: "request",
+          label: "Send first work",
+          completed: client.requests.length > 0,
+          href: "/portal/requests/new",
+        },
+      ]
+    : [
+        {
+          id: "access",
+          label: "Provide System Access",
+          completed: client.systemAccesses.length > 0,
+          href: "/portal/access",
+        },
+        {
+          id: "request",
+          label: "Send first work",
+          completed: client.requests.length > 0,
+          href: "/portal/requests/new",
+        },
+      ];
 
   const completedSteps = onboardingSteps.filter(s => s.completed).length;
   const onboardingProgress = Math.round((completedSteps / onboardingSteps.length) * 100);
   const showOnboarding = onboardingProgress < 100 || client.status === "LEAD";
 
-  const stats = isBlockSupport
+  const stats = isSupportBlock
     ? [
         { title: "Open work", value: openRequestsCount.toString(), icon: ClipboardList, color: "text-blue-600", bg: "bg-blue-50" },
         { title: "Needs info", value: needsInfoCount.toString(), icon: AlertCircle, color: "text-orange-600", bg: "bg-orange-50" },
@@ -132,9 +147,9 @@ export default async function PortalDashboard() {
           <h1 className="text-2xl font-bold tracking-tight">Your Hargen Energy Solar Ops Desk</h1>
           <p className="text-muted-foreground">
             {client.companyName} •{" "}
-            {isBlockSupport
-              ? `${client.planType} support block`
-              : PRODUCT_LANGUAGE.engagement.oneOff}
+            {isSupportBlock
+              ? `${client.planType} ${PRODUCT_LANGUAGE.engagement.supportBlock}`
+              : PRODUCT_LANGUAGE.engagement.requestBased}
           </p>
         </div>
         <Link 
@@ -145,6 +160,13 @@ export default async function PortalDashboard() {
           {PRODUCT_LANGUAGE.workRequest.action}
         </Link>
       </div>
+
+      {isRequestBased && (
+        <p className="text-sm text-muted-foreground leading-relaxed -mt-4">
+          Send work as needed. Hargen reviews each request and confirms pricing before work
+          continues.
+        </p>
+      )}
 
       {/* Action Needed Section */}
       {needsInfoCount > 0 && (
@@ -226,7 +248,7 @@ export default async function PortalDashboard() {
         </Card>
       )}
 
-      {isOneOff && pendingPricingRequests.length > 0 && (
+      {isRequestBased && pendingPricingRequests.length > 0 && (
         <Card className="border-amber-200 bg-amber-50/40">
           <CardHeader>
             <CardTitle className="text-lg text-amber-900">Pricing review in progress</CardTitle>
@@ -246,7 +268,7 @@ export default async function PortalDashboard() {
       )}
 
       {/* Capacity Card — block clients only */}
-      {isBlockSupport && (
+      {isSupportBlock && (
       <Card className="border-primary/20 bg-primary/[0.02]">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">

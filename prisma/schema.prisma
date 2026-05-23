@@ -81,8 +81,8 @@ enum RecurringFrequency {
 }
 
 enum EngagementType {
-  BLOCK_SUPPORT
-  ONE_OFF
+  SUPPORT_BLOCK
+  REQUEST_BASED
 }
 
 enum HandoffTier {
@@ -191,7 +191,7 @@ model Client {
   role               String?
   currentTools       String?
   status             ClientStatus     @default(LEAD)
-  engagementType     EngagementType   @default(BLOCK_SUPPORT)
+  engagementType     EngagementType   @default(SUPPORT_BLOCK)
   planType           PlanType         @default(LIGHT)
   weeklyHours        Float            @default(0)
   stripeCustomerId   String?

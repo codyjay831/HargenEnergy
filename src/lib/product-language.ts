@@ -45,8 +45,8 @@ export const PRODUCT_LANGUAGE = {
   },
 
   engagement: {
-    blockSupport: "Hourly support block",
-    oneOff: "One-off work",
+    supportBlock: "Support Block",
+    requestBased: "Request-Based Work",
     pricingPending: "Pricing pending review",
   },
   

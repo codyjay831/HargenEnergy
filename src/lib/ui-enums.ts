@@ -94,7 +94,7 @@ export function isSupportRequestSourceValue(
   return (SUPPORT_REQUEST_SOURCE_VALUES as readonly string[]).includes(v);
 }
 
-export const ENGAGEMENT_TYPE_VALUES = ["BLOCK_SUPPORT", "ONE_OFF"] as const;
+export const ENGAGEMENT_TYPE_VALUES = ["SUPPORT_BLOCK", "REQUEST_BASED"] as const;
 export type EngagementTypeValue = (typeof ENGAGEMENT_TYPE_VALUES)[number];
 
 export function isEngagementTypeValue(v: string): v is EngagementTypeValue {

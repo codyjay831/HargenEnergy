@@ -13,12 +13,13 @@ import {
 import { ExternalLink, AlertTriangle } from "lucide-react";
 import { calculateWeeklyUsage } from "@/lib/usage";
 import { cn } from "@/lib/utils";
-import { OverflowStatus } from "@/generated/prisma/client";
+import { OverflowStatus, EngagementType } from "@/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminBilling() {
   const clients = await prisma.client.findMany({
+    where: { engagementType: EngagementType.SUPPORT_BLOCK },
     include: {
       timeEntries: {
         where: {
@@ -41,7 +42,12 @@ export default async function AdminBilling() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Billing & Subscriptions</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Support Block Billing</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Request-Based Work is priced on individual requests, not here.
+          </p>
+        </div>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -63,7 +69,7 @@ export default async function AdminBilling() {
 
       {clients.length === 0 ? (
         <div className="bg-white border rounded-lg p-12 text-center text-muted-foreground">
-          No billing data yet. Clients will appear here once they are added to the system.
+          No Support Block clients yet. Clients appear here once they are on a Support Block plan.
         </div>
       ) : (
         <div className="bg-white border rounded-lg overflow-hidden">

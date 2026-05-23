@@ -1,10 +1,10 @@
 /**
  * OnboardingSteps Component
- * 
+ *
  * Reusable 4-step onboarding workflow:
  * 1. Qualify (linked walkthrough)
  * 2. Activate client
- * 3. Set up billing
+ * 3. Set up billing (Support Block) or pricing model (Request-Based Work)
  * 4. Send portal access
  */
 
@@ -22,6 +22,7 @@ import { ClientBillingManager } from "@/components/forms/ClientBillingManager";
 import { ClientPortalAccessManager } from "@/components/forms/ClientPortalAccessManager";
 import { getQualificationStatusLabel } from "@/lib/request-lifecycle";
 import { cn } from "@/lib/utils";
+import { EngagementType } from "@/generated/prisma/client";
 
 interface OnboardingStepsProps {
   client: {
@@ -31,10 +32,12 @@ interface OnboardingStepsProps {
     email: string;
     status: ClientStatus;
     planType: string;
+    engagementType: EngagementType;
     subscriptionStatus?: string | null;
     stripeCustomerId?: string | null;
     users: { id: string; email: string; name: string | null }[];
   };
+  walkthroughPlanRequestBased?: boolean;
   latestWalkthroughRequest?: {
     id: string;
     title: string;
@@ -51,11 +54,21 @@ interface Step {
   status: "complete" | "current" | "upcoming";
 }
 
-export function OnboardingSteps({ client, latestWalkthroughRequest }: OnboardingStepsProps) {
+export function OnboardingSteps({
+  client,
+  walkthroughPlanRequestBased,
+  latestWalkthroughRequest,
+}: OnboardingStepsProps) {
   const router = useRouter();
   const isActive = client.status === ClientStatus.ACTIVE;
-  const hasBilling = Boolean(client.subscriptionStatus);
+  const isRequestBased =
+    client.engagementType === EngagementType.REQUEST_BASED ||
+    (walkthroughPlanRequestBased &&
+      client.engagementType === EngagementType.SUPPORT_BLOCK);
   const hasPortalAccess = client.users.length > 0;
+  const billingStepComplete = isRequestBased
+    ? true
+    : Boolean(client.subscriptionStatus);
 
   const handleOpenWalkthrough = () => {
     const url = new URL(window.location.href);
@@ -63,7 +76,6 @@ export function OnboardingSteps({ client, latestWalkthroughRequest }: Onboarding
     router.push(url.pathname + url.search);
   };
 
-  // Determine step states
   const steps: Step[] = [
     {
       number: 1,
@@ -85,10 +97,14 @@ export function OnboardingSteps({ client, latestWalkthroughRequest }: Onboarding
     },
     {
       number: 3,
-      title: "Set up billing",
-      description: hasBilling ? "Billing configured" : "Configure plan and Stripe subscription",
+      title: isRequestBased ? "Pricing model" : "Set up billing",
+      description: isRequestBased
+        ? "Pricing is handled per request after review"
+        : billingStepComplete
+          ? "Billing configured"
+          : "Configure plan and Stripe subscription",
       icon: <CreditCard className="h-5 w-5" />,
-      status: hasBilling ? "complete" : isActive ? "current" : "upcoming",
+      status: billingStepComplete ? "complete" : isActive ? "current" : "upcoming",
     },
     {
       number: 4,
@@ -97,7 +113,11 @@ export function OnboardingSteps({ client, latestWalkthroughRequest }: Onboarding
         ? `${client.users.length} user(s) invited`
         : "Send portal invite after activation",
       icon: <Mail className="h-5 w-5" />,
-      status: hasPortalAccess ? "complete" : hasBilling ? "current" : "upcoming",
+      status: hasPortalAccess
+        ? "complete"
+        : isActive && billingStepComplete
+          ? "current"
+          : "upcoming",
     },
   ];
 
@@ -115,12 +135,10 @@ export function OnboardingSteps({ client, latestWalkthroughRequest }: Onboarding
         <div className="space-y-6">
           {steps.map((step, index) => (
             <div key={step.number} className="relative flex gap-4">
-              {/* Connector Line */}
               {index < steps.length - 1 && (
                 <div className="absolute left-[19px] top-[40px] h-[calc(100%+8px)] w-0.5 bg-border" />
               )}
 
-              {/* Step Icon */}
               <div
                 className={cn(
                   "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2",
@@ -128,7 +146,7 @@ export function OnboardingSteps({ client, latestWalkthroughRequest }: Onboarding
                     ? "border-primary bg-primary text-primary-foreground"
                     : step.status === "current"
                       ? "border-primary bg-background text-primary"
-                      : "border-muted-foreground/30 bg-background text-muted-foreground"
+                      : "border-muted-foreground/30 bg-background text-muted-foreground",
                 )}
               >
                 {step.status === "complete" ? (
@@ -138,7 +156,6 @@ export function OnboardingSteps({ client, latestWalkthroughRequest }: Onboarding
                 )}
               </div>
 
-              {/* Step Content */}
               <div className="flex-1 pt-1">
                 <div className="flex items-center justify-between mb-1">
                   <h4 className="text-sm font-semibold">{step.title}</h4>
@@ -150,7 +167,6 @@ export function OnboardingSteps({ client, latestWalkthroughRequest }: Onboarding
                 </div>
                 <p className="text-xs text-muted-foreground mb-3">{step.description}</p>
 
-                {/* Step-specific Actions */}
                 {step.number === 1 && latestWalkthroughRequest && (
                   <Button
                     variant="link"
@@ -166,13 +182,20 @@ export function OnboardingSteps({ client, latestWalkthroughRequest }: Onboarding
                   <ActivateClientButton clientId={client.id} />
                 )}
 
-                {step.number === 3 && isActive && (
+                {step.number === 3 && isActive && !isRequestBased && (
                   <ClientBillingManager
                     clientId={client.id}
                     currentPlan={client.planType as ClientPlanType}
                     stripeCustomerId={client.stripeCustomerId ?? null}
                     subscriptionStatus={client.subscriptionStatus ?? null}
                   />
+                )}
+
+                {step.number === 3 && isActive && isRequestBased && (
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Request-Based Work clients are priced per request after review. No
+                    subscription setup is required.
+                  </p>
                 )}
 
                 {step.number === 4 && (isActive || client.status === ClientStatus.LEAD) && (
@@ -197,7 +220,9 @@ export function OnboardingSteps({ client, latestWalkthroughRequest }: Onboarding
 
                 {step.number === 4 && !isActive && (
                   <p className="text-xs text-muted-foreground italic">
-                    Complete activation and billing first
+                    {isRequestBased
+                      ? "Complete activation first"
+                      : "Complete activation and billing first"}
                   </p>
                 )}
               </div>
@@ -205,11 +230,11 @@ export function OnboardingSteps({ client, latestWalkthroughRequest }: Onboarding
           ))}
         </div>
 
-        {/* Summary Footer */}
         <div className="pt-4 border-t">
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">
-              {steps.filter((s) => s.status === "complete").length} of {steps.length} steps complete
+              {steps.filter((s) => s.status === "complete").length} of {steps.length} steps
+              complete
             </span>
             {isActive && hasPortalAccess && (
               <Badge variant="default" className="text-[10px]">

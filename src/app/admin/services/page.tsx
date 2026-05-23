@@ -14,7 +14,7 @@ export default async function AdminServicesPage() {
     getServiceCategories(),
     getRecurringTasks(),
     prisma.client.findMany({
-      where: { status: "ACTIVE", engagementType: EngagementType.BLOCK_SUPPORT },
+      where: { status: "ACTIVE", engagementType: EngagementType.SUPPORT_BLOCK },
       select: { id: true, companyName: true },
     }),
   ]);

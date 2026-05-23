@@ -15,6 +15,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { updateClientEngagement } from "@/app/actions/clients";
 import { EngagementType } from "@/generated/prisma/client";
+import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -29,7 +30,7 @@ interface ClientEngagementManagerProps {
   engagementType: EngagementType;
   approvedWorkTaskIds: string[];
   categories: Category[];
-  walkthroughPlanOneTime?: boolean;
+  walkthroughPlanRequestBased?: boolean;
 }
 
 export function ClientEngagementManager({
@@ -37,13 +38,13 @@ export function ClientEngagementManager({
   engagementType: initialEngagement,
   approvedWorkTaskIds: initialApproved,
   categories,
-  walkthroughPlanOneTime,
+  walkthroughPlanRequestBased,
 }: ClientEngagementManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [engagementType, setEngagementType] = useState<EngagementType>(
-    walkthroughPlanOneTime && initialEngagement === EngagementType.BLOCK_SUPPORT
-      ? EngagementType.ONE_OFF
+    walkthroughPlanRequestBased && initialEngagement === EngagementType.SUPPORT_BLOCK
+      ? EngagementType.REQUEST_BASED
       : initialEngagement,
   );
   const [approved, setApproved] = useState<Set<string>>(new Set(initialApproved));
@@ -64,7 +65,7 @@ export function ClientEngagementManager({
           clientId,
           engagementType,
           approvedWorkTaskIds:
-            engagementType === EngagementType.BLOCK_SUPPORT
+            engagementType === EngagementType.SUPPORT_BLOCK
               ? Array.from(approved)
               : [],
         });
@@ -90,14 +91,16 @@ export function ClientEngagementManager({
       <CardHeader>
         <CardTitle className="text-md">Engagement & approved work</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Set how this client buys help. Block clients need approved work types before portal
-          invite.
+          Engagement type controls how the client buys help. Support Block clients buy reserved
+          support time inside approved work types. Request-Based clients send individual work
+          requests that are reviewed and priced per request.
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
-        {walkthroughPlanOneTime && (
+        {walkthroughPlanRequestBased && (
           <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-3">
-            Walkthrough indicated one-time work. ONE_OFF is pre-selected — confirm before saving.
+            Walkthrough indicated request-based work. Request-Based Work is pre-selected — confirm
+            before saving.
           </p>
         )}
 
@@ -111,15 +114,17 @@ export function ClientEngagementManager({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={EngagementType.BLOCK_SUPPORT}>
-                Hourly support block
+              <SelectItem value={EngagementType.SUPPORT_BLOCK}>
+                {PRODUCT_LANGUAGE.engagement.supportBlock}
               </SelectItem>
-              <SelectItem value={EngagementType.ONE_OFF}>One-off work</SelectItem>
+              <SelectItem value={EngagementType.REQUEST_BASED}>
+                {PRODUCT_LANGUAGE.engagement.requestBased}
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
 
-        {engagementType === EngagementType.BLOCK_SUPPORT ? (
+        {engagementType === EngagementType.SUPPORT_BLOCK ? (
           <div className="space-y-4 max-h-[360px] overflow-y-auto border rounded-md p-4">
             {categories.length === 0 ? (
               <p className="text-sm text-muted-foreground italic">
@@ -149,7 +154,8 @@ export function ClientEngagementManager({
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            One-off clients use the full catalog per job. Pricing is set per request after review.
+            Request-based clients use the full active catalog per request. Pricing is set per
+            request after review.
           </p>
         )}
 

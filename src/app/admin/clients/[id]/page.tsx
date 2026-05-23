@@ -108,7 +108,9 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
   });
 
   const walkthroughMetadata = latestWalkthrough?.metadata as { intakePlan?: string } | null;
-  const walkthroughPlanOneTime = walkthroughMetadata?.intakePlan === "one-time";
+  const walkthroughPlanRequestBased =
+    walkthroughMetadata?.intakePlan === "request-based" ||
+    walkthroughMetadata?.intakePlan === "one-time";
 
   return (
     <div className="space-y-8">
@@ -151,10 +153,12 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
                   email: client.email,
                   status: client.status,
                   planType: client.planType,
+                  engagementType: client.engagementType,
                   subscriptionStatus: client.subscriptionStatus,
                   stripeCustomerId: client.stripeCustomerId,
                   users: client.users,
                 }}
+                walkthroughPlanRequestBased={walkthroughPlanRequestBased}
                 latestWalkthroughRequest={latestWalkthrough}
               />
 
@@ -236,9 +240,9 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
                 engagementType={client.engagementType}
                 approvedWorkTaskIds={client.approvedWorkTasks.map((a) => a.workTaskId)}
                 categories={catalogCategories}
-                walkthroughPlanOneTime={walkthroughPlanOneTime}
+                walkthroughPlanRequestBased={walkthroughPlanRequestBased}
               />
-              {client.engagementType === EngagementType.BLOCK_SUPPORT && renderUsageCard(client, usage)}
+              {client.engagementType === EngagementType.SUPPORT_BLOCK && renderUsageCard(client, usage)}
               {renderTimeLogging(client)}
               {renderClientOpsLogging(client)}
               {renderSystemAccess(client)}
@@ -412,14 +416,19 @@ function renderUsageCard(client: Client, usage: WeeklyUsage) {
   );
 }
 
-function renderTimeLogging(client: Client) {
+function renderTimeLogging(client: Client & { engagementType: EngagementType }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Log Time</CardTitle>
       </CardHeader>
       <CardContent>
-        <LogTimeForm clientId={client.id} supportRequestId={undefined} isOverflowApproved={false} />
+        <LogTimeForm
+          clientId={client.id}
+          engagementType={client.engagementType}
+          supportRequestId={undefined}
+          isOverflowApproved={false}
+        />
       </CardContent>
     </Card>
   );
@@ -469,32 +478,42 @@ function renderBranding(client: Client) {
   );
 }
 
-function renderBilling(client: Client) {
+function renderBilling(client: Client & { engagementType: EngagementType }) {
+  const isRequestBased = client.engagementType === EngagementType.REQUEST_BASED;
+
   return (
     <Card className="border-slate-200">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <CreditCard className="h-4 w-4 text-primary" />
-          Billing & Subscription
+          {isRequestBased ? "Billing" : "Billing & Subscription"}
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <ClientBillingManager 
-          clientId={client.id}
-          currentPlan={client.planType}
-          subscriptionStatus={client.subscriptionStatus}
-          stripeCustomerId={client.stripeCustomerId}
-        />
-        
-        {client.subscriptionCurrentPeriodEnd && (
-          <div className="mt-6 pt-6 border-t text-sm">
-            <p className="text-muted-foreground flex justify-between">
-              <span>Period End:</span>
-              <span className="text-slate-900 font-medium">
-                {format(new Date(client.subscriptionCurrentPeriodEnd), "MMM d, yyyy")}
-              </span>
-            </p>
-          </div>
+        {isRequestBased ? (
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Request-Based Work clients are priced per request after review.
+          </p>
+        ) : (
+          <>
+            <ClientBillingManager
+              clientId={client.id}
+              currentPlan={client.planType}
+              subscriptionStatus={client.subscriptionStatus}
+              stripeCustomerId={client.stripeCustomerId}
+            />
+
+            {client.subscriptionCurrentPeriodEnd && (
+              <div className="mt-6 pt-6 border-t text-sm">
+                <p className="text-muted-foreground flex justify-between">
+                  <span>Period End:</span>
+                  <span className="text-slate-900 font-medium">
+                    {format(new Date(client.subscriptionCurrentPeriodEnd), "MMM d, yyyy")}
+                  </span>
+                </p>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

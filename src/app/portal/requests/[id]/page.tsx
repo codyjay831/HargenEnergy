@@ -15,7 +15,7 @@ import {
   formatFlatPrice,
   formatHandoffTier,
   formatPricingMode,
-  isOneOffPricingComplete,
+  isRequestBasedPricingComplete,
 } from "@/lib/engagement";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 
@@ -73,8 +73,9 @@ export default async function PortalRequestDetailPage({ params }: PortalRequestD
     .filter(e => e.billableType === "OVERFLOW")
     .reduce((acc, curr) => acc + curr.minutes, 0);
 
-  const isOneOff = clientRecord?.engagementType === EngagementType.ONE_OFF;
-  const pricingSet = isOneOffPricingComplete(request);
+  const isRequestBased =
+    clientRecord?.engagementType === EngagementType.REQUEST_BASED;
+  const pricingSet = isRequestBasedPricingComplete(request);
 
   return (
     <div className="space-y-8">
@@ -109,7 +110,7 @@ export default async function PortalRequestDetailPage({ params }: PortalRequestD
               <CardTitle>Work overview</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {isOneOff && (
+              {isRequestBased && (
                 <div className="p-4 rounded-lg border border-slate-200 bg-slate-50">
                   <Label className="text-muted-foreground text-xs uppercase tracking-wider">Pricing</Label>
                   {pricingSet ? (
@@ -247,7 +248,7 @@ export default async function PortalRequestDetailPage({ params }: PortalRequestD
             </Card>
           )}
 
-          {!isOneOff && (
+          {!isRequestBased && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">

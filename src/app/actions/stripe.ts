@@ -3,7 +3,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getStripe } from "@/lib/stripe";
-import { PlanType } from "@/generated/prisma/client";
+import { EngagementType, PlanType } from "@/generated/prisma/client";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000";
 
@@ -45,6 +45,12 @@ export async function createCheckoutSession(clientId: string, planTypeRaw: strin
 
   if (!client) {
     throw new Error("Client not found.");
+  }
+
+  if (client.engagementType !== EngagementType.SUPPORT_BLOCK) {
+    throw new Error(
+      "Stripe checkout is only available for Support Block clients. Request-Based Work clients are priced per request after review.",
+    );
   }
 
   const priceId = PRICE_IDS[planType];
@@ -115,7 +121,17 @@ export async function createClientBillingPortalSession() {
     where: { id: session.user.clientId },
   });
 
-  if (!client?.stripeCustomerId) {
+  if (!client) {
+    throw new Error("Client not found.");
+  }
+
+  if (client.engagementType !== EngagementType.SUPPORT_BLOCK) {
+    throw new Error(
+      "Subscription billing is not used for Request-Based Work accounts. Pricing is confirmed per request.",
+    );
+  }
+
+  if (!client.stripeCustomerId) {
     throw new Error("Billing is not configured for this account yet.");
   }
 

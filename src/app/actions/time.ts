@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { BillableType, TimeEntryStatus } from "@/generated/prisma/client";
 import { assertBillableTimeOnRequest } from "@/lib/request-lifecycle";
+import { assertRequestBasedBillableWorkAllowed } from "@/lib/engagement";
 import { revalidatePath } from "next/cache";
 import { isBillableTypeValue } from "@/lib/ui-enums";
 
@@ -39,7 +40,14 @@ export async function createTimeEntry(data: {
     if (data.supportRequestId) {
       const request = await prisma.supportRequest.findUnique({
         where: { id: data.supportRequestId },
-        select: { kind: true, clientId: true },
+        select: {
+          kind: true,
+          clientId: true,
+          handoffTier: true,
+          pricingMode: true,
+          flatPriceCents: true,
+          client: { select: { engagementType: true } },
+        },
       });
 
       if (!request) {
@@ -54,6 +62,15 @@ export async function createTimeEntry(data: {
       const billableError = assertBillableTimeOnRequest(request.kind, billableType);
       if (billableError) {
         return billableError;
+      }
+
+      const rbError = assertRequestBasedBillableWorkAllowed({
+        engagementType: request.client.engagementType,
+        request,
+        billableType,
+      });
+      if (!rbError.ok) {
+        return { error: rbError.error };
       }
     }
 
@@ -145,7 +162,42 @@ export async function updateTimeEntry(id: string, data: {
     return { error: "Unauthorized. Admin access required." };
   }
 
+  if (data.billableType !== undefined && !isBillableTypeValue(data.billableType)) {
+    return { error: "Invalid billable type." };
+  }
+
   try {
+    const existing = await prisma.timeEntry.findUnique({
+      where: { id },
+      include: {
+        supportRequest: {
+          select: {
+            handoffTier: true,
+            pricingMode: true,
+            flatPriceCents: true,
+            client: { select: { engagementType: true } },
+          },
+        },
+      },
+    });
+
+    if (!existing) {
+      return { error: "Time entry not found." };
+    }
+
+    const nextBillableType = (data.billableType ?? existing.billableType) as BillableType;
+
+    if (existing.supportRequestId && existing.supportRequest) {
+      const rbError = assertRequestBasedBillableWorkAllowed({
+        engagementType: existing.supportRequest.client.engagementType,
+        request: existing.supportRequest,
+        billableType: nextBillableType,
+      });
+      if (!rbError.ok) {
+        return { error: rbError.error };
+      }
+    }
+
     const timeEntry = await prisma.timeEntry.update({
       where: { id },
       data: {

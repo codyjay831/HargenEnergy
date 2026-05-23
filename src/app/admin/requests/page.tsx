@@ -109,12 +109,12 @@ export default async function AdminRequests() {
                           {request.overflowStatus.replace("_", " ")}
                         </Badge>
                       )}
-                      {request.client.engagementType === EngagementType.ONE_OFF && request.handoffTier && (
+                      {request.client.engagementType === EngagementType.REQUEST_BASED && request.handoffTier && (
                         <Badge variant="secondary" className="text-[10px] px-1 py-0 w-fit">
                           {request.handoffTier}
                         </Badge>
                       )}
-                      {request.client.engagementType === EngagementType.ONE_OFF && request.pricingMode && (
+                      {request.client.engagementType === EngagementType.REQUEST_BASED && request.pricingMode && (
                         <Badge variant="outline" className="text-[10px] px-1 py-0 w-fit">
                           {request.pricingMode.replace(/_/g, " ")}
                         </Badge>

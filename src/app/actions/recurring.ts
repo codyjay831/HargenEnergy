@@ -48,8 +48,8 @@ export async function createRecurringTask(data: {
   if (!client) {
     throw new Error("Client not found");
   }
-  if (client.engagementType !== EngagementType.BLOCK_SUPPORT) {
-    throw new Error("Recurring templates are only for hourly support block clients.");
+  if (client.engagementType !== EngagementType.SUPPORT_BLOCK) {
+    throw new Error("Recurring templates are only for Support Block clients.");
   }
 
   const task = await prisma.recurringTask.create({
@@ -99,7 +99,7 @@ export async function processRecurringTasks() {
   let createdCount = 0;
 
   for (const task of tasksToRun) {
-    if (task.client.engagementType !== EngagementType.BLOCK_SUPPORT) {
+    if (task.client.engagementType !== EngagementType.SUPPORT_BLOCK) {
       continue;
     }
 

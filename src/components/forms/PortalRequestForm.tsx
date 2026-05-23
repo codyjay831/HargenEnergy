@@ -57,7 +57,7 @@ export function PortalRequestForm({
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [selectedTaskId, setSelectedTaskId] = useState<string>("");
 
-  const isOneOff = engagementType === EngagementType.ONE_OFF;
+  const isRequestBased = engagementType === EngagementType.REQUEST_BASED;
 
   const selectedCategory = useMemo(
     () => categories.find((c) => c.id === selectedCategoryId),
@@ -143,8 +143,8 @@ export function PortalRequestForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       <p className="text-sm text-muted-foreground">
-        {isOneOff
-          ? "Send a one-time job or task. Hargen will review the handoff and confirm pricing before work continues."
+        {isRequestBased
+          ? "Send a work request. Hargen will review the handoff and confirm pricing before work continues."
           : "Send work inside your approved support areas."}
       </p>
 

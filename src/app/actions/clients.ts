@@ -95,7 +95,7 @@ export async function updateClientEngagement(data: {
     return { error: "Client not found." };
   }
 
-  if (engagementType === EngagementType.BLOCK_SUPPORT && approvedWorkTaskIds.length > 0) {
+  if (engagementType === EngagementType.SUPPORT_BLOCK && approvedWorkTaskIds.length > 0) {
     const activeCount = await prisma.workTask.count({
       where: { id: { in: approvedWorkTaskIds }, isActive: true },
     });
@@ -108,7 +108,7 @@ export async function updateClientEngagement(data: {
     await prisma.$transaction(async (tx) => {
       await tx.clientApprovedWorkTask.deleteMany({ where: { clientId } });
 
-      if (engagementType === EngagementType.BLOCK_SUPPORT && approvedWorkTaskIds.length > 0) {
+      if (engagementType === EngagementType.SUPPORT_BLOCK && approvedWorkTaskIds.length > 0) {
         await tx.clientApprovedWorkTask.createMany({
           data: approvedWorkTaskIds.map((workTaskId) => ({ clientId, workTaskId })),
         });
@@ -119,7 +119,7 @@ export async function updateClientEngagement(data: {
         data: {
           engagementType,
           weeklyHours:
-            engagementType === EngagementType.ONE_OFF ? 0 : client.weeklyHours,
+            engagementType === EngagementType.REQUEST_BASED ? 0 : client.weeklyHours,
         },
       });
     });
@@ -132,11 +132,11 @@ export async function updateClientEngagement(data: {
       success: true,
       engagementType,
       approvedCount:
-        engagementType === EngagementType.BLOCK_SUPPORT
+        engagementType === EngagementType.SUPPORT_BLOCK
           ? approvedWorkTaskIds.length
           : 0,
       warnings:
-        engagementType === EngagementType.BLOCK_SUPPORT &&
+        engagementType === EngagementType.SUPPORT_BLOCK &&
         approvedWorkTaskIds.length === 0
           ? ["No approved work types yet. Portal submit will be blocked."]
           : [],

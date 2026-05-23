@@ -77,24 +77,23 @@ export default async function PortalAccount() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CreditCard className="h-5 w-5 text-primary" />
-              {client.engagementType === EngagementType.ONE_OFF
+              {client.engagementType === EngagementType.REQUEST_BASED
                 ? "Billing"
-                : "Support plan"}
+                : "Support Block plan"}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {client.engagementType === EngagementType.ONE_OFF ? (
+            {client.engagementType === EngagementType.REQUEST_BASED ? (
               <p className="text-sm text-muted-foreground leading-relaxed">
-                You are set up as a one-off work client. Each job is reviewed and priced
-                individually before work continues. Billing is per job or request, not a
-                weekly support block.
+                Send work as needed. Hargen reviews each request and confirms pricing before
+                work continues.
               </p>
             ) : (
               <>
                 <div className="flex items-center justify-between">
                   <div className="flex flex-col">
                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Current block</span>
-                    <span className="text-lg font-bold">{client.planType} support</span>
+                    <span className="text-lg font-bold">{client.planType} Support Block</span>
                   </div>
                   <Badge variant={client.subscriptionStatus === "active" ? "default" : "secondary"}>
                     {client.subscriptionStatus?.toUpperCase() || "PENDING"}

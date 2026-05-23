@@ -23,7 +23,7 @@ import {
 import { startOfWeek } from "date-fns";
 import { RequestTimer } from "@/components/admin/RequestTimer";
 import { RequestHandoffPricingForm } from "@/components/forms/RequestHandoffPricingForm";
-import { getEngagementLabel, isOneOffPricingComplete } from "@/lib/engagement";
+import { getEngagementLabel, isRequestBasedPricingComplete } from "@/lib/engagement";
 import type { HandoffTierValue, PricingModeValue } from "@/lib/ui-enums";
 
 export const dynamic = "force-dynamic";
@@ -82,13 +82,15 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
     redirect(`/admin/clients/${request.clientId}?open=walkthrough`);
   }
 
-  const isBlockClient = request.client.engagementType === EngagementType.BLOCK_SUPPORT;
-  const isOneOffClient = request.client.engagementType === EngagementType.ONE_OFF;
+  const isSupportBlockClient =
+    request.client.engagementType === EngagementType.SUPPORT_BLOCK;
+  const isRequestBasedClient =
+    request.client.engagementType === EngagementType.REQUEST_BASED;
   const usage = calculateWeeklyUsage(request.client.timeEntries, request.client.weeklyHours);
   const isNearOrOverLimit =
-    isBlockClient && (usage.isNearLimit || usage.isOverLimit);
+    isSupportBlockClient && (usage.isNearLimit || usage.isOverLimit);
   const pricingIncomplete =
-    isOneOffClient && !isOneOffPricingComplete(request);
+    isRequestBasedClient && !isRequestBasedPricingComplete(request);
   const showPricingWarning =
     pricingIncomplete && request.status === RequestStatus.IN_PROGRESS;
   const listHref = "/admin/requests";
@@ -124,7 +126,7 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
             <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 flex items-start gap-3 text-amber-900">
               <AlertCircle className="h-5 w-5 mt-0.5" />
               <p className="text-sm">
-                This one-off request is in progress without handoff tier and pricing set. Set
+                This request-based job is in progress without handoff tier and pricing set. Set
                 pricing before continuing work.
               </p>
             </div>
@@ -191,12 +193,12 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
             </CardContent>
           </Card>
 
-          {isOneOffClient && (
+          {isRequestBasedClient && (
             <Card>
               <CardHeader>
                 <CardTitle>Pricing & handoff</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Classify the handoff and set how this one-off job is priced.
+                  Classify the handoff and set how this request-based job is priced.
                 </p>
               </CardHeader>
               <CardContent>
@@ -225,7 +227,7 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
             </CardContent>
           </Card>
 
-          {isBlockClient && (
+          {isSupportBlockClient && (
           <Card className={cn(
             "border-2",
             request.overflowStatus === OverflowStatus.NEEDS_APPROVAL ? "border-orange-200 bg-orange-50/30" : 
@@ -335,9 +337,11 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <LogTimeForm 
-                clientId={request.clientId} 
-                supportRequestId={request.id} 
+              <LogTimeForm
+                clientId={request.clientId}
+                supportRequestId={request.id}
+                engagementType={request.client.engagementType}
+                requestPricingComplete={isRequestBasedPricingComplete(request)}
                 isOverflowApproved={request.overflowStatus === OverflowStatus.APPROVED}
               />
             </CardContent>

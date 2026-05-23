@@ -56,7 +56,7 @@ export const requestHelpSchema = z.object({
   bottleneck: trimmedString
     .min(1, "Please describe your current bottleneck")
     .max(8000, "Description must be at most 8000 characters."),
-  plan: z.enum(["light", "core", "priority", "not-sure", "one-time"]),
+  plan: z.enum(["light", "core", "priority", "not-sure", "request-based"]),
   urgency: z.enum(["normal", "this-week", "urgent", "ongoing"]),
   tools: trimmedString
     .max(4000, "Tools field must be at most 4000 characters.")

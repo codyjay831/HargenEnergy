@@ -58,7 +58,7 @@ export async function getPortalSubmitOptions(clientId: string) {
 
   const submitCheck = canSubmitPortalWork(client);
 
-  if (client.engagementType === EngagementType.ONE_OFF) {
+  if (client.engagementType === EngagementType.REQUEST_BASED) {
     const categories = await prisma.serviceCategory.findMany({
       where: { isActive: true },
       include: {

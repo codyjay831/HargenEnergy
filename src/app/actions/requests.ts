@@ -12,6 +12,7 @@ import {
   OverflowStatus,
   SupportRequestKind,
   SupportRequestSource,
+  EngagementType,
 } from "@/generated/prisma/client";
 import { updateRequestHandoffPricingSchema } from "@/lib/validations";
 import { buildIntakeTitle } from "@/lib/request-lifecycle";
@@ -24,8 +25,12 @@ import {
   sendOverflowApprovedEmail,
 } from "@/lib/email";
 import { auth } from "@/auth";
-import { isOverflowStatusValue, isRequestStatusValue } from "@/lib/ui-enums";
+import { isRequestStatusValue, isOverflowStatusValue } from "@/lib/ui-enums";
 import { checkRateLimit, getRateLimitIdentifier } from "@/lib/rate-limit";
+import {
+  isRequestBasedPricingComplete,
+  REQUEST_BASED_PRICING_REQUIRED_ERROR,
+} from "@/lib/engagement";
 
 export async function submitRequestHelp(data: RequestHelpInput) {
   const validatedFields = requestHelpSchema.safeParse(data);
@@ -213,6 +218,25 @@ export async function updateRequest(
   }
 
   try {
+    const existing = await prisma.supportRequest.findUnique({
+      where: { id },
+      include: { client: { select: { engagementType: true } } },
+    });
+
+    if (!existing) {
+      return { error: "Request not found." };
+    }
+
+    if (
+      updateData.status === RequestStatus.IN_PROGRESS &&
+      existing.client.engagementType === EngagementType.REQUEST_BASED
+    ) {
+      const merged = { ...existing, ...updateData };
+      if (!isRequestBasedPricingComplete(merged)) {
+        return { error: REQUEST_BASED_PRICING_REQUIRED_ERROR };
+      }
+    }
+
     const request = await prisma.supportRequest.update({
       where: { id },
       data: updateData,

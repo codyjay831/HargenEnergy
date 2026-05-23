@@ -283,7 +283,7 @@ export function RequestHelpForm() {
               <SelectItem value="core">Core Support (5 hours per week)</SelectItem>
               <SelectItem value="priority">Priority Support (10 hours per week)</SelectItem>
               <SelectItem value="not-sure">Not sure yet</SelectItem>
-              <SelectItem value="one-time">One-time / overflow help</SelectItem>
+              <SelectItem value="request-based">Request-based work</SelectItem>
             </SelectContent>
           </Select>
         </div>
