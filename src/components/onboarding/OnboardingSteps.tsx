@@ -22,8 +22,9 @@ import { ClientBillingManager } from "@/components/forms/ClientBillingManager";
 import { ClientPortalAccessManager } from "@/components/forms/ClientPortalAccessManager";
 import { getQualificationStatusLabel } from "@/lib/request-lifecycle";
 import { cn } from "@/lib/utils";
-import { EngagementType } from "@/generated/prisma/client";
+import { BillingMode, EngagementType } from "@/generated/prisma/client";
 import { checkPortalInviteReadinessByCount } from "@/lib/engagement";
+import { getClientBillingReadiness } from "@/lib/client-billing-readiness";
 
 interface OnboardingStepsProps {
   client: {
@@ -34,9 +35,15 @@ interface OnboardingStepsProps {
     status: ClientStatus;
     planType: string;
     engagementType: EngagementType;
+    billingMode?: BillingMode | null;
+    billingOverrideReason?: string | null;
+    billingOverrideExpiresAt?: Date | null;
+    billingOverrideCreatedAt?: Date | null;
+    billingOverrideCreatedById?: string | null;
     approvedWorkTaskCount: number;
     subscriptionStatus?: string | null;
     stripeCustomerId?: string | null;
+    stripeSubscriptionId?: string | null;
     users: { id: string; email: string; name: string | null }[];
   };
   walkthroughPlanRequestBased?: boolean;
@@ -68,6 +75,18 @@ export function OnboardingSteps({
     (walkthroughPlanRequestBased &&
       client.engagementType === EngagementType.SUPPORT_BLOCK);
   const hasPortalAccess = client.users.length > 0;
+  const billing = getClientBillingReadiness({
+    engagementType: client.engagementType,
+    billingMode: client.billingMode,
+    billingOverrideReason: client.billingOverrideReason,
+    billingOverrideExpiresAt: client.billingOverrideExpiresAt,
+    billingOverrideCreatedAt: client.billingOverrideCreatedAt,
+    billingOverrideCreatedById: client.billingOverrideCreatedById,
+    stripeCustomerId: client.stripeCustomerId,
+    stripeSubscriptionId: client.stripeSubscriptionId,
+    subscriptionStatus: client.subscriptionStatus,
+  });
+  // Preserve existing onboarding step unlock semantics (any truthy subscriptionStatus).
   const billingStepComplete = isRequestBased
     ? true
     : Boolean(client.subscriptionStatus);
@@ -109,11 +128,7 @@ export function OnboardingSteps({
     {
       number: 3,
       title: isRequestBased ? "Pricing model" : "Set up billing",
-      description: isRequestBased
-        ? "Pricing is handled per request after review"
-        : billingStepComplete
-          ? "Billing configured"
-          : "Configure plan and Stripe subscription",
+      description: billing.description,
       icon: <CreditCard className="h-5 w-5" />,
       status: billingStepComplete ? "complete" : isActive ? "current" : "upcoming",
     },
@@ -196,16 +211,22 @@ export function OnboardingSteps({
                 {step.number === 3 && isActive && !isRequestBased && (
                   <ClientBillingManager
                     clientId={client.id}
+                    engagementType={client.engagementType}
+                    billingMode={client.billingMode}
+                    billingOverrideReason={client.billingOverrideReason}
+                    billingOverrideExpiresAt={client.billingOverrideExpiresAt}
+                    billingOverrideCreatedAt={client.billingOverrideCreatedAt}
+                    billingOverrideCreatedById={client.billingOverrideCreatedById}
                     currentPlan={client.planType as ClientPlanType}
                     stripeCustomerId={client.stripeCustomerId ?? null}
+                    stripeSubscriptionId={client.stripeSubscriptionId ?? null}
                     subscriptionStatus={client.subscriptionStatus ?? null}
                   />
                 )}
 
                 {step.number === 3 && isActive && isRequestBased && (
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Request-Based Work clients are priced per request after review. No
-                    subscription setup is required.
+                    {billing.description}
                   </p>
                 )}
 

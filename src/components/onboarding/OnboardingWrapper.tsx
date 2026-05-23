@@ -3,7 +3,7 @@
 import { OnboardingSteps } from "./OnboardingSteps";
 import { WalkthroughDrawer } from "./WalkthroughDrawer";
 import { ClientStatus, RequestStatus } from "@/lib/enums";
-import { EngagementType } from "@/generated/prisma/client";
+import { BillingMode, EngagementType } from "@/generated/prisma/client";
 
 interface OnboardingWrapperProps {
   client: {
@@ -14,9 +14,15 @@ interface OnboardingWrapperProps {
     status: ClientStatus;
     planType: string;
     engagementType: EngagementType;
+    billingMode?: BillingMode | null;
+    billingOverrideReason?: string | null;
+    billingOverrideExpiresAt?: Date | null;
+    billingOverrideCreatedAt?: Date | null;
+    billingOverrideCreatedById?: string | null;
     approvedWorkTaskCount: number;
     subscriptionStatus?: string | null;
     stripeCustomerId?: string | null;
+    stripeSubscriptionId?: string | null;
     users: { id: string; email: string; name: string | null }[];
   };
   walkthroughPlanRequestBased?: boolean;

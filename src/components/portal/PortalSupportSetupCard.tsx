@@ -4,6 +4,10 @@ import { CreditCard } from "lucide-react";
 import { PortalBillingPortalButton } from "@/components/forms/PortalBillingPortalButton";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import type { ClientPortalSupportSetup } from "@/lib/portal-support";
+import {
+  getBillingBadgeVariant,
+  getClientBillingReadiness,
+} from "@/lib/client-billing-readiness";
 
 interface PortalSupportSetupCardProps {
   setup: ClientPortalSupportSetup;
@@ -11,6 +15,17 @@ interface PortalSupportSetupCardProps {
 
 export function PortalSupportSetupCard({ setup }: PortalSupportSetupCardProps) {
   const copy = PRODUCT_LANGUAGE.supportSetup;
+  const billing = getClientBillingReadiness({
+    engagementType: setup.engagementType,
+    billingMode: setup.billingMode,
+    billingOverrideReason: setup.billingOverrideReason,
+    billingOverrideExpiresAt: setup.billingOverrideExpiresAt,
+    billingOverrideCreatedAt: setup.billingOverrideCreatedAt,
+    billingOverrideCreatedById: setup.billingOverrideCreatedById,
+    stripeCustomerId: setup.stripeCustomerId,
+    stripeSubscriptionId: setup.stripeSubscriptionId,
+    subscriptionStatus: setup.subscriptionStatus,
+  });
 
   return (
     <Card id="support-setup">
@@ -41,12 +56,12 @@ export function PortalSupportSetupCard({ setup }: PortalSupportSetupCardProps) {
                 </span>
                 <span className="text-lg font-bold">{setup.planType} Support Block</span>
               </div>
-              <Badge
-                variant={setup.subscriptionStatus === "active" ? "default" : "secondary"}
-              >
-                {setup.subscriptionStatus?.toUpperCase() || "PENDING"}
+              <Badge variant={getBillingBadgeVariant(billing)}>
+                {billing.customerStatusLabel}
               </Badge>
             </div>
+
+            <p className="text-xs text-muted-foreground">{billing.customerDescription}</p>
 
             <div className="flex flex-col">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">

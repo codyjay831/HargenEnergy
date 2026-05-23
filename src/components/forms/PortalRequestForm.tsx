@@ -116,7 +116,9 @@ export function PortalRequestForm({
         toast.success("Work sent successfully!");
         router.push(`/portal/requests/${result.requestId}`);
       } else {
-        const errorMsg = "error" in result ? result.error : "Failed to send work.";
+        const errorMsg =
+          ("error" in result ? result.error : undefined) ??
+          "Failed to send work.";
         setError(errorMsg);
         toast.error(errorMsg);
       }

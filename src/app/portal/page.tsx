@@ -11,21 +11,20 @@ import {
   PlusCircle,
   UserCircle,
   Inbox,
-  ArrowRight,
-  CheckCircle2,
-  Circle
+  ArrowRight
 } from "lucide-react";
 import Link from "next/link";
 import { format, startOfWeek } from "date-fns";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { EngagementType } from "@/generated/prisma/client";
+import { EngagementType, Role, SupportRequestKind } from "@/generated/prisma/client";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { isRequestBasedPricingComplete } from "@/lib/engagement";
 import { getClientPortalSupportSetup } from "@/lib/portal-support";
+import { deriveClientSetupReadiness } from "@/lib/client-setup-readiness";
+import { PortalSetupGuide } from "@/components/portal/PortalSetupGuide";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +51,12 @@ export default async function PortalDashboard() {
           }
         }
       },
-      systemAccesses: true
+      systemAccesses: true,
+      users: {
+        where: { role: Role.CLIENT },
+        select: { id: true },
+      },
+      approvedWorkTasks: { select: { workTaskId: true } },
     }
   });
 
@@ -90,47 +94,52 @@ export default async function PortalDashboard() {
   const pendingPricingRequests = isRequestBased
     ? client.requests.filter((r) => !isRequestBasedPricingComplete(r))
     : [];
-
-  // Onboarding Checklist
-  const onboardingSteps = isSupportBlock
-    ? [
-        {
-          id: "billing",
-          label: "Setup Billing",
-          completed: !!client.stripeSubscriptionId,
-          href: "/portal/account",
-        },
-        {
-          id: "access",
-          label: "Provide System Access",
-          completed: client.systemAccesses.length > 0,
-          href: "/portal/access",
-        },
-        {
-          id: "request",
-          label: "Send first work",
-          completed: client.requests.length > 0,
-          href: "/portal/requests/new",
-        },
-      ]
-    : [
-        {
-          id: "access",
-          label: "Provide System Access",
-          completed: client.systemAccesses.length > 0,
-          href: "/portal/access",
-        },
-        {
-          id: "request",
-          label: "Send first work",
-          completed: client.requests.length > 0,
-          href: "/portal/requests/new",
-        },
-      ];
-
-  const completedSteps = onboardingSteps.filter(s => s.completed).length;
-  const onboardingProgress = Math.round((completedSteps / onboardingSteps.length) * 100);
-  const showOnboarding = onboardingProgress < 100 || client.status === "LEAD";
+  const activeCatalogTaskCount =
+    !("error" in supportSetup)
+      ? supportSetup.categories.reduce((total, category) => total + category.tasks.length, 0)
+      : 0;
+  const activeApprovedWorkTaskCount =
+    isSupportBlock && !("error" in supportSetup)
+      ? activeCatalogTaskCount
+      : 0;
+  const clientOpsRequestCount = await prisma.supportRequest.count({
+    where: {
+      clientId,
+      kind: SupportRequestKind.CLIENT_OPS,
+    },
+  });
+  const setupReadiness = deriveClientSetupReadiness({
+    clientId: client.id,
+    status: client.status,
+    engagementType: client.engagementType,
+    planType: client.planType,
+    weeklyHours: client.weeklyHours,
+    billingMode: client.billingMode,
+    billingOverrideReason: client.billingOverrideReason,
+    billingOverrideExpiresAt: client.billingOverrideExpiresAt,
+    billingOverrideCreatedAt: client.billingOverrideCreatedAt,
+    billingOverrideCreatedById: client.billingOverrideCreatedById,
+    stripeCustomerId: client.stripeCustomerId,
+    stripeSubscriptionId: client.stripeSubscriptionId,
+    subscriptionStatus: client.subscriptionStatus,
+    subscriptionCurrentPeriodEnd: client.subscriptionCurrentPeriodEnd,
+    approvedWorkTaskCount: client.approvedWorkTasks.length,
+    activeApprovedWorkTaskCount,
+    activeCatalogTaskCount,
+    clientPortalUserCount: client.users.length,
+    clientOpsRequestCount,
+    hasWalkthroughIntake: client.status === "LEAD",
+    systemAccessStatuses: client.systemAccesses.map((item) => item.status),
+    hrefs: {
+      adminClient: `/admin/clients/${client.id}`,
+      walkthrough: `/admin/clients/${client.id}?open=walkthrough`,
+      portalDashboard: "/portal",
+      portalAccount: "/portal/account",
+      portalAccess: "/portal/access",
+      portalNewRequest: "/portal/requests/new",
+      adminRequests: `/admin/requests?clientId=${client.id}`,
+    },
+  });
 
   const stats = isSupportBlock
     ? [
@@ -226,47 +235,7 @@ export default async function PortalDashboard() {
         </div>
       )}
 
-      {/* Onboarding Checklist */}
-      {showOnboarding && (
-        <Card className="border-blue-200 bg-blue-50/30">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-bold text-blue-900 flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-blue-600" />
-                Getting Started
-              </CardTitle>
-              <span className="text-sm font-bold text-blue-700">{onboardingProgress}% Complete</span>
-            </div>
-            <Progress value={onboardingProgress} className="h-2 bg-blue-100 mt-2" />
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {onboardingSteps.map((step) => (
-                <Link 
-                  key={step.id} 
-                  href={step.href}
-                  className={cn(
-                    "flex items-center gap-3 p-3 rounded-lg border transition-all",
-                    step.completed 
-                      ? "bg-white border-blue-200 text-blue-900 opacity-75" 
-                      : "bg-white border-blue-300 text-blue-900 shadow-sm hover:border-blue-400 hover:shadow-md"
-                  )}
-                >
-                  {step.completed ? (
-                    <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
-                  ) : (
-                    <Circle className="h-5 w-5 text-blue-300 shrink-0" />
-                  )}
-                  <span className={cn("text-sm font-semibold", step.completed && "line-through text-slate-400")}>
-                    {step.label}
-                  </span>
-                  {!step.completed && <ArrowRight className="ml-auto h-4 w-4 text-blue-400" />}
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <PortalSetupGuide readiness={setupReadiness} />
 
       {isRequestBased && pendingPricingRequests.length > 0 && (
         <Card className="border-amber-200 bg-amber-50/40">

@@ -30,6 +30,13 @@ enum PlanType {
   CUSTOM
 }
 
+enum BillingMode {
+  STRIPE
+  MANUAL
+  COMPED_INTERNAL
+  DEMO
+}
+
 enum Urgency {
   NORMAL
   THIS_WEEK
@@ -164,6 +171,7 @@ model User {
   outreachSearchRuns OutreachSearchRun[]
   requestedDisbursements DisbursementRequest[] @relation("DisbursementRequester")
   approvedDisbursements  DisbursementRequest[] @relation("DisbursementApprover")
+  billingOverridesCreated Client[] @relation("ClientBillingOverrideCreatedBy")
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 }
@@ -194,6 +202,12 @@ model Client {
   engagementType     EngagementType   @default(SUPPORT_BLOCK)
   planType           PlanType         @default(LIGHT)
   weeklyHours        Float            @default(0)
+  billingMode        BillingMode      @default(STRIPE)
+  billingOverrideReason String?
+  billingOverrideExpiresAt DateTime?
+  billingOverrideCreatedAt DateTime?
+  billingOverrideCreatedById String?
+  billingOverrideCreatedBy User? @relation("ClientBillingOverrideCreatedBy", fields: [billingOverrideCreatedById], references: [id], onDelete: SetNull)
   stripeCustomerId   String?
   stripeSubscriptionId String?
   subscriptionStatus String?
@@ -212,6 +226,8 @@ model Client {
   approvedWorkTasks  ClientApprovedWorkTask[]
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
+
+  @@index([billingMode])
 }
 
 model ClientApprovedWorkTask {

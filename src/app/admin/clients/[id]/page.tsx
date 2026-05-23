@@ -30,6 +30,8 @@ import { calculateWeeklyUsage, type WeeklyUsage } from "@/lib/usage";
 import { OnboardingWrapper } from "@/components/onboarding/OnboardingWrapper";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { formatIntakePlanLabel } from "@/lib/intake-plan";
+import { ClientSetupGuide } from "@/components/admin/ClientSetupGuide";
+import { deriveClientSetupReadiness } from "@/lib/client-setup-readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -115,6 +117,50 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
     walkthroughMetadata?.intakePlan === "one-time";
   const approvedWorkTaskCount = client.approvedWorkTasks.length;
   const planInterestLabel = formatIntakePlanLabel(walkthroughMetadata?.intakePlan);
+  const activeCatalogTaskIds = new Set(
+    catalogCategories.flatMap((category) => category.tasks.map((task) => task.id)),
+  );
+  const activeApprovedWorkTaskCount = client.approvedWorkTasks.filter((task) =>
+    activeCatalogTaskIds.has(task.workTaskId),
+  ).length;
+  const clientOpsRequestCount = await prisma.supportRequest.count({
+    where: {
+      clientId: client.id,
+      kind: SupportRequestKind.CLIENT_OPS,
+    },
+  });
+  const setupReadiness = deriveClientSetupReadiness({
+    clientId: client.id,
+    status: client.status,
+    engagementType: client.engagementType,
+    planType: client.planType,
+    weeklyHours: client.weeklyHours,
+    billingMode: client.billingMode,
+    billingOverrideReason: client.billingOverrideReason,
+    billingOverrideExpiresAt: client.billingOverrideExpiresAt,
+    billingOverrideCreatedAt: client.billingOverrideCreatedAt,
+    billingOverrideCreatedById: client.billingOverrideCreatedById,
+    stripeCustomerId: client.stripeCustomerId,
+    stripeSubscriptionId: client.stripeSubscriptionId,
+    subscriptionStatus: client.subscriptionStatus,
+    subscriptionCurrentPeriodEnd: client.subscriptionCurrentPeriodEnd,
+    approvedWorkTaskCount,
+    activeApprovedWorkTaskCount,
+    activeCatalogTaskCount: activeCatalogTaskIds.size,
+    clientPortalUserCount: client.users.length,
+    clientOpsRequestCount,
+    hasWalkthroughIntake: Boolean(latestWalkthrough),
+    systemAccessStatuses: client.systemAccesses.map((item) => item.status),
+    hrefs: {
+      adminClient: `/admin/clients/${client.id}`,
+      walkthrough: `/admin/clients/${client.id}?open=walkthrough`,
+      portalDashboard: "/portal",
+      portalAccount: "/portal/account",
+      portalAccess: "/portal/access",
+      portalNewRequest: "/portal/requests/new",
+      adminRequests: `/admin/requests?clientId=${client.id}`,
+    },
+  });
 
   return (
     <div className="space-y-8">
@@ -143,6 +189,8 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
         </div>
       </div>
 
+      <ClientSetupGuide readiness={setupReadiness} />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Status-Aware Layout */}
         {isProspect ? (
@@ -158,9 +206,15 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
                   status: client.status,
                   planType: client.planType,
                   engagementType: client.engagementType,
+                  billingMode: client.billingMode,
+                  billingOverrideReason: client.billingOverrideReason,
+                  billingOverrideExpiresAt: client.billingOverrideExpiresAt,
+                  billingOverrideCreatedAt: client.billingOverrideCreatedAt,
+                  billingOverrideCreatedById: client.billingOverrideCreatedById,
                   approvedWorkTaskCount,
                   subscriptionStatus: client.subscriptionStatus,
                   stripeCustomerId: client.stripeCustomerId,
+                  stripeSubscriptionId: client.stripeSubscriptionId,
                   users: client.users,
                 }}
                 walkthroughPlanRequestBased={walkthroughPlanRequestBased}
@@ -511,9 +565,16 @@ function renderBilling(client: Client & { engagementType: EngagementType }) {
           <>
             <ClientBillingManager
               clientId={client.id}
+              engagementType={client.engagementType}
+              billingMode={client.billingMode}
+              billingOverrideReason={client.billingOverrideReason}
+              billingOverrideExpiresAt={client.billingOverrideExpiresAt}
+              billingOverrideCreatedAt={client.billingOverrideCreatedAt}
+              billingOverrideCreatedById={client.billingOverrideCreatedById}
               currentPlan={client.planType}
               subscriptionStatus={client.subscriptionStatus}
               stripeCustomerId={client.stripeCustomerId}
+              stripeSubscriptionId={client.stripeSubscriptionId}
             />
 
             {client.subscriptionCurrentPeriodEnd && (

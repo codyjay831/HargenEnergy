@@ -5,6 +5,8 @@ import { Building2 } from "lucide-react";
 import { PortalSupportSetupCard } from "@/components/portal/PortalSupportSetupCard";
 import { getClientPortalSupportSetup } from "@/lib/portal-support";
 import { prisma } from "@/lib/prisma";
+import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
+import { PortalSetupGuide } from "@/components/portal/PortalSetupGuide";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +18,7 @@ export default async function PortalAccount() {
     return <div>Client not found.</div>;
   }
 
-  const [client, setup] = await Promise.all([
+  const [client, setup, setupReadiness] = await Promise.all([
     prisma.client.findUnique({
       where: { id: clientId },
       select: {
@@ -29,9 +31,10 @@ export default async function PortalAccount() {
       },
     }),
     getClientPortalSupportSetup(clientId),
+    getClientSetupReadiness(clientId),
   ]);
 
-  if (!client || "error" in setup) {
+  if (!client || "error" in setup || "error" in setupReadiness) {
     redirect("/portal");
   }
 
@@ -43,6 +46,8 @@ export default async function PortalAccount() {
           View your company profile and support plan details.
         </p>
       </div>
+
+      <PortalSetupGuide readiness={setupReadiness} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <Card>

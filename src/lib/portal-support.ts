@@ -1,4 +1,5 @@
 import {
+  BillingMode,
   EngagementType,
   type PlanType,
 } from "@/generated/prisma/client";
@@ -30,10 +31,16 @@ export type ClientPortalSupportSetup = {
   engagementLabel: string;
   isSupportBlock: boolean;
   isRequestBased: boolean;
+  billingMode: BillingMode;
+  billingOverrideReason: string | null;
+  billingOverrideExpiresAt: Date | null;
+  billingOverrideCreatedAt: Date | null;
+  billingOverrideCreatedById: string | null;
   planType: PlanType;
   weeklyHours: number;
   subscriptionStatus: string | null;
   stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
   categories: PortalSubmitCategory[];
   supportAreas: PortalSupportArea[];
   canSubmit: boolean;
@@ -90,10 +97,16 @@ export async function getClientPortalSupportSetup(
     engagementLabel: getEngagementLabel(client.engagementType),
     isSupportBlock,
     isRequestBased,
+    billingMode: client.billingMode,
+    billingOverrideReason: client.billingOverrideReason,
+    billingOverrideExpiresAt: client.billingOverrideExpiresAt,
+    billingOverrideCreatedAt: client.billingOverrideCreatedAt,
+    billingOverrideCreatedById: client.billingOverrideCreatedById,
     planType: client.planType,
     weeklyHours: client.weeklyHours,
     subscriptionStatus: client.subscriptionStatus,
     stripeCustomerId: client.stripeCustomerId,
+    stripeSubscriptionId: client.stripeSubscriptionId,
   };
 
   if (isRequestBased) {

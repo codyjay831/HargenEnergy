@@ -13,6 +13,7 @@ import {
 import { ClientStatus } from "@/generated/prisma/client";
 import { cn } from "@/lib/utils";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
+import { BillingStatusBadge } from "@/components/admin/BillingStatusBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -133,13 +134,18 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
                       <Badge variant="secondary">{client.planType}</Badge>
                     </TableCell>
                     <TableCell>
-                      {client.subscriptionStatus ? (
-                        <Badge variant={client.subscriptionStatus === "active" ? "default" : "destructive"}>
-                          {client.subscriptionStatus}
-                        </Badge>
-                      ) : (
-                        <span className="text-xs text-muted-foreground italic">No subscription</span>
-                      )}
+                      <BillingStatusBadge
+                        engagementType={client.engagementType}
+                        billingMode={client.billingMode}
+                        billingOverrideReason={client.billingOverrideReason}
+                        billingOverrideExpiresAt={client.billingOverrideExpiresAt}
+                        billingOverrideCreatedAt={client.billingOverrideCreatedAt}
+                        billingOverrideCreatedById={client.billingOverrideCreatedById}
+                        stripeCustomerId={client.stripeCustomerId}
+                        stripeSubscriptionId={client.stripeSubscriptionId}
+                        subscriptionStatus={client.subscriptionStatus}
+                        subscriptionCurrentPeriodEnd={client.subscriptionCurrentPeriodEnd}
+                      />
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {format(new Date(client.createdAt), "MMM d, yyyy")}

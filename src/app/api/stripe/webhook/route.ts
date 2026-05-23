@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { PlanType } from "@/generated/prisma/client";
+import { BillingMode, PlanType } from "@/generated/prisma/client";
 
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -46,8 +46,8 @@ export async function POST(req: Request) {
         const planType = session.metadata?.planType as PlanType;
 
         if (clientId) {
-          await prisma.client.update({
-            where: { id: clientId },
+          await prisma.client.updateMany({
+            where: { id: clientId, billingMode: BillingMode.STRIPE },
             data: {
               stripeSubscriptionId: subscriptionId,
               subscriptionStatus: "active",
@@ -66,8 +66,8 @@ export async function POST(req: Request) {
         const planType = subscription.metadata?.planType as PlanType;
 
         if (clientId) {
-          await prisma.client.update({
-            where: { id: clientId },
+          await prisma.client.updateMany({
+            where: { id: clientId, billingMode: BillingMode.STRIPE },
             data: {
               stripeSubscriptionId: subscription.id,
               subscriptionStatus: subscription.status,
@@ -85,8 +85,8 @@ export async function POST(req: Request) {
         const clientId = subscription.metadata?.clientId;
 
         if (clientId) {
-          await prisma.client.update({
-            where: { id: clientId },
+          await prisma.client.updateMany({
+            where: { id: clientId, billingMode: BillingMode.STRIPE },
             data: {
               subscriptionStatus: "canceled",
               planType: PlanType.LIGHT, // Reset to light or keep as is?
@@ -102,7 +102,7 @@ export async function POST(req: Request) {
         const customerId = invoice.customer as string;
 
         await prisma.client.updateMany({
-          where: { stripeCustomerId: customerId },
+          where: { stripeCustomerId: customerId, billingMode: BillingMode.STRIPE },
           data: {
             subscriptionStatus: "past_due",
           },

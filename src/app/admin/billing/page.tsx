@@ -14,6 +14,7 @@ import { ExternalLink, AlertTriangle } from "lucide-react";
 import { calculateWeeklyUsage } from "@/lib/usage";
 import { cn } from "@/lib/utils";
 import { OverflowStatus, EngagementType } from "@/generated/prisma/client";
+import { BillingStatusBadge } from "@/components/admin/BillingStatusBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -121,13 +122,18 @@ export default async function AdminBilling() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {client.subscriptionStatus ? (
-                        <Badge variant={client.subscriptionStatus === "active" ? "default" : "destructive"}>
-                          {client.subscriptionStatus}
-                        </Badge>
-                      ) : (
-                        <span className="text-xs text-muted-foreground italic">No subscription</span>
-                      )}
+                      <BillingStatusBadge
+                        engagementType={client.engagementType}
+                        billingMode={client.billingMode}
+                        billingOverrideReason={client.billingOverrideReason}
+                        billingOverrideExpiresAt={client.billingOverrideExpiresAt}
+                        billingOverrideCreatedAt={client.billingOverrideCreatedAt}
+                        billingOverrideCreatedById={client.billingOverrideCreatedById}
+                        stripeCustomerId={client.stripeCustomerId}
+                        stripeSubscriptionId={client.stripeSubscriptionId}
+                        subscriptionStatus={client.subscriptionStatus}
+                        subscriptionCurrentPeriodEnd={client.subscriptionCurrentPeriodEnd}
+                      />
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {client.subscriptionCurrentPeriodEnd 
