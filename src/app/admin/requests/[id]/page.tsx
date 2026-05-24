@@ -23,6 +23,7 @@ import {
 import { startOfWeek } from "date-fns";
 import { RequestTimer } from "@/components/admin/RequestTimer";
 import { RequestHandoffPricingForm } from "@/components/forms/RequestHandoffPricingForm";
+import { RequestAttachmentsList } from "@/components/requests/RequestAttachmentsList";
 import { getEngagementLabel, isRequestBasedPricingComplete } from "@/lib/engagement";
 import type { HandoffTierValue, PricingModeValue } from "@/lib/ui-enums";
 
@@ -69,6 +70,9 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
       },
       disbursements: {
         orderBy: { createdAt: "desc" },
+      },
+      attachments: {
+        orderBy: { createdAt: "asc" },
       },
     },
   });
@@ -190,6 +194,8 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
                   </div>
                 </div>
               </div>
+
+              <RequestAttachmentsList attachments={request.attachments} />
             </CardContent>
           </Card>
 

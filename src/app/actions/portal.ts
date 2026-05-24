@@ -24,7 +24,7 @@ import {
   sendInternalRequestAlert,
 } from "@/lib/email";
 import {
-  portalSubmitRequestSchema,
+  createPortalSubmitRequestSchema,
   portalAddCommentSchema,
 } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -69,7 +69,7 @@ export async function submitPortalRequest(data: {
     return { error: "Unauthorized. Client access required." };
   }
 
-  const parsed = portalSubmitRequestSchema.safeParse({
+  const parsed = createPortalSubmitRequestSchema(clientId).safeParse({
     title: data.title,
     workTaskId: data.workTaskId,
     supportNeeded: data.supportNeeded,
@@ -81,6 +81,7 @@ export async function submitPortalRequest(data: {
     desiredOutcome: data.desiredOutcome,
     projectUrl: data.projectUrl,
     metadata: data.metadata,
+    attachments: data.attachments,
   });
 
   if (!parsed.success) {
@@ -106,6 +107,7 @@ export async function submitPortalRequest(data: {
     desiredOutcome,
     projectUrl,
     metadata,
+    attachments,
   } = parsed.data;
 
   const urgencyEnum = urgency as Urgency;
@@ -200,9 +202,9 @@ ${metadataEntries.join("\n")}`;
         projectUrl,
         urgency: urgencyEnum,
         status: RequestStatus.NEW,
-        attachments: data.attachments?.length
+        attachments: attachments?.length
           ? {
-              create: data.attachments.map((file) => ({
+              create: attachments.map((file) => ({
                 clientId,
                 fileName: file.name,
                 fileUrl: file.url,

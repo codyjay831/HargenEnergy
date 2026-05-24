@@ -151,7 +151,9 @@ export function blockerNote(
     return variant === "admin" ? "Blocks work submission" : "Send work is blocked until setup is complete";
   }
   if (step.blockers.includes("blocks_billing")) {
-    return variant === "admin" ? "Blocks billing readiness" : "Billing must be resolved before continuing";
+    return variant === "admin"
+      ? "Billing setup in progress"
+      : "Billing setup is still in progress with Hargen";
   }
   return null;
 }
@@ -210,13 +212,13 @@ export function railStateTone(state: RailNodeState): string {
 export function adminBlockerBadgeLabel(blockers: SetupStepBlocker[]): string {
   if (blockers.includes("blocks_invite")) return "Blocks invite";
   if (blockers.includes("blocks_submit")) return "Blocks submit";
-  if (blockers.includes("blocks_billing")) return "Blocks billing";
+  if (blockers.includes("blocks_billing")) return "Billing setup";
   return "Informational";
 }
 
 export function customerBlockerBadgeLabel(blockers: SetupStepBlocker[]): string {
   if (blockers.includes("blocks_submit")) return "Send work blocked";
-  if (blockers.includes("blocks_billing")) return "Billing pending";
+  if (blockers.includes("blocks_billing")) return "Billing setup";
   if (blockers.includes("blocks_invite")) return "Invite pending";
   return "Informational";
 }

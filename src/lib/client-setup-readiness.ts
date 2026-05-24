@@ -266,7 +266,7 @@ function buildBlockingMessages(params: {
     messages.push("Portal work submission is blocked until setup requirements are met.");
   }
   if (!params.billing.ready && params.billing.required) {
-    messages.push("Billing setup is still incomplete for this Support Block account.");
+    messages.push("Note: Billing setup is still incomplete for this Support Block account.");
   }
   if (params.billing.status === "attention") {
     messages.push("Billing status needs review.");
@@ -436,7 +436,7 @@ export function deriveClientSetupReadiness(
             : billing.status === "not_required"
               ? "not_required"
               : "incomplete",
-      blockers: billing.required && !billing.ready ? ["blocks_billing"] : ["informational"],
+      blockers: ["informational"],
       required: billing.required,
       actionLabel:
         input.engagementType === EngagementType.SUPPORT_BLOCK
@@ -583,10 +583,7 @@ export function deriveClientSetupReadiness(
             : billing.status === "not_required"
               ? "not_required"
               : "incomplete",
-      blockers:
-        billing.required && !billing.ready
-          ? ["blocks_billing"]
-          : ["informational"],
+      blockers: ["informational"],
       required: billing.required,
       actionLabel: "Set up billing",
       actionHref: input.hrefs.portalAccount,

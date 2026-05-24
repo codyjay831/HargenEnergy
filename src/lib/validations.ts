@@ -6,6 +6,12 @@ import {
   isUrgencyValue,
   isEngagementTypeValue,
 } from "@/lib/ui-enums";
+import {
+  ALLOWED_ATTACHMENT_TYPES,
+  MAX_FILE_SIZE_ATTACHMENT,
+  MAX_PORTAL_ATTACHMENTS,
+} from "@/lib/firebase/attachment-limits";
+import { isAllowedPortalAttachmentUrl } from "@/lib/firebase/attachment-url-validation";
 
 const trimmedString = z.string().trim();
 
@@ -72,32 +78,57 @@ export type RequestHelpInput = z.infer<typeof requestHelpSchema>;
 
 const portalMetadataString = trimmedString.max(500).optional();
 
-export const portalSubmitRequestSchema = z
-  .object({
-    title: trimmedString
-      .min(1, "Title is required.")
-      .max(200, "Title must be at most 200 characters."),
-    workTaskId: trimmedString.min(1, "Work type is required."),
-    supportNeeded: trimmedString
-      .min(1, "Support needed is required.")
-      .max(500, "Support needed must be at most 500 characters."),
-    description: trimmedString
-      .min(1, "Description is required.")
-      .max(8000, "Description must be at most 8000 characters."),
-    urgency: trimmedString.min(1).max(32),
-    customerName: portalMetadataString,
-    utilityAhj: portalMetadataString,
-    toolsContext: portalMetadataString,
-    desiredOutcome: portalMetadataString,
-    projectUrl: trimmedString.max(1000).optional(),
-    metadata: z.record(z.string(), z.any()).optional(),
-  })
-  .refine((data) => isUrgencyValue(data.urgency), {
-    message: "Invalid urgency.",
-    path: ["urgency"],
+export function createPortalAttachmentSchema(clientId: string) {
+  return z.object({
+    url: trimmedString
+      .min(1)
+      .max(2048)
+      .refine((url) => isAllowedPortalAttachmentUrl(url, clientId), {
+        message: "Attachment URL must be a valid Firebase Storage URL.",
+      }),
+    name: trimmedString.min(1).max(255),
+    type: trimmedString.refine(
+      (value) => (ALLOWED_ATTACHMENT_TYPES as readonly string[]).includes(value),
+      { message: "Invalid attachment file type." },
+    ),
+    size: z.number().int().nonnegative().max(MAX_FILE_SIZE_ATTACHMENT).optional(),
   });
+}
 
-export type PortalSubmitRequestInput = z.infer<typeof portalSubmitRequestSchema>;
+export function createPortalSubmitRequestSchema(clientId: string) {
+  return z
+    .object({
+      title: trimmedString
+        .min(1, "Title is required.")
+        .max(200, "Title must be at most 200 characters."),
+      workTaskId: trimmedString.min(1, "Work type is required."),
+      supportNeeded: trimmedString
+        .min(1, "Support needed is required.")
+        .max(500, "Support needed must be at most 500 characters."),
+      description: trimmedString
+        .min(1, "Description is required.")
+        .max(8000, "Description must be at most 8000 characters."),
+      urgency: trimmedString.min(1).max(32),
+      customerName: portalMetadataString,
+      utilityAhj: portalMetadataString,
+      toolsContext: portalMetadataString,
+      desiredOutcome: portalMetadataString,
+      projectUrl: trimmedString.max(1000).optional(),
+      metadata: z.record(z.string(), z.any()).optional(),
+      attachments: z
+        .array(createPortalAttachmentSchema(clientId))
+        .max(MAX_PORTAL_ATTACHMENTS)
+        .optional(),
+    })
+    .refine((data) => isUrgencyValue(data.urgency), {
+      message: "Invalid urgency.",
+      path: ["urgency"],
+    });
+}
+
+export type PortalSubmitRequestInput = z.infer<
+  ReturnType<typeof createPortalSubmitRequestSchema>
+>;
 
 export const portalAddCommentSchema = z.object({
   requestId: trimmedString.min(1).max(128),

@@ -10,6 +10,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PortalDisbursementPanel } from "@/components/forms/PortalDisbursementPanel";
 import { RequestCommentForm } from "@/components/forms/RequestCommentForm";
+import { RequestAttachmentsList } from "@/components/requests/RequestAttachmentsList";
 import { EngagementType, OverflowStatus } from "@/generated/prisma/client";
 import {
   formatFlatPrice,
@@ -57,6 +58,9 @@ export default async function PortalRequestDetailPage({ params }: PortalRequestD
       },
       disbursements: {
         orderBy: { createdAt: "desc" },
+      },
+      attachments: {
+        orderBy: { createdAt: "asc" },
       },
     },
   });
@@ -147,6 +151,8 @@ export default async function PortalRequestDetailPage({ params }: PortalRequestD
                   </div>
                 </div>
               )}
+
+              <RequestAttachmentsList attachments={request.attachments} />
             </CardContent>
           </Card>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { X, FileText, Upload as UploadIcon, Loader2 } from "lucide-react";
 import { Button } from "./button";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,8 @@ interface FileUploadProps {
   className?: string;
   clientId?: string;
   requestId?: string;
+  uploadSessionId?: string;
+  onUploadingChange?: (uploading: boolean) => void;
 }
 
 export function FileUpload({
@@ -32,6 +34,8 @@ export function FileUpload({
   className,
   clientId,
   requestId,
+  uploadSessionId,
+  onUploadingChange,
 }: FileUploadProps) {
   const [files, setFiles] = useState<UploadedFile[]>(value);
   const [uploading, setUploading] = useState(false);
@@ -40,6 +44,10 @@ export function FileUpload({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const type = endpoint === "clientLogo" ? "logo" : "attachment";
+
+  useEffect(() => {
+    onUploadingChange?.(uploading);
+  }, [uploading, onUploadingChange]);
 
   const handleFiles = async (selectedFiles: FileList | null) => {
     if (!selectedFiles || selectedFiles.length === 0) return;
@@ -62,6 +70,7 @@ export function FileUpload({
           type,
           clientId,
           requestId,
+          uploadSessionId,
         }),
       }).then((res) => res.json());
 
@@ -80,7 +89,10 @@ export function FileUpload({
           type,
           token.metadata.clientId,
           file.name,
-          token.metadata.requestId
+          {
+            requestId: token.metadata.requestId ?? undefined,
+            uploadSessionId: token.metadata.uploadSessionId ?? undefined,
+          }
         );
 
         const result = await uploadFile(file, storagePath, (progress) => {

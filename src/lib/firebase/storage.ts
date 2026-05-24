@@ -1,5 +1,19 @@
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { storage } from "./config";
+import {
+  MAX_FILE_SIZE_ATTACHMENT,
+  MAX_FILE_SIZE_LOGO,
+  ALLOWED_ATTACHMENT_TYPES,
+  ALLOWED_LOGO_TYPES,
+} from "./attachment-limits";
+
+export {
+  MAX_FILE_SIZE_ATTACHMENT,
+  MAX_FILE_SIZE_LOGO,
+  MAX_PORTAL_ATTACHMENTS,
+  ALLOWED_ATTACHMENT_TYPES,
+  ALLOWED_LOGO_TYPES,
+} from "./attachment-limits";
 
 export interface UploadProgress {
   progress: number;
@@ -11,26 +25,6 @@ export interface UploadResult {
   url: string;
   path: string;
 }
-
-const MAX_FILE_SIZE_ATTACHMENT = 8 * 1024 * 1024; // 8MB
-const MAX_FILE_SIZE_LOGO = 2 * 1024 * 1024; // 2MB
-
-const ALLOWED_ATTACHMENT_TYPES = [
-  "application/pdf",
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-];
-
-const ALLOWED_LOGO_TYPES = [
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-];
 
 export function validateFile(
   file: File,
@@ -46,7 +40,7 @@ export function validateFile(
     };
   }
 
-  if (!allowedTypes.includes(file.type)) {
+  if (!(allowedTypes as readonly string[]).includes(file.type)) {
     return {
       valid: false,
       error: `File type ${file.type} is not allowed`,
@@ -60,13 +54,20 @@ export function generateStoragePath(
   type: "attachment" | "logo",
   clientId: string,
   fileName: string,
-  requestId?: string
+  options?: { requestId?: string; uploadSessionId?: string }
 ): string {
   const timestamp = Date.now();
   const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
+  const requestId = options?.requestId;
+  const uploadSessionId = options?.uploadSessionId;
 
-  if (type === "attachment" && requestId) {
-    return `attachments/${clientId}/${requestId}/${timestamp}_${sanitizedFileName}`;
+  if (type === "attachment") {
+    if (requestId) {
+      return `attachments/${clientId}/${requestId}/${timestamp}_${sanitizedFileName}`;
+    }
+    if (uploadSessionId) {
+      return `attachments/${clientId}/pending/${uploadSessionId}/${timestamp}_${sanitizedFileName}`;
+    }
   } else if (type === "logo") {
     return `logos/${clientId}/${timestamp}_${sanitizedFileName}`;
   }

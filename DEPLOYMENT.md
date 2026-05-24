@@ -25,6 +25,15 @@ Ensure all required environment variables are set in your production environment
 - `STRIPE_WEBHOOK_SECRET`: Your Stripe webhook signing secret.
 - `STRIPE_LIGHT_PRICE_ID` / `STRIPE_CORE_PRICE_ID` / `STRIPE_PRIORITY_PRICE_ID`: Price IDs for support blocks.
 
+### Required for File Uploads (Firebase Storage)
+- `NEXT_PUBLIC_FIREBASE_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
+- `NEXT_PUBLIC_FIREBASE_APP_ID`
+
+Portal request attachments and client logo uploads use client-side Firebase Storage. **The attachment feature is not launch-ready until Firebase Storage security rules are deployed and verified** (see §5 below).
+
 ### Optional (manual seed only)
 - `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME`: **Not used by production builds.** Only consumed by `npm run prisma:seed` for local development convenience.
 
@@ -89,7 +98,44 @@ Signed-in admins can change their password under `/admin/account`. The form requ
     - Until verified, you may be restricted to sending to your own email address or using the default Resend testing domain.
     - Production emails must NOT use the `@resend.dev` domain.
 
-## 5. Security Verification
+## 5. Firebase Storage Configuration
+
+Portal work-request attachments upload to Firebase Storage before the request is created, using a pending path:
+
+```
+attachments/{clientId}/pending/{uploadSessionId}/{filename}
+```
+
+After submit, attachment metadata (`fileName`, `fileUrl`, `fileType`) is stored in PostgreSQL. Files may remain at the pending path; the app does not move objects post-create.
+
+Client logos upload to:
+
+```
+logos/{clientId}/{filename}
+```
+
+### Security rules requirements
+
+**The attachment feature is not launch-ready until Firebase Storage security rules are deployed and verified.**
+
+Before production launch, deploy and verify Firebase Storage rules that:
+
+1. **Tenant isolation** — Objects under `attachments/{clientId}/` and `logos/{clientId}/` are only readable/writable by authorized users for that `clientId`. The app derives portal `clientId` from the authenticated session server-side; rules must align with your Firebase Auth strategy or restrict writes to authenticated users with matching custom claims.
+2. **Pending path lifecycle** — Writes to `attachments/{clientId}/pending/{uploadSessionId}/` are allowed for portal users scoped to their `clientId`. Reads should be allowed for the owning client and admins.
+3. **File constraints** — Enforce max file size (8MB attachments, 2MB logos) and content types (PDF and images) in rules where possible, as a defense-in-depth layer alongside app validation.
+4. **No public write** — Do not use fully open `allow write: if true` rules in production.
+
+The application validates attachment URLs server-side on submit (HTTPS, allowed MIME types, Firebase bucket match against `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, and object path prefix `attachments/{clientId}/`). SDK download URLs use `https://firebasestorage.googleapis.com/v0/b/{bucket}/o/...`. Rules are still required because upload happens directly from the browser to Firebase.
+
+### Verification checklist
+
+- [ ] All `NEXT_PUBLIC_FIREBASE_*` variables set in production.
+- [ ] Storage rules deployed to the production bucket.
+- [ ] Portal user can upload an attachment on `/portal/requests/new`.
+- [ ] Uploaded file appears on portal and admin request detail after submit.
+- [ ] Cross-tenant upload attempt is rejected by rules or app auth.
+
+## 6. Security Verification
 
 - **Admin Protection**: Visit `/admin` while logged out. You should be redirected to `/login`.
 - **Setup Closure**: After the first admin is created, visit `/setup/admin` again — it should display "Admin setup is already complete."
@@ -97,7 +143,7 @@ Signed-in admins can change their password under `/admin/account`. The form requ
 - **Internal Notes**: Verify that internal notes added by admins are NOT visible in the Client Portal.
 - **Login error messages**: Confirm that production login errors do not reveal whether an account exists. The user only sees "Invalid email or password." or "Authentication service unavailable."
 
-## 6. Final Launch Checklist
+## 7. Final Launch Checklist
 
 ### Pre-deploy
 - [ ] Production database created (PostgreSQL).
@@ -141,7 +187,7 @@ Signed-in admins can change their password under `/admin/account`. The form requ
     - [ ] Complete a test payment (if in test mode).
     - [ ] Verify the webhook updates the client's subscription status in the database.
 
-## 7. Security Verification
+## 8. Security Verification
 - [ ] Verify no internal notes or admin-only data are visible in the Client Portal.
 - [ ] Verify that a client user cannot access another client's request by manually changing the URL ID.
 - [ ] Verify that server actions for time logging and billing require the `ADMIN` role.

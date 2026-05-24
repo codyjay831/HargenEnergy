@@ -52,8 +52,10 @@ export function PortalRequestForm({
 }: PortalRequestFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<UploadedFile[]>([]);
+  const [uploadSessionId] = useState(() => crypto.randomUUID());
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [selectedTaskId, setSelectedTaskId] = useState<string>("");
@@ -347,14 +349,16 @@ export function PortalRequestForm({
           value={attachments}
           onChange={setAttachments}
           maxFiles={10}
+          uploadSessionId={uploadSessionId}
+          onUploadingChange={setIsUploading}
         />
       </div>
 
       <div className="flex items-center justify-end gap-4 pt-4">
-        <Button type="button" variant="ghost" onClick={() => router.back()} disabled={isLoading}>
+        <Button type="button" variant="ghost" onClick={() => router.back()} disabled={isLoading || isUploading}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isLoading || !selectedTaskId} className="px-8">
+        <Button type="submit" disabled={isLoading || isUploading || !selectedTaskId} className="px-8">
           {isLoading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
