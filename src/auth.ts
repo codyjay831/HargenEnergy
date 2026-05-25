@@ -17,11 +17,67 @@ if (isProd && !process.env.AUTH_SECRET) {
 
 export const { auth, signIn, signOut, handlers } = NextAuth({
   ...authConfig,
+  callbacks: {
+    ...authConfig.callbacks,
+    async jwt(params) {
+      const baseJwt = authConfig.callbacks.jwt;
+      if (!baseJwt) {
+        return params.token;
+      }
+      let token = await baseJwt(params);
+      if (!token || params.user) {
+        return token;
+      }
+
+      // Node-only: refresh deactivation and roles from DB (Prisma cannot run in Edge middleware).
+      if (token.id) {
+        try {
+          const current = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: {
+              deactivatedAt: true,
+              staffRole: true,
+              clientRole: true,
+              role: true,
+            },
+          });
+          if (!current || current.deactivatedAt) {
+            return null;
+          }
+          token.staffRole = current.staffRole ?? null;
+          token.clientRole = current.clientRole ?? null;
+          token.role = current.role;
+          token.deactivatedAt = null;
+          if (current.role === "ADMIN" && !current.staffRole) {
+            return null;
+          }
+          if (current.role === "CLIENT" && !current.clientRole) {
+            return null;
+          }
+        } catch (error) {
+          if (!isProd) {
+            console.error("[Auth] Failed user role/deactivation refresh:", error);
+          } else {
+            console.warn("[Auth] Failed user role/deactivation refresh.");
+          }
+          return null;
+        }
+      }
+
+      return token;
+    },
+  },
   providers: [
     Credentials({
       async authorize(credentials) {
         const parsedCredentials = z
-          .object({ email: z.string().email(), password: z.string().min(1) })
+          .object({
+            email: z
+              .string()
+              .email()
+              .transform((v) => v.trim().toLowerCase()),
+            password: z.string().min(1),
+          })
           .safeParse(credentials);
 
         if (!parsedCredentials.success) {

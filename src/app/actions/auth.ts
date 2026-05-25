@@ -7,6 +7,18 @@ import { checkRateLimit, getRateLimitIdentifier } from "@/lib/rate-limit";
 
 const isProd = process.env.NODE_ENV === "production";
 
+function isNextRedirect(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+  const digest =
+    "digest" in error ? String((error as { digest?: unknown }).digest) : "";
+  if (digest.startsWith("NEXT_REDIRECT")) {
+    return true;
+  }
+  return error instanceof Error && error.message === "NEXT_REDIRECT";
+}
+
 export async function authenticate(
   prevState: string | undefined,
   formData: FormData,
@@ -17,10 +29,18 @@ export async function authenticate(
     return "Invalid email or password.";
   }
 
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+
   try {
-    await signIn("credentials", formData);
+    await signIn("credentials", {
+      email,
+      password,
+      // Middleware on /login redirects admins → /admin, clients → /portal.
+      redirectTo: "/login",
+    });
   } catch (error) {
-    if (error instanceof Error && error.message === "NEXT_REDIRECT") {
+    if (isNextRedirect(error)) {
       throw error;
     }
 

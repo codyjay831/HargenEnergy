@@ -27,7 +27,12 @@ async function getLatestPasswordStampMs(userId: string): Promise<number | null> 
 
   // In production, a missing Redis backend can otherwise disable cross-instance
   // password-change revocation checks. Fall back to a direct DB read here.
-  if (process.env.NODE_ENV === "production" && !hasUpstashCredentials()) {
+  // Prisma cannot run on Edge (middleware); Node auth() handles DB fallback via auth.ts.
+  if (
+    process.env.NODE_ENV === "production" &&
+    !hasUpstashCredentials() &&
+    process.env.NEXT_RUNTIME !== "edge"
+  ) {
     try {
       const { prisma } = await import("@/lib/prisma");
       const user = await prisma.user.findUnique({
@@ -112,32 +117,14 @@ export const authConfig = {
           return null;
         }
 
-        try {
-          const { prisma } = await import("@/lib/prisma");
-          const current = await prisma.user.findUnique({
-            where: { id: token.id as string },
-            select: {
-              deactivatedAt: true,
-              staffRole: true,
-              clientRole: true,
-              role: true,
-            },
-          });
-          if (!current || current.deactivatedAt) {
-            return null;
-          }
-          token.staffRole = current.staffRole ?? null;
-          token.clientRole = current.clientRole ?? null;
-          if (current.role === "ADMIN" && !current.staffRole) {
-            return null;
-          }
-          if (current.role === "CLIENT" && !current.clientRole) {
-            return null;
-          }
-        } catch (error) {
-          console.error("[Auth Config] Failed user role/deactivation check:", error);
+        // Edge-safe: trust role claims minted at login. Live DB refresh runs in auth.ts (Node only).
+        if (token.role === "ADMIN" && !token.staffRole) {
           return null;
         }
+        if (token.role === "CLIENT" && !token.clientRole) {
+          return null;
+        }
+
         if (token.passwordChangedAt == null) {
           return null;
         }
