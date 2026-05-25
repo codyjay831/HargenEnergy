@@ -109,7 +109,56 @@ export const EMAIL_SUBJECTS = {
 export const FORM_COPY = {
   walkthroughSuccess: {
     title: "Walkthrough request received",
-    body: "We will review where you are stuck and follow up by email, usually within one business day. Portal access for ongoing client work comes after walkthrough, contract, and payment.",
+    body: "We received your request. We'll follow up by email, usually within one business day. Portal access for ongoing client work comes after walkthrough, contract, and payment.",
+  },
+  walkthrough: {
+    stepIndicator: (step: number) => `Step ${step} of 2`,
+    step1Title: "Tell us what's going on",
+    step2Title: "Help us prepare",
+    companyName: "Company name",
+    yourName: "Your name",
+    email: "Email",
+    phone: "Phone",
+    phoneHelper: "Optional — digits, spaces, and + - ( ) . allowed",
+    bottleneck: "What's your biggest bottleneck?",
+    bottleneckPlaceholder: "Tell us where your jobs are getting stuck...",
+    supportAreas: "Where do you need help?",
+    supportAreasHelper:
+      "Select all that apply — we'll discuss scope on the walkthrough.",
+    role: "Role / title",
+    website: "Company website",
+    websiteHelper: "Include https:// (e.g. https://solarpros.com)",
+    serviceArea: "Service area (states/counties)",
+    firstPriority: "What would help most this week?",
+    firstPriorityPlaceholder:
+      "If we could move one thing forward this week, what would it be?",
+    tools: "Current tools (CRM, proposal software, etc.)",
+    toolsPlaceholder: "e.g. Aurora, Solo, HubSpot, Sighten...",
+    plan: "Preferred support level",
+    urgency: "Urgency",
+    continue: "Continue",
+    back: "Back",
+    submit: "Submit walkthrough request",
+    sending: "Sending...",
+    anotherRequestConfirm:
+      "Submit another walkthrough request for a different company?",
+    anotherRequest: "Send another request",
+    legal:
+      "By submitting this form, you agree to be contacted by Hargen Energy LLC regarding your walkthrough request.",
+    successSteps: {
+      received: {
+        title: "Request received",
+        body: "Your walkthrough request is in our queue.",
+      },
+      review: {
+        title: "Review & alignment",
+        body: "We'll reach out within 1 business day to discuss your bottleneck, scope, and support level.",
+      },
+      activation: {
+        title: "Activation",
+        body: "After contract and payment setup, you'll get portal access and we start the work.",
+      },
+    },
   },
   workRequestSuccess: {
     title: "Request submitted",

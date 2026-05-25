@@ -31,6 +31,7 @@ export default function RequestHelpPage() {
               <p className={cn(marketingLead, "mt-4 max-w-xl")}>
                 Tell us where you are stuck. We start with a walkthrough and activation conversation, not a support ticket. Most companies hear back within one business day.
               </p>
+              <p className="mt-2 text-sm text-stone-500">Takes about 2 minutes.</p>
             </div>
 
             <aside className={cn(marketingCardBase, "h-fit p-5 lg:sticky lg:top-20")}>
@@ -60,20 +61,9 @@ export default function RequestHelpPage() {
             <RequestHelpForm />
           </div>
 
-          <div className="mx-auto mt-10 grid max-w-3xl grid-cols-1 gap-5 md:grid-cols-2">
-            <div className={cn(marketingCardBase, "p-5")}>
-              <h2 className="font-heading text-sm font-semibold text-stone-900">What happens next</h2>
-              <p className="mt-2 text-sm text-stone-600 leading-relaxed">
-                We read your request, check capacity, and reply by email or phone. After we align on scope, contract, and payment, you get portal access for ongoing client work.
-              </p>
-            </div>
-            <div className={cn(marketingCardBase, "p-5")}>
-              <h2 className="font-heading text-sm font-semibold text-stone-900">Flexible by design</h2>
-              <p className="mt-2 text-sm text-stone-600 leading-relaxed">
-                Start small if you want. Scale hours up or down when your pipeline changes. The work stays the same quality either way.
-              </p>
-            </div>
-          </div>
+          <p className="mx-auto mt-10 max-w-3xl text-center text-sm text-stone-600 leading-relaxed">
+            We read your request, check capacity, and reply by email or phone. Start small if you want — scale hours when your pipeline changes.
+          </p>
 
         </div>
       </section>

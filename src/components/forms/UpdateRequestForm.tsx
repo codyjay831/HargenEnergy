@@ -2,17 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { updateRequest } from "@/app/actions/requests";
 import { REQUEST_STATUS_VALUES, type RequestStatusValue } from "@/lib/ui-enums";
@@ -39,6 +40,7 @@ export function UpdateRequestForm({ request }: UpdateRequestFormProps) {
     e.preventDefault();
     setIsSubmitting(true);
 
+    const previousStatus = request.status;
     const formData = new FormData(e.currentTarget);
     const data = {
       status,
@@ -53,14 +55,18 @@ export function UpdateRequestForm({ request }: UpdateRequestFormProps) {
 
     if (result.success) {
       if (result.warning) {
-        alert(result.warning);
+        toast.warning(result.warning);
+      } else if (previousStatus === "NEW" && status === "REVIEWED") {
+        toast.success("Marked as in conversation.");
+      } else {
+        toast.success("Request updated");
       }
       setSendEmailUpdate(false);
       router.refresh();
     } else {
-      alert(result.error || "Failed to update request.");
+      toast.error(result.error || "Failed to update request.");
     }
-    
+
     setIsSubmitting(false);
   };
 
@@ -86,9 +92,9 @@ export function UpdateRequestForm({ request }: UpdateRequestFormProps) {
           </Select>
         </div>
         <div className="flex items-center space-x-2 pt-8">
-          <Checkbox 
-            id="needsInfo" 
-            checked={needsInfo} 
+          <Checkbox
+            id="needsInfo"
+            checked={needsInfo}
             onCheckedChange={(checked) => setNeedsInfo(!!checked)}
           />
           <Label htmlFor="needsInfo">Needs Information from Client</Label>
@@ -97,8 +103,8 @@ export function UpdateRequestForm({ request }: UpdateRequestFormProps) {
 
       <div className="space-y-2">
         <Label htmlFor="internalNotes">Internal Notes (Admin only)</Label>
-        <Textarea 
-          id="internalNotes" 
+        <Textarea
+          id="internalNotes"
           name="internalNotes"
           defaultValue={request.internalNotes || ""}
           placeholder="Add notes about progress, bottlenecks, or next steps..."
@@ -108,8 +114,8 @@ export function UpdateRequestForm({ request }: UpdateRequestFormProps) {
 
       <div className="space-y-2">
         <Label htmlFor="clientVisibleUpdate">Client-Visible Update</Label>
-        <Textarea 
-          id="clientVisibleUpdate" 
+        <Textarea
+          id="clientVisibleUpdate"
           name="clientVisibleUpdate"
           defaultValue={request.clientVisibleUpdate || ""}
           placeholder="What should the client see in their portal?"
@@ -118,8 +124,8 @@ export function UpdateRequestForm({ request }: UpdateRequestFormProps) {
 
       <div className="space-y-2">
         <Label htmlFor="estimatedMinutes">Estimated Minutes</Label>
-        <Input 
-          id="estimatedMinutes" 
+        <Input
+          id="estimatedMinutes"
           name="estimatedMinutes"
           type="number"
           defaultValue={request.estimatedMinutes || ""}
@@ -128,9 +134,9 @@ export function UpdateRequestForm({ request }: UpdateRequestFormProps) {
       </div>
 
       <div className="flex items-center space-x-2 p-4 bg-slate-50 rounded-lg border border-slate-200">
-        <Checkbox 
-          id="sendEmailUpdate" 
-          checked={sendEmailUpdate} 
+        <Checkbox
+          id="sendEmailUpdate"
+          checked={sendEmailUpdate}
           onCheckedChange={(checked) => setSendEmailUpdate(!!checked)}
         />
         <div className="grid gap-1.5 leading-none">

@@ -4,6 +4,7 @@ import { OnboardingSteps } from "./OnboardingSteps";
 import { WalkthroughDrawer } from "./WalkthroughDrawer";
 import { ClientStatus, RequestStatus } from "@/lib/enums";
 import { BillingMode, EngagementType } from "@/generated/prisma/client";
+import type { IntakeSnapshotClient, IntakeSnapshotMetadata } from "@/lib/intake-snapshot";
 
 interface OnboardingWrapperProps {
   client: {
@@ -25,7 +26,9 @@ interface OnboardingWrapperProps {
     stripeSubscriptionId?: string | null;
     users: { id: string; email: string; name: string | null }[];
   };
+  intakeClient: IntakeSnapshotClient;
   walkthroughPlanRequestBased?: boolean;
+  walkthroughMetadata?: IntakeSnapshotMetadata | null;
   latestWalkthroughRequest: {
     id: string;
     clientId: string;
@@ -40,9 +43,6 @@ interface OnboardingWrapperProps {
     clientVisibleUpdate: string | null;
     estimatedMinutes: number | null;
     createdAt: Date;
-    client: {
-      planType: string;
-    };
     timeEntries: Array<{
       id: string;
       description: string;
@@ -55,7 +55,9 @@ interface OnboardingWrapperProps {
 
 export function OnboardingWrapper({
   client,
+  intakeClient,
   walkthroughPlanRequestBased,
+  walkthroughMetadata,
   latestWalkthroughRequest,
 }: OnboardingWrapperProps) {
   return (
@@ -74,7 +76,11 @@ export function OnboardingWrapper({
             : null
         }
       />
-      <WalkthroughDrawer request={latestWalkthroughRequest} />
+      <WalkthroughDrawer
+        client={intakeClient}
+        request={latestWalkthroughRequest}
+        metadata={walkthroughMetadata}
+      />
     </>
   );
 }

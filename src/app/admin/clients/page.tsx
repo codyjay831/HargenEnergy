@@ -23,11 +23,19 @@ interface AdminClientsPageProps {
 
 export default async function AdminClients({ searchParams }: AdminClientsPageProps) {
   const { status, needsReview } = await searchParams;
+  const needsReviewFilter = needsReview === "1";
   const statusFilter =
     status === "LEAD" || status === "ACTIVE" || status === "ALL"
       ? status
-      : "LEAD"; // Default to prospects/onboarding
-  const needsReviewFilter = needsReview === "1";
+      : needsReviewFilter
+        ? "ALL"
+        : "LEAD";
+
+  const isOnboardingActive =
+    !needsReviewFilter && (status === undefined || status === "LEAD");
+  const isNeedsReviewActive = needsReviewFilter;
+  const isActiveClientsTab = !needsReviewFilter && statusFilter === "ACTIVE";
+  const isAllCompaniesActive = !needsReviewFilter && statusFilter === "ALL";
 
   const clients = await prisma.client.findMany({
     where:
@@ -71,29 +79,36 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
       <div>
         <h1 className="text-2xl font-bold">Clients</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {PRODUCT_LANGUAGE.prospect.listSubtitle}
+          {needsReviewFilter
+            ? "Companies with walkthrough requests awaiting your review."
+            : PRODUCT_LANGUAGE.prospect.listSubtitle}
         </p>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <FilterLink href="/admin/clients" active={statusFilter === "LEAD"}>
+        <FilterLink href="/admin/clients" active={isOnboardingActive}>
           Onboarding ({PRODUCT_LANGUAGE.prospect.plural})
         </FilterLink>
-        <FilterLink href="/admin/clients?status=ACTIVE" active={statusFilter === "ACTIVE"}>
+        <FilterLink href="/admin/clients?needsReview=1&status=ALL" active={isNeedsReviewActive}>
+          Needs review
+        </FilterLink>
+        <FilterLink href="/admin/clients?status=ACTIVE" active={isActiveClientsTab}>
           Active {PRODUCT_LANGUAGE.client.plural}
         </FilterLink>
-        <FilterLink href="/admin/clients?status=ALL" active={statusFilter === "ALL"}>
+        <FilterLink href="/admin/clients?status=ALL" active={isAllCompaniesActive}>
           All Companies
         </FilterLink>
       </div>
 
       {clients.length === 0 ? (
         <div className="bg-white border rounded-lg p-12 text-center text-muted-foreground">
-          {statusFilter === "LEAD"
-            ? `No ${PRODUCT_LANGUAGE.prospect.plural.toLowerCase()} yet. ${PRODUCT_LANGUAGE.walkthrough.plural} create ${PRODUCT_LANGUAGE.prospect.plural.toLowerCase()} automatically when submitted via the public form.`
-            : statusFilter === "ACTIVE"
-              ? `No active ${PRODUCT_LANGUAGE.client.plural.toLowerCase()} yet. Activate a ${PRODUCT_LANGUAGE.prospect.singular.toLowerCase()} after walkthrough, contract, and payment.`
-              : "No companies yet."}
+          {needsReviewFilter
+            ? "No walkthrough requests need review right now."
+            : statusFilter === "LEAD"
+              ? `No ${PRODUCT_LANGUAGE.prospect.plural.toLowerCase()} yet. ${PRODUCT_LANGUAGE.walkthrough.plural} create ${PRODUCT_LANGUAGE.prospect.plural.toLowerCase()} automatically when submitted via the public form.`
+              : statusFilter === "ACTIVE"
+                ? `No active ${PRODUCT_LANGUAGE.client.plural.toLowerCase()} yet. Activate a ${PRODUCT_LANGUAGE.prospect.singular.toLowerCase()} after walkthrough, contract, and payment.`
+                : "No companies yet."}
         </div>
       ) : (
         <div className="bg-white border rounded-lg overflow-hidden">
@@ -152,7 +167,7 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
                     </TableCell>
                     <TableCell className="text-right">
                       <Link
-                        href={`/admin/clients/${client.id}`}
+                        href={`/admin/clients/${client.id}${hasUnreviewedWalkthrough ? "?open=walkthrough" : ""}`}
                         className="text-primary hover:underline text-sm font-medium"
                       >
                         Manage

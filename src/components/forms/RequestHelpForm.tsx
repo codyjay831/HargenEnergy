@@ -1,95 +1,172 @@
 "use client";
 
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { submitRequestHelp } from "@/app/actions/requests";
-import { RequestHelpInput } from "@/lib/validations";
+import { RequestHelpInput, requestHelpSchema, validateRequestHelpStep1 } from "@/lib/validations";
 import { cn } from "@/lib/utils";
 import { marketingAmberCta } from "@/components/marketing/marketing-styles";
-import { PRODUCT_LANGUAGE, FORM_COPY } from "@/lib/product-language";
+import { FORM_COPY } from "@/lib/product-language";
+import {
+  groupIntakeSupportOptions,
+  getIntakeSupportLabel,
+} from "@/lib/intake-support-options";
 
-const supportOptions = [
-  { id: "quote", label: "Quote building / proposal support" },
-  { id: "scheduling", label: "Scheduling support" },
-  { id: "customer", label: "Customer communication" },
-  { id: "permit", label: "Permit follow-up" },
-  { id: "utility", label: "PG&E / utility applications" },
-  { id: "enphase", label: "Enphase setup" },
-  { id: "plans", label: "Plan set coordination" },
-  { id: "parts", label: "Parts ordering" },
-  { id: "crm", label: "CRM cleanup" },
-  { id: "stuck", label: "Stuck job follow-up" },
-  { id: "crew", label: "Crew coordination" },
-  { id: "general", label: "General solar back-office support" },
-  { id: "not-sure", label: "Not sure yet" },
-];
+const supportGroups = groupIntakeSupportOptions();
+
+const COPY = FORM_COPY.walkthrough;
+
+type FieldErrors = Partial<Record<keyof RequestHelpInput | "supportNeeded", string>>;
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="text-sm text-red-600 mt-1">{message}</p>;
+}
 
 export function RequestHelpForm() {
+  const [step, setStep] = useState<1 | 2>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [selectedSupport, setSelectedSupport] = useState<string[]>([]);
   const [plan, setPlan] = useState<RequestHelpInput["plan"]>("not-sure");
   const [urgency, setUrgency] = useState<RequestHelpInput["urgency"]>("normal");
 
+  const [step1Values, setStep1Values] = useState({
+    companyName: "",
+    name: "",
+    email: "",
+    phone: "",
+    bottleneck: "",
+  });
+
   const handleCheckboxChange = (id: string, checked: boolean) => {
-    if (checked) {
-      setSelectedSupport([...selectedSupport, id]);
-    } else {
-      setSelectedSupport(selectedSupport.filter(item => item !== id));
+    setSelectedSupport((prev) =>
+      checked ? [...prev, id] : prev.filter((item) => item !== id),
+    );
+    setFieldErrors((prev) => ({ ...prev, supportNeeded: undefined }));
+  };
+
+  const handleContinue = () => {
+    setError(null);
+    const result = validateRequestHelpStep1({
+      ...step1Values,
+      supportNeeded: selectedSupport.map((id) => getIntakeSupportLabel(id)),
+    });
+
+    if (!result.success) {
+      const errors: FieldErrors = {};
+      for (const [key, messages] of Object.entries(result.error.flatten().fieldErrors)) {
+        if (messages?.[0]) {
+          errors[key as keyof FieldErrors] = messages[0];
+        }
+      }
+      if (selectedSupport.length === 0) {
+        errors.supportNeeded = "Please select at least one support option.";
+      }
+      setFieldErrors(errors);
+      return;
     }
+
+    if (selectedSupport.length === 0) {
+      setFieldErrors({ supportNeeded: "Please select at least one support option." });
+      return;
+    }
+
+    setFieldErrors({});
+    setStep(2);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
     setError(null);
-
-    if (selectedSupport.length === 0) {
-      setError("Please select at least one support option.");
-      setIsSubmitting(false);
-      return;
-    }
+    setFieldErrors({});
 
     const formData = new FormData(e.currentTarget);
     const data: RequestHelpInput = {
-      companyName: formData.get("companyName") as string,
-      name: formData.get("name") as string,
-      role: formData.get("role") as string,
-      email: formData.get("email") as string,
-      phone: formData.get("phone") as string,
-      website: formData.get("website") as string,
-      serviceArea: formData.get("serviceArea") as string,
-      supportNeeded: selectedSupport.map(id => supportOptions.find(o => o.id === id)?.label || id),
-      bottleneck: formData.get("bottleneck") as string,
-      plan: plan,
-      urgency: urgency,
-      tools: formData.get("tools") as string,
-      takeOffPlate: formData.get("takeOffPlate") as string,
+      ...step1Values,
+      role: (formData.get("role") as string) || undefined,
+      website: (formData.get("website") as string) || undefined,
+      serviceArea: (formData.get("serviceArea") as string) || undefined,
+      supportNeeded: selectedSupport.map((id) => getIntakeSupportLabel(id)),
+      bottleneck: step1Values.bottleneck,
+      plan,
+      urgency,
+      tools: (formData.get("tools") as string) || undefined,
+      takeOffPlate: (formData.get("takeOffPlate") as string) || undefined,
       websiteUrlHoneypot: String(formData.get("websiteUrlHoneypot") ?? ""),
     };
+
+    const validated = requestHelpSchema.safeParse(data);
+    if (!validated.success) {
+      const errors: FieldErrors = {};
+      for (const [key, messages] of Object.entries(validated.error.flatten().fieldErrors)) {
+        if (messages?.[0]) {
+          errors[key as keyof FieldErrors] = messages[0];
+        }
+      }
+      setFieldErrors(errors);
+      const step1Keys = ["companyName", "name", "email", "phone", "bottleneck", "supportNeeded"];
+      if (step1Keys.some((k) => k in errors)) {
+        setStep(1);
+      }
+      setIsSubmitting(false);
+      return;
+    }
 
     const result = await submitRequestHelp(data);
 
     if (result.success) {
       setIsSubmitted(true);
     } else {
-      setError(result.error || "An unexpected error occurred.");
+      const msg = result.error || "An unexpected error occurred.";
+      setError(msg);
+      toast.error(msg);
+      if ("details" in result && result.details) {
+        const errors: FieldErrors = {};
+        for (const [key, messages] of Object.entries(result.details)) {
+          if (Array.isArray(messages) && messages[0]) {
+            errors[key as keyof FieldErrors] = messages[0];
+          }
+        }
+        setFieldErrors(errors);
+      }
     }
-    
+
     setIsSubmitting(false);
+  };
+
+  const resetForm = () => {
+    setIsSubmitted(false);
+    setStep(1);
+    setStep1Values({ companyName: "", name: "", email: "", phone: "", bottleneck: "" });
+    setSelectedSupport([]);
+    setPlan("not-sure");
+    setUrgency("normal");
+    setFieldErrors({});
+    setError(null);
+  };
+
+  const handleAnotherRequest = () => {
+    if (window.confirm(COPY.anotherRequestConfirm)) {
+      resetForm();
+    }
   };
 
   if (isSubmitted) {
@@ -122,52 +199,29 @@ export function RequestHelpForm() {
 
           <div className="border-t border-amber-200/60 pt-8 mb-8">
             <h4 className="text-sm font-semibold text-stone-900 mb-6 text-center uppercase tracking-wider">
-              What Happens Next
+              What happens next
             </h4>
             <div className="space-y-6 max-w-md mx-auto">
-              <div className="flex gap-4">
-                <div className="flex flex-col items-center">
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-500 text-white text-sm font-bold">
-                    1
+              {[
+                COPY.successSteps.received,
+                COPY.successSteps.review,
+                COPY.successSteps.activation,
+              ].map((item, index, arr) => (
+                <div key={item.title} className="flex gap-4">
+                  <div className="flex flex-col items-center">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-500 text-white text-sm font-bold">
+                      {index + 1}
+                    </div>
+                    {index < arr.length - 1 && (
+                      <div className="w-0.5 h-full bg-amber-200 mt-2" />
+                    )}
                   </div>
-                  <div className="w-0.5 h-full bg-amber-200 mt-2"></div>
-                </div>
-                <div className="flex-1 pb-6">
-                  <h5 className="font-semibold text-sm text-stone-900">Request Received</h5>
-                  <p className="text-xs text-stone-600 mt-1 leading-relaxed">
-                    Your walkthrough request has been received. You should see a confirmation email shortly.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                <div className="flex flex-col items-center">
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-500 text-white text-sm font-bold">
-                    2
-                  </div>
-                  <div className="w-0.5 h-full bg-amber-200 mt-2"></div>
-                </div>
-                <div className="flex-1 pb-6">
-                  <h5 className="font-semibold text-sm text-stone-900">Review & Alignment</h5>
-                  <p className="text-xs text-stone-600 mt-1 leading-relaxed">
-                    We&apos;ll reach out within 1 business day to discuss your bottleneck, scope, and support level.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                <div className="flex flex-col items-center">
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-500 text-white text-sm font-bold">
-                    3
+                  <div className={cn("flex-1", index < arr.length - 1 && "pb-6")}>
+                    <h5 className="font-semibold text-sm text-stone-900">{item.title}</h5>
+                    <p className="text-xs text-stone-600 mt-1 leading-relaxed">{item.body}</p>
                   </div>
                 </div>
-                <div className="flex-1">
-                  <h5 className="font-semibold text-sm text-stone-900">Activation</h5>
-                  <p className="text-xs text-stone-600 mt-1 leading-relaxed">
-                    After contract and payment setup, you&apos;ll get portal access and we start the work.
-                  </p>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
@@ -175,9 +229,9 @@ export function RequestHelpForm() {
             <Button
               variant="outline"
               className="border-stone-300 hover:bg-stone-100"
-              onClick={() => setIsSubmitted(false)}
+              onClick={handleAnotherRequest}
             >
-              Send another request
+              {COPY.anotherRequest}
             </Button>
           </div>
         </CardContent>
@@ -186,8 +240,7 @@ export function RequestHelpForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="relative space-y-8">
-      {/* Honeypot: hidden from view; bots often populate all inputs. */}
+    <form onSubmit={step === 2 ? handleSubmit : (e) => e.preventDefault()} className="relative space-y-8">
       <div
         className="absolute -left-[9999px] h-px w-px overflow-hidden"
         aria-hidden="true"
@@ -203,135 +256,248 @@ export function RequestHelpForm() {
         />
       </div>
 
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-sm font-medium text-stone-600">{COPY.stepIndicator(step)}</p>
+        <div className="flex gap-2">
+          <div
+            className={cn("h-1.5 w-8 rounded-full", step >= 1 ? "bg-amber-500" : "bg-stone-200")}
+          />
+          <div
+            className={cn("h-1.5 w-8 rounded-full", step >= 2 ? "bg-amber-500" : "bg-stone-200")}
+          />
+        </div>
+      </div>
+
       {error && (
         <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-md text-sm">
           {error}
         </div>
       )}
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-2">
-          <Label htmlFor="companyName">Company Name</Label>
-          <Input id="companyName" name="companyName" placeholder="Solar Pros LLC" required />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="name">Your Name</Label>
-          <Input id="name" name="name" placeholder="John Doe" required />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="role">Role / Title</Label>
-          <Input id="role" name="role" placeholder="Operations Manager" />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input id="email" name="email" type="email" placeholder="john@solarpros.com" required />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="phone">Phone</Label>
-          <Input id="phone" name="phone" type="tel" placeholder="(555) 000-0000" />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="website">Company Website</Label>
-          <Input id="website" name="website" placeholder="https://solarpros.com" />
-        </div>
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="serviceArea">Service Area (States/Counties)</Label>
-          <Input id="serviceArea" name="serviceArea" placeholder="Northern California, Bay Area" />
-        </div>
-      </div>
 
-      <div className="space-y-4">
-        <Label>Support Needed (Select all that apply)</Label>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {supportOptions.map((option) => (
-            <div key={option.id} className="flex items-center space-x-2">
-              <Checkbox 
-                id={option.id} 
-                onCheckedChange={(checked) => handleCheckboxChange(option.id, !!checked)}
+      {step === 1 ? (
+        <>
+          <div>
+            <h2 className="font-heading text-lg font-semibold text-stone-900">{COPY.step1Title}</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="companyName">{COPY.companyName}</Label>
+              <Input
+                id="companyName"
+                value={step1Values.companyName}
+                onChange={(e) =>
+                  setStep1Values((v) => ({ ...v, companyName: e.target.value }))
+                }
+                placeholder="Solar Pros LLC"
+                required
               />
-              <label
-                htmlFor={option.id}
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                {option.label}
-              </label>
+              <FieldError message={fieldErrors.companyName} />
             </div>
-          ))}
-        </div>
-      </div>
+            <div className="space-y-2">
+              <Label htmlFor="name">{COPY.yourName}</Label>
+              <Input
+                id="name"
+                value={step1Values.name}
+                onChange={(e) => setStep1Values((v) => ({ ...v, name: e.target.value }))}
+                placeholder="John Doe"
+                required
+              />
+              <FieldError message={fieldErrors.name} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">{COPY.email}</Label>
+              <Input
+                id="email"
+                type="email"
+                value={step1Values.email}
+                onChange={(e) => setStep1Values((v) => ({ ...v, email: e.target.value }))}
+                placeholder="john@solarpros.com"
+                required
+              />
+              <FieldError message={fieldErrors.email} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">{COPY.phone}</Label>
+              <Input
+                id="phone"
+                type="tel"
+                value={step1Values.phone}
+                onChange={(e) => setStep1Values((v) => ({ ...v, phone: e.target.value }))}
+                placeholder="(555) 000-0000"
+              />
+              <p className="text-xs text-muted-foreground">{COPY.phoneHelper}</p>
+              <FieldError message={fieldErrors.phone} />
+            </div>
+          </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="bottleneck">What is your current biggest bottleneck?</Label>
-        <Textarea 
-          id="bottleneck" 
-          name="bottleneck"
-          placeholder="Tell us where your jobs are getting stuck..." 
-          className="min-h-[100px]"
-          required
-        />
-      </div>
+          <div className="space-y-2">
+            <Label htmlFor="bottleneck">{COPY.bottleneck}</Label>
+            <Textarea
+              id="bottleneck"
+              value={step1Values.bottleneck}
+              onChange={(e) =>
+                setStep1Values((v) => ({ ...v, bottleneck: e.target.value }))
+              }
+              placeholder={COPY.bottleneckPlaceholder}
+              className="min-h-[100px]"
+              required
+            />
+            <FieldError message={fieldErrors.bottleneck} />
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-2">
-          <Label htmlFor="plan">Preferred Support Level</Label>
-          <Select name="plan" value={plan} onValueChange={(v) => setPlan(v as RequestHelpInput["plan"])}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select a support block" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="light">Light Support (2 hours per week)</SelectItem>
-              <SelectItem value="core">Core Support (5 hours per week)</SelectItem>
-              <SelectItem value="priority">Priority Support (10 hours per week)</SelectItem>
-              <SelectItem value="not-sure">Not sure yet</SelectItem>
-              <SelectItem value="request-based">Request-based work</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="urgency">Urgency</Label>
-          <Select name="urgency" value={urgency} onValueChange={(v) => setUrgency(v as RequestHelpInput["urgency"])}>
-            <SelectTrigger>
-              <SelectValue placeholder="How soon do you need help?" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="normal">Normal support</SelectItem>
-              <SelectItem value="this-week">This week</SelectItem>
-              <SelectItem value="urgent">Urgent / stuck job issue</SelectItem>
-              <SelectItem value="ongoing">Ongoing recurring support</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+          <div className="space-y-4">
+            <div>
+              <Label>{COPY.supportAreas}</Label>
+              <p className="text-sm text-muted-foreground mt-1">{COPY.supportAreasHelper}</p>
+            </div>
+            <div className="space-y-5">
+              {supportGroups.map((group) => (
+                <div key={group.group}>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-2">
+                    {group.label}
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {group.options.map((option) => (
+                      <div key={option.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={option.id}
+                          checked={selectedSupport.includes(option.id)}
+                          onCheckedChange={(checked) => handleCheckboxChange(option.id, !!checked)}
+                        />
+                        <label htmlFor={option.id} className="text-sm font-medium leading-none">
+                          {option.label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <FieldError message={fieldErrors.supportNeeded} />
+          </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="tools">Current Tools (CRM, Proposal software, etc.)</Label>
-        <Textarea 
-          id="tools" 
-          name="tools"
-          placeholder="e.g. Aurora, Solo, HubSpot, Sighten..." 
-        />
-      </div>
+          <Button
+            type="button"
+            className={cn(buttonVariants(), "h-12 w-full text-base font-medium", marketingAmberCta)}
+            onClick={handleContinue}
+          >
+            {COPY.continue}
+          </Button>
+        </>
+      ) : (
+        <>
+          <div>
+            <h2 className="font-heading text-lg font-semibold text-stone-900">{COPY.step2Title}</h2>
+          </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="takeOffPlate">What would be most helpful to take off your plate first?</Label>
-        <Textarea 
-          id="takeOffPlate" 
-          name="takeOffPlate"
-          placeholder="If we could solve one thing this week, what would it be?" 
-        />
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="role">{COPY.role}</Label>
+              <Input id="role" name="role" placeholder="Operations Manager" />
+              <FieldError message={fieldErrors.role} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="website">{COPY.website}</Label>
+              <Input id="website" name="website" placeholder="https://solarpros.com" />
+              <p className="text-xs text-muted-foreground">{COPY.websiteHelper}</p>
+              <FieldError message={fieldErrors.website} />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="serviceArea">{COPY.serviceArea}</Label>
+              <Input
+                id="serviceArea"
+                name="serviceArea"
+                placeholder="Northern California, Bay Area"
+              />
+              <FieldError message={fieldErrors.serviceArea} />
+            </div>
+          </div>
 
-      <Button
-        type="submit"
-        className={cn(buttonVariants(), "h-12 w-full text-base font-medium", marketingAmberCta)}
-        disabled={isSubmitting}
-      >
-        {isSubmitting ? "Sending..." : PRODUCT_LANGUAGE.walkthrough.action}
-      </Button>
-      
-      <p className="text-center text-xs text-muted-foreground">
-        By submitting this form, you agree to be contacted by Hargen Energy LLC regarding your support request.
-      </p>
+          <div className="space-y-2">
+            <Label htmlFor="takeOffPlate">{COPY.firstPriority}</Label>
+            <Textarea
+              id="takeOffPlate"
+              name="takeOffPlate"
+              placeholder={COPY.firstPriorityPlaceholder}
+            />
+            <FieldError message={fieldErrors.takeOffPlate} />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="tools">{COPY.tools}</Label>
+            <Textarea id="tools" name="tools" placeholder={COPY.toolsPlaceholder} />
+            <FieldError message={fieldErrors.tools} />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="plan">{COPY.plan}</Label>
+              <Select value={plan} onValueChange={(v) => setPlan(v as RequestHelpInput["plan"])}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a support block" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="light">Light Support (2 hours per week)</SelectItem>
+                  <SelectItem value="core">Core Support (5 hours per week)</SelectItem>
+                  <SelectItem value="priority">Priority Support (10 hours per week)</SelectItem>
+                  <SelectItem value="not-sure">Not sure yet</SelectItem>
+                  <SelectItem value="request-based">Request-based work</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="urgency">{COPY.urgency}</Label>
+              <Select
+                value={urgency}
+                onValueChange={(v) => setUrgency(v as RequestHelpInput["urgency"])}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="How soon do you need help?" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="normal">Normal support</SelectItem>
+                  <SelectItem value="this-week">This week</SelectItem>
+                  <SelectItem value="urgent">Urgent / stuck job issue</SelectItem>
+                  <SelectItem value="ongoing">Ongoing recurring support</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-12 sm:flex-1"
+              onClick={() => setStep(1)}
+              disabled={isSubmitting}
+            >
+              {COPY.back}
+            </Button>
+            <Button
+              type="submit"
+              className={cn(
+                buttonVariants(),
+                "h-12 sm:flex-1 text-base font-medium",
+                marketingAmberCta,
+              )}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {COPY.sending}
+                </>
+              ) : (
+                COPY.submit
+              )}
+            </Button>
+          </div>
+        </>
+      )}
+
+      <p className="text-center text-xs text-muted-foreground">{COPY.legal}</p>
     </form>
   );
 }

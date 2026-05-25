@@ -76,6 +76,26 @@ export const requestHelpSchema = z.object({
 
 export type RequestHelpInput = z.infer<typeof requestHelpSchema>;
 
+export const requestHelpStep1Schema = requestHelpSchema.pick({
+  companyName: true,
+  name: true,
+  email: true,
+  phone: true,
+  bottleneck: true,
+  supportNeeded: true,
+});
+
+export function validateRequestHelpStep1(data: {
+  companyName: string;
+  name: string;
+  email: string;
+  phone?: string;
+  bottleneck: string;
+  supportNeeded: string[];
+}) {
+  return requestHelpStep1Schema.safeParse(data);
+}
+
 const portalMetadataString = trimmedString.max(500).optional();
 
 export function createPortalAttachmentSchema(clientId: string) {

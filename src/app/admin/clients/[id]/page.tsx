@@ -111,7 +111,6 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
     },
     orderBy: { createdAt: "desc" },
     include: {
-      client: { select: { planType: true } },
       timeEntries: { orderBy: { date: "desc" }, take: 10 },
     },
   });
@@ -188,7 +187,18 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
                   stripeSubscriptionId: client.stripeSubscriptionId,
                   users: client.users,
                 }}
+                intakeClient={{
+                  companyName: client.companyName,
+                  contactName: client.contactName,
+                  email: client.email,
+                  phone: client.phone,
+                  role: client.role,
+                  website: client.website,
+                  serviceArea: client.serviceArea,
+                  currentTools: client.currentTools,
+                }}
                 walkthroughPlanRequestBased={walkthroughPlanRequestBased}
+                walkthroughMetadata={walkthroughMetadata}
                 latestWalkthroughRequest={latestWalkthrough}
               />
 
@@ -362,6 +372,15 @@ function renderCompanyDetails(client: Client) {
           <div>
             <p className="text-sm font-medium">{client.serviceArea}</p>
             <p className="text-xs text-muted-foreground">Service Area</p>
+          </div>
+        </div>
+      )}
+      {client.currentTools && (
+        <div className="flex items-start gap-3">
+          <Clock className="h-4 w-4 text-muted-foreground mt-1" />
+          <div>
+            <p className="text-sm font-medium whitespace-pre-wrap">{client.currentTools}</p>
+            <p className="text-xs text-muted-foreground">Current Tools</p>
           </div>
         </div>
       )}

@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock } from "lucide-react";
+import { Clock, Mail, Phone } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -14,10 +14,14 @@ import {
 } from "@/components/ui/sheet";
 import { UpdateRequestForm } from "@/components/forms/UpdateRequestForm";
 import { LogTimeForm } from "@/components/forms/LogTimeForm";
+import { IntakeLeadSnapshot } from "@/components/intake/IntakeLeadSnapshot";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
+import type { IntakeSnapshotClient, IntakeSnapshotMetadata } from "@/lib/intake-snapshot";
 import { RequestStatusValue } from "@/lib/ui-enums";
 
 interface WalkthroughDrawerProps {
+  client: IntakeSnapshotClient;
   request: {
     id: string;
     clientId: string;
@@ -32,9 +36,6 @@ interface WalkthroughDrawerProps {
     clientVisibleUpdate: string | null;
     estimatedMinutes: number | null;
     createdAt: Date;
-    client: {
-      planType: string;
-    };
     timeEntries: Array<{
       id: string;
       description: string;
@@ -43,9 +44,10 @@ interface WalkthroughDrawerProps {
       billableType: string;
     }>;
   } | null;
+  metadata?: IntakeSnapshotMetadata | null;
 }
 
-export function WalkthroughDrawer({ request }: WalkthroughDrawerProps) {
+export function WalkthroughDrawer({ client, request, metadata }: WalkthroughDrawerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -66,8 +68,43 @@ export function WalkthroughDrawer({ request }: WalkthroughDrawerProps) {
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
-        <SheetHeader>
+      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto p-0">
+        <div className="sticky top-0 z-10 border-b bg-background px-6 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-semibold text-base truncate">{client.companyName}</p>
+              <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-muted-foreground">
+                <a
+                  href={`mailto:${client.email}`}
+                  className="inline-flex items-center gap-1 hover:text-primary"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  {client.email}
+                </a>
+                {client.phone && (
+                  <a
+                    href={`tel:${client.phone}`}
+                    className="inline-flex items-center gap-1 hover:text-primary"
+                  >
+                    <Phone className="h-3.5 w-3.5" />
+                    {client.phone}
+                  </a>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              <StatusBadge status={request.status} />
+              {request.status === "NEW" && (
+                <Badge variant="destructive" className="text-[10px]">
+                  Needs review
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="px-6 pb-6">
+        <SheetHeader className="pt-4">
           <SheetTitle>{PRODUCT_LANGUAGE.walkthrough.detailTitle}</SheetTitle>
           <SheetDescription>
             Submitted on {format(new Date(request.createdAt), "MMMM d, yyyy 'at' h:mm a")}
@@ -75,54 +112,24 @@ export function WalkthroughDrawer({ request }: WalkthroughDrawerProps) {
         </SheetHeader>
 
         <div className="space-y-6 mt-6">
-          {/* Lead Context Card */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Lead Context</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <Label className="text-muted-foreground">Support Needed</Label>
-                <div className="mt-1 flex flex-wrap gap-2">
-                  {request.supportNeeded?.split(", ").map((item, i) => (
-                    <Badge key={i} variant="secondary">
-                      {item}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-muted-foreground">Current Bottleneck</Label>
-                <p className="mt-1 text-slate-900 whitespace-pre-wrap">{request.description}</p>
-              </div>
-
-              {request.mostHelpful && (
-                <div>
-                  <Label className="text-muted-foreground">Most Helpful First Step</Label>
-                  <p className="mt-1 text-slate-900 whitespace-pre-wrap">{request.mostHelpful}</p>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
-                <div>
-                  <Label className="text-muted-foreground">Urgency</Label>
-                  <div className="mt-1 flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-primary" />
-                    <span className="font-medium">{request.urgency.replace("_", " ")}</span>
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Plan Interest</Label>
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="font-medium">{request.client.planType} Support</span>
-                  </div>
-                </div>
-              </div>
+            <CardContent>
+              <IntakeLeadSnapshot
+                client={client}
+                request={{
+                  supportNeeded: request.supportNeeded,
+                  description: request.description,
+                  mostHelpful: request.mostHelpful,
+                  urgency: request.urgency,
+                }}
+                metadata={metadata}
+              />
             </CardContent>
           </Card>
 
-          {/* Qualification Card */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Qualification</CardTitle>
@@ -135,7 +142,6 @@ export function WalkthroughDrawer({ request }: WalkthroughDrawerProps) {
             </CardContent>
           </Card>
 
-          {/* Log Walkthrough Time Card */}
           <Card className="border-primary/20">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -157,7 +163,6 @@ export function WalkthroughDrawer({ request }: WalkthroughDrawerProps) {
             </CardContent>
           </Card>
 
-          {/* Discovery Time List */}
           {request.timeEntries.length > 0 && (
             <Card>
               <CardHeader>
@@ -185,15 +190,8 @@ export function WalkthroughDrawer({ request }: WalkthroughDrawerProps) {
             </Card>
           )}
         </div>
+        </div>
       </SheetContent>
     </Sheet>
-  );
-}
-
-function Label({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <span className={`text-xs font-semibold uppercase tracking-wider ${className}`}>
-      {children}
-    </span>
   );
 }

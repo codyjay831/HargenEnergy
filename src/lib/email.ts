@@ -10,6 +10,8 @@ import {
 import { SupportRequestKind } from "@/generated/prisma/client";
 import { escapeHtml, sanitizeEmailSubjectFragment } from "@/lib/html-escape";
 import { resolveClientLogoUrl } from "@/lib/storage/logo-url";
+import { renderIntakeAlertHtml } from "@/lib/intake-snapshot";
+import { EMAIL_SUBJECTS } from "@/lib/product-language";
 
 /**
  * Returns a Resend instance or null if the API key is missing.
@@ -103,12 +105,12 @@ export async function sendRequestConfirmation(to: string, companyName: string) {
     await resend.emails.send({
       from: fromEmail,
       to,
-      subject: "Hargen Energy received your solar operations support request",
+      subject: EMAIL_SUBJECTS.walkthroughConfirmation(companyName),
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
-          <h2 style="color: #0f172a;">Thank you for reaching out.</h2>
-          <p>Hargen Energy has received your solar operations support request for <strong>${safeCompany}</strong>.</p>
-          <p>We will review the bottleneck and support needs you've shared. If we need more details to understand the scope, we will follow up with you directly.</p>
+          <h2 style="color: #0f172a;">Walkthrough request received</h2>
+          <p>Hargen Energy has received your walkthrough request for <strong>${safeCompany}</strong>.</p>
+          <p>We will review the bottleneck and support needs you shared. If we need more details to understand scope, we will follow up with you directly.</p>
           <p>We will start with a walkthrough to understand your backlog and where you are stuck. Portal access and ongoing client work begin after onboarding, contract, and payment are in place.</p>
           <p style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 14px; color: #64748b;">
             Hargen Energy Solar Ops Desk<br />
@@ -129,6 +131,11 @@ export async function sendInternalRequestAlert(data: {
   contactName: string;
   email: string;
   phone?: string | null;
+  role?: string | null;
+  website?: string | null;
+  serviceArea?: string | null;
+  tools?: string | null;
+  takeOffPlate?: string | null;
   supportNeeded?: string | null;
   plan?: string;
   urgency?: string;
@@ -136,15 +143,89 @@ export async function sendInternalRequestAlert(data: {
   requestId: string;
   clientId?: string;
   kind?: SupportRequestKind;
+  subjectPrefix?: string;
+  intakePlan?: string;
 }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
   if (!ADMIN_EMAIL) {
-    console.warn("SUPPORT_NOTIFICATION_EMAIL is missing. Internal alert not sent.");
+    const message = "SUPPORT_NOTIFICATION_EMAIL is missing. Internal alert not sent.";
+    console.error(`[Email] ${message}`);
+    try {
+      const Sentry = await import("@sentry/nextjs");
+      Sentry.captureMessage(message, "warning");
+    } catch {
+      // Sentry optional when DSN not configured
+    }
     return { error: "Internal notification email not configured." };
   }
   const { resend, fromEmail } = config;
 
+  const isInboundLead = data.kind === SupportRequestKind.PROSPECT_INTAKE;
+  const adminUrl =
+    isInboundLead && data.clientId
+      ? adminIntakeRequestUrl(data.clientId)
+      : adminRequestUrl(data.requestId);
+
+  const subjectBase = isInboundLead
+    ? EMAIL_SUBJECTS.walkthroughAdminAlert(data.companyName)
+    : `New client ops request: ${data.companyName}`;
+  const subject = sanitizeEmailSubjectFragment(
+    data.subjectPrefix ? `${data.subjectPrefix} ${subjectBase}` : subjectBase,
+    200,
+  );
+
+  const html =
+    isInboundLead && data.clientId
+      ? renderIntakeAlertHtml({
+          client: {
+            companyName: data.companyName,
+            contactName: data.contactName,
+            email: data.email,
+            phone: data.phone,
+            role: data.role,
+            website: data.website,
+            serviceArea: data.serviceArea,
+            currentTools: data.tools,
+          },
+          request: {
+            supportNeeded: data.supportNeeded,
+            description: data.description,
+            mostHelpful: data.takeOffPlate,
+            urgency: data.urgency ?? "NORMAL",
+          },
+          metadata: data.intakePlan ? { intakePlan: data.intakePlan } : undefined,
+          adminUrl,
+        })
+      : buildOpsAlertHtml(data, adminUrl);
+
+  try {
+    await resend.emails.send({
+      from: fromEmail,
+      to: ADMIN_EMAIL,
+      subject,
+      html,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending internal alert email:", error);
+    return { error: "Failed to send internal alert email." };
+  }
+}
+
+function buildOpsAlertHtml(
+  data: {
+    companyName: string;
+    contactName: string;
+    email: string;
+    phone?: string | null;
+    supportNeeded?: string | null;
+    plan?: string;
+    urgency?: string;
+    description: string;
+  },
+  adminUrl: string,
+): string {
   const safeCompany = escapeHtml(data.companyName);
   const safeContact = escapeHtml(data.contactName);
   const safeEmail = escapeHtml(data.email);
@@ -153,46 +234,24 @@ export async function sendInternalRequestAlert(data: {
   const safePlan = escapeHtml(data.plan || "N/A");
   const safeUrgency = escapeHtml(data.urgency || "N/A");
   const safeDescription = escapeHtml(data.description);
-  const isInboundLead = data.kind === SupportRequestKind.PROSPECT_INTAKE;
-  const adminUrl = escapeHtml(
-    isInboundLead && data.clientId
-      ? adminIntakeRequestUrl(data.clientId)
-      : adminRequestUrl(data.requestId),
-  );
-  const subject = sanitizeEmailSubjectFragment(
-    isInboundLead
-      ? `New inbound lead: ${data.companyName}`
-      : `New client ops request: ${data.companyName}`,
-    200,
-  );
+  const safeUrl = escapeHtml(adminUrl);
 
-  try {
-    await resend.emails.send({
-      from: fromEmail,
-      to: ADMIN_EMAIL,
-      subject,
-      html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
-          <h2 style="color: #0f172a;">${isInboundLead ? "New Inbound Lead" : "New Client Ops Request"}</h2>
-          <p><strong>Company:</strong> ${safeCompany}</p>
-          <p><strong>Contact:</strong> ${safeContact} (${safeEmail})</p>
-          <p><strong>Phone:</strong> ${safePhone}</p>
-          <p><strong>Support Needed:</strong> ${safeSupport}</p>
-          <p><strong>Preferred Level:</strong> ${safePlan}</p>
-          <p><strong>Urgency:</strong> ${safeUrgency}</p>
-          <p><strong>Bottleneck:</strong></p>
-          <p style="background: #f8fafc; padding: 15px; border-radius: 4px; border-left: 4px solid #e2e8f0;">${safeDescription}</p>
-          <p style="margin-top: 20px;">
-            <a href="${adminUrl}" style="background: #0f172a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">View in Admin</a>
-          </p>
-        </div>
-      `,
-    });
-    return { success: true };
-  } catch (error) {
-    console.error("Error sending internal alert email:", error);
-    return { error: "Failed to send internal alert email." };
-  }
+  return `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+      <h2 style="color: #0f172a;">New Client Ops Request</h2>
+      <p><strong>Company:</strong> ${safeCompany}</p>
+      <p><strong>Contact:</strong> ${safeContact} (${safeEmail})</p>
+      <p><strong>Phone:</strong> ${safePhone}</p>
+      <p><strong>Support Needed:</strong> ${safeSupport}</p>
+      <p><strong>Preferred Level:</strong> ${safePlan}</p>
+      <p><strong>Urgency:</strong> ${safeUrgency}</p>
+      <p><strong>Bottleneck:</strong></p>
+      <p style="background: #f8fafc; padding: 15px; border-radius: 4px; border-left: 4px solid #e2e8f0;">${safeDescription}</p>
+      <p style="margin-top: 20px;">
+        <a href="${safeUrl}" style="background: #0f172a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">View in Admin</a>
+      </p>
+    </div>
+  `;
 }
 
 export async function sendClientUpdateEmail(data: {

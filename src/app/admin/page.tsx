@@ -31,6 +31,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { PriorityButtons } from "@/components/admin/PriorityButtons";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { formatUrgencyLabel } from "@/lib/ui-enums";
 
 export const dynamic = "force-dynamic";
 
@@ -100,11 +101,12 @@ export default async function AdminDashboard() {
   const stats = [
     { 
       title: `New ${PRODUCT_LANGUAGE.walkthrough.plural}`, 
+      subtitle: "Unreviewed prospect intakes",
       value: newWalkthroughsCount.toString(), 
       icon: Inbox, 
       color: "text-amber-600", 
       bg: "bg-amber-50",
-      link: "/admin/clients?status=LEAD&needsReview=1"
+      link: "/admin/clients?needsReview=1&status=ALL"
     },
     { 
       title: `${PRODUCT_LANGUAGE.prospect.plural} Awaiting Activation`, 
@@ -220,6 +222,9 @@ export default async function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stat.value}</div>
+                {"subtitle" in stat && stat.subtitle && (
+                  <p className="text-xs text-muted-foreground mt-1">{stat.subtitle}</p>
+                )}
               </CardContent>
             </Card>
           </Link>
@@ -353,10 +358,17 @@ export default async function AdminDashboard() {
                   >
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{request.client.companyName}</p>
-                      <p className="text-xs text-muted-foreground truncate">{request.supportNeeded}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {format(new Date(request.createdAt), "MMM d, h:mm a")}
+                      <p className="text-xs text-muted-foreground truncate line-clamp-2">
+                        {request.description}
                       </p>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                          {formatUrgencyLabel(request.urgency)}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(request.createdAt), "MMM d, h:mm a")}
+                        </span>
+                      </div>
                     </div>
                     <StatusBadge status={request.status} className="ml-2 shrink-0" />
                   </Link>

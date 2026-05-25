@@ -2,20 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requestHelpSchema, RequestHelpInput } from "@/lib/validations";
+import { requestHelpSchema, RequestHelpInput, updateRequestHandoffPricingSchema } from "@/lib/validations";
 import {
-  PlanType,
   PricingMode,
-  Urgency,
-  ClientStatus,
   RequestStatus,
   OverflowStatus,
-  SupportRequestKind,
-  SupportRequestSource,
   EngagementType,
 } from "@/generated/prisma/client";
-import { updateRequestHandoffPricingSchema } from "@/lib/validations";
-import { buildIntakeTitle } from "@/lib/request-lifecycle";
 import {
   sendRequestConfirmation,
   sendInternalRequestAlert,
@@ -31,7 +24,7 @@ import {
   isRequestBasedPricingComplete,
   REQUEST_BASED_PRICING_REQUIRED_ERROR,
 } from "@/lib/engagement";
-import { getIntakeClientMutationStrategy } from "@/lib/intake-client-upsert";
+import { persistPublicIntake } from "@/lib/intake-submit";
 import { writeAuditLog } from "@/lib/audit-log";
 
 export async function submitRequestHelp(data: RequestHelpInput) {
@@ -44,22 +37,7 @@ export async function submitRequestHelp(data: RequestHelpInput) {
     };
   }
 
-  const {
-    companyName,
-    name,
-    role,
-    email,
-    phone,
-    website,
-    serviceArea,
-    supportNeeded,
-    bottleneck,
-    plan,
-    urgency,
-    tools,
-    takeOffPlate,
-    websiteUrlHoneypot,
-  } = validatedFields.data;
+  const { email, companyName, websiteUrlHoneypot } = validatedFields.data;
 
   // Honeypot: silently accept so automated tools cannot probe validation vs success.
   if (websiteUrlHoneypot?.trim()) {
@@ -77,112 +55,26 @@ export async function submitRequestHelp(data: RequestHelpInput) {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    const mappedPlanType = mapPlanType(plan);
-    const existingClient = await prisma.client.findUnique({
-      where: { email: normalizedEmail },
-    });
-    const mutationStrategy = getIntakeClientMutationStrategy(existingClient?.status);
-
-    const client =
-      mutationStrategy === "create"
-        ? await prisma.client.create({
-            data: {
-              companyName,
-              contactName: name,
-              email: normalizedEmail,
-              phone,
-              website,
-              serviceArea,
-              role,
-              currentTools: tools,
-              status: ClientStatus.LEAD,
-              ...(mappedPlanType ? { planType: mappedPlanType } : {}),
-            },
-          })
-        : mutationStrategy === "update-lead" && existingClient
-          ? await prisma.client.update({
-              where: { id: existingClient.id },
-              data: {
-                companyName,
-                contactName: name,
-                phone,
-                website,
-                serviceArea,
-                role,
-                currentTools: tools,
-                ...(mappedPlanType ? { planType: mappedPlanType } : {}),
-              },
-            })
-          : existingClient!;
-
-    const supportRequest = await prisma.supportRequest.create({
-      data: {
-        clientId: client.id,
-        title: buildIntakeTitle(supportNeeded),
-        kind: SupportRequestKind.PROSPECT_INTAKE,
-        source: SupportRequestSource.PUBLIC_FORM,
-        supportNeeded: supportNeeded.join(", "),
-        description: bottleneck,
-        mostHelpful: takeOffPlate,
-        metadata: { intakePlan: plan },
-        urgency: mapUrgency(urgency),
-        status: RequestStatus.NEW,
-      },
+    const { clientId, emailPayload } = await persistPublicIntake(prisma, {
+      ...validatedFields.data,
+      normalizedEmail,
     });
 
-    try {
-      await Promise.all([
-        sendRequestConfirmation(email, companyName),
-        sendInternalRequestAlert({
-          companyName,
-          contactName: name,
-          email,
-          phone,
-          supportNeeded: supportNeeded.join(", "),
-          plan,
-          urgency,
-          description: bottleneck,
-          requestId: supportRequest.id,
-          clientId: client.id,
-          kind: SupportRequestKind.PROSPECT_INTAKE,
-        }),
-      ]);
-    } catch (emailError) {
+    void Promise.all([
+      sendRequestConfirmation(email, companyName),
+      sendInternalRequestAlert(emailPayload),
+    ]).catch((emailError) => {
       console.error("Failed to send intake emails:", emailError);
-    }
+    });
 
-    return { success: true, requestId: supportRequest.id };
+    revalidatePath("/admin");
+    revalidatePath("/admin/clients");
+    revalidatePath(`/admin/clients/${clientId}`);
+
+    return { success: true, requestId: emailPayload.requestId };
   } catch (error) {
     console.error("Error submitting request:", error);
     return { error: "Something went wrong. Please try again later." };
-  }
-}
-
-function mapPlanType(plan: string): PlanType | null {
-  switch (plan) {
-    case "light":
-      return PlanType.LIGHT;
-    case "core":
-      return PlanType.CORE;
-    case "priority":
-      return PlanType.PRIORITY;
-    default:
-      return null;
-  }
-}
-
-function mapUrgency(urgency: string): Urgency {
-  switch (urgency) {
-    case "normal":
-      return Urgency.NORMAL;
-    case "this-week":
-      return Urgency.THIS_WEEK;
-    case "urgent":
-      return Urgency.URGENT;
-    case "ongoing":
-      return Urgency.ONGOING;
-    default:
-      return Urgency.NORMAL;
   }
 }
 

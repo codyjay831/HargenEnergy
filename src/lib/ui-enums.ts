@@ -17,6 +17,30 @@ export function isUrgencyValue(v: string): v is UrgencyValue {
   return (URGENCY_VALUES as readonly string[]).includes(v);
 }
 
+/** Maps form values (this-week) and Prisma enums (THIS_WEEK) to display labels. */
+const URGENCY_FORM_TO_ENUM: Record<string, UrgencyValue> = {
+  normal: "NORMAL",
+  "this-week": "THIS_WEEK",
+  urgent: "URGENT",
+  ongoing: "ONGOING",
+};
+
+export function formatUrgencyLabel(value: string | undefined | null): string {
+  if (!value) {
+    return "Not specified";
+  }
+  const normalized = value.toUpperCase().replace(/-/g, "_");
+  const fromEnum = URGENCY_OPTIONS.find((o) => o.value === normalized);
+  if (fromEnum) {
+    return fromEnum.label;
+  }
+  const mapped = URGENCY_FORM_TO_ENUM[value.toLowerCase()];
+  if (mapped) {
+    return URGENCY_OPTIONS.find((o) => o.value === mapped)?.label ?? value;
+  }
+  return value.replace(/_/g, " ");
+}
+
 export const BILLABLE_TYPE_VALUES = ["INCLUDED", "OVERFLOW", "NON_BILLABLE"] as const;
 export type BillableTypeValue = (typeof BILLABLE_TYPE_VALUES)[number];
 
