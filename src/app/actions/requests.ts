@@ -258,6 +258,7 @@ export async function updateRequest(
           clientVisibleUpdate: request.clientVisibleUpdate,
           companyName: request.client.companyName,
           logoUrl: request.client.logoUrl,
+          clientId: request.clientId,
         }),
       );
     }

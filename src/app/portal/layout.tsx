@@ -13,6 +13,7 @@ import {
 import { LogoutButton } from "@/components/layout/LogoutButton";
 import { prisma } from "@/lib/prisma";
 import { NAV_LABELS } from "@/lib/product-language";
+import { resolveClientLogoUrl } from "@/lib/storage/logo-url";
 
 export const dynamic = "force-dynamic";
 
@@ -54,15 +55,19 @@ export default async function PortalLayout({
     { name: "Account", href: "/portal/account", icon: UserCircle },
   ];
 
+  const logoDisplayUrl = client
+    ? resolveClientLogoUrl(client.logoUrl)
+    : null;
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
       {/* Sidebar */}
       <aside className="w-full md:w-64 bg-[#0f172a] text-white flex-shrink-0">
         <div className="p-6">
           <Link href="/portal" className="flex items-center gap-2">
-            {client?.logoUrl ? (
+            {logoDisplayUrl ? (
               <Image
-                src={client.logoUrl}
+                src={logoDisplayUrl}
                 alt=""
                 width={32}
                 height={32}

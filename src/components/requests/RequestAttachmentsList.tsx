@@ -1,4 +1,6 @@
 import { FileText, Paperclip } from "lucide-react";
+import { buildFileReadUrl } from "@/lib/storage/paths";
+import { isVercelBlobUrl } from "@/lib/storage/blob-ref";
 import { safeExternalHref } from "@/lib/utils";
 
 export type RequestAttachmentItem = {
@@ -10,6 +12,13 @@ export type RequestAttachmentItem = {
 type RequestAttachmentsListProps = {
   attachments: RequestAttachmentItem[];
 };
+
+function resolveAttachmentHref(fileUrl: string): string | null {
+  if (isVercelBlobUrl(fileUrl)) {
+    return buildFileReadUrl(fileUrl);
+  }
+  return safeExternalHref(fileUrl);
+}
 
 export function RequestAttachmentsList({ attachments }: RequestAttachmentsListProps) {
   if (attachments.length === 0) {
@@ -26,7 +35,7 @@ export function RequestAttachmentsList({ attachments }: RequestAttachmentsListPr
       </div>
       <ul className="space-y-2">
         {attachments.map((attachment) => {
-          const href = safeExternalHref(attachment.fileUrl);
+          const href = resolveAttachmentHref(attachment.fileUrl);
           return (
             <li
               key={`${attachment.fileUrl}-${attachment.fileName}`}

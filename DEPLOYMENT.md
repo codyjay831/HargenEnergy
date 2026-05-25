@@ -25,14 +25,10 @@ Ensure all required environment variables are set in your production environment
 - `STRIPE_WEBHOOK_SECRET`: Your Stripe webhook signing secret.
 - `STRIPE_LIGHT_PRICE_ID` / `STRIPE_CORE_PRICE_ID` / `STRIPE_PRIORITY_PRICE_ID`: Price IDs for support blocks.
 
-### Required for File Uploads (Firebase Storage)
-- `NEXT_PUBLIC_FIREBASE_API_KEY`
-- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
-- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
-- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
-- `NEXT_PUBLIC_FIREBASE_APP_ID`
+### Required for File Uploads (Vercel Blob)
+- `BLOB_READ_WRITE_TOKEN`: Read/write token for your Vercel Blob store (server-only). Auto-injected when the store is linked to the project on Vercel; copy into local `.env` for development.
 
-Portal request attachments and client logo uploads use client-side Firebase Storage. **The attachment feature is not launch-ready until Firebase Storage security rules are deployed and verified** (see §5 below).
+Portal attachments and admin logo uploads use a **two-step client upload** after NextAuth authorization: the server issues a pathname, then the browser uploads via Vercel Blob. Private attachments are read through `/api/files/read`; public logo blobs use their direct URL. See §5 below.
 
 ### Optional (manual seed only)
 - `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME`: **Not used by production builds.** Only consumed by `npm run prisma:seed` for local development convenience.
@@ -98,15 +94,27 @@ Signed-in admins can change their password under `/admin/account`. The form requ
     - Until verified, you may be restricted to sending to your own email address or using the default Resend testing domain.
     - Production emails must NOT use the `@resend.dev` domain.
 
-## 5. Firebase Storage Configuration
+## 5. Vercel Blob Storage Configuration
 
-Portal work-request attachments upload to Firebase Storage before the request is created, using a pending path:
+### Setup
+
+1. In the Vercel Dashboard, open your project → **Storage** → **Create Blob store** (link it to this project).
+2. Set `BLOB_READ_WRITE_TOKEN` in local `.env` (copy from store settings). On Vercel production, the token is injected automatically when the store is linked.
+3. No Firebase or GCP configuration is required.
+
+### Upload flow
+
+1. Authenticated user selects a file in the portal or admin UI.
+2. Browser calls `POST /api/upload/authorize` (NextAuth session required). Server validates file type/size and returns a server-generated **pathname**.
+3. Browser calls `upload(pathname, file, { handleUploadUrl: '/api/upload', ... })`. The upload route validates the pathname prefix against the session before issuing a client upload token.
+4. Browser uploads bytes directly to Vercel Blob.
+5. On request submit, the **Vercel Blob URL** is saved in PostgreSQL (`Attachment.fileUrl` or `Client.logoUrl`).
+
+Portal work-request attachments use a pending path before submit:
 
 ```
 attachments/{clientId}/pending/{uploadSessionId}/{filename}
 ```
-
-After submit, attachment metadata (`fileName`, `fileUrl`, `fileType`) is stored in PostgreSQL. Files may remain at the pending path; the app does not move objects post-create.
 
 Client logos upload to:
 
@@ -114,26 +122,24 @@ Client logos upload to:
 logos/{clientId}/{filename}
 ```
 
-### Security rules requirements
+After submit, attachment metadata (`fileName`, `fileUrl`, `fileType`) is stored in PostgreSQL. Files may remain at the pending path; the app does not move objects post-create.
 
-**The attachment feature is not launch-ready until Firebase Storage security rules are deployed and verified.**
+### Read flow
 
-Before production launch, deploy and verify Firebase Storage rules that:
+- **Attachments**: `/api/files/read?url=...` — requires NextAuth; tenant isolation enforced server-side; streams private blobs via the Blob SDK.
+- **Logos**: Public blob URLs are used directly in the portal sidebar and emails. External `https://` logo URLs (website pull / manual paste) pass through unchanged.
 
-1. **Tenant isolation** — Objects under `attachments/{clientId}/` and `logos/{clientId}/` are only readable/writable by authorized users for that `clientId`. The app derives portal `clientId` from the authenticated session server-side; rules must align with your Firebase Auth strategy or restrict writes to authenticated users with matching custom claims.
-2. **Pending path lifecycle** — Writes to `attachments/{clientId}/pending/{uploadSessionId}/` are allowed for portal users scoped to their `clientId`. Reads should be allowed for the owning client and admins.
-3. **File constraints** — Enforce max file size (8MB attachments, 2MB logos) and content types (PDF and images) in rules where possible, as a defense-in-depth layer alongside app validation.
-4. **No public write** — Do not use fully open `allow write: if true` rules in production.
-
-The application validates attachment URLs server-side on submit (HTTPS, allowed MIME types, Firebase bucket match against `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, and object path prefix `attachments/{clientId}/`). SDK download URLs use `https://firebasestorage.googleapis.com/v0/b/{bucket}/o/...`. Rules are still required because upload happens directly from the browser to Firebase.
+Server-side validation on submit accepts only Vercel Blob URLs whose pathname is under `attachments/{clientId}/`.
 
 ### Verification checklist
 
-- [ ] All `NEXT_PUBLIC_FIREBASE_*` variables set in production.
-- [ ] Storage rules deployed to the production bucket.
+- [ ] Vercel Blob store created and linked to the production project.
+- [ ] `BLOB_READ_WRITE_TOKEN` set locally for development.
 - [ ] Portal user can upload an attachment on `/portal/requests/new`.
 - [ ] Uploaded file appears on portal and admin request detail after submit.
-- [ ] Cross-tenant upload attempt is rejected by rules or app auth.
+- [ ] Cross-tenant read blocked: second client cannot open first client's `/api/files/read?url=...`.
+- [ ] Admin logo upload saves and displays in portal sidebar.
+- [ ] Upload shows a clear error when `BLOB_READ_WRITE_TOKEN` is missing.
 
 ## 6. Security Verification
 

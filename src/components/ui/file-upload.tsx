@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { upload } from "@vercel/blob/client";
 import { X, FileText, Upload as UploadIcon, Loader2 } from "lucide-react";
 import { Button } from "./button";
 import { cn } from "@/lib/utils";
-import { uploadFile, validateFile, generateStoragePath } from "@/lib/firebase/storage";
+import { validateFile } from "@/lib/storage/validation";
 import { toast } from "sonner";
 
 export interface UploadedFile {
@@ -38,6 +39,7 @@ export function FileUpload({
   onUploadingChange,
 }: FileUploadProps) {
   const [files, setFiles] = useState<UploadedFile[]>(value);
+  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [isDragging, setIsDragging] = useState(false);
@@ -48,6 +50,12 @@ export function FileUpload({
   useEffect(() => {
     onUploadingChange?.(uploading);
   }, [uploading, onUploadingChange]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(previewUrls).forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [previewUrls]);
 
   const handleFiles = async (selectedFiles: FileList | null) => {
     if (!selectedFiles || selectedFiles.length === 0) return;
@@ -63,21 +71,6 @@ export function FileUpload({
     setUploading(true);
 
     try {
-      const token = await fetch("/api/upload/get-token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type,
-          clientId,
-          requestId,
-          uploadSessionId,
-        }),
-      }).then((res) => res.json());
-
-      if (!token.success) {
-        throw new Error(token.error || "Failed to get upload token");
-      }
-
       const uploadPromises = filesToUpload.map(async (file) => {
         const validation = validateFile(file, type);
         if (!validation.valid) {
@@ -85,25 +78,48 @@ export function FileUpload({
           throw new Error(validation.error);
         }
 
-        const storagePath = generateStoragePath(
-          type,
-          token.metadata.clientId,
-          file.name,
-          {
-            requestId: token.metadata.requestId ?? undefined,
-            uploadSessionId: token.metadata.uploadSessionId ?? undefined,
-          }
-        );
-
-        const result = await uploadFile(file, storagePath, (progress) => {
-          setUploadProgress((prev) => ({
-            ...prev,
-            [file.name]: progress.progress,
-          }));
+        const authorizeResponse = await fetch("/api/upload/authorize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type,
+            clientId,
+            requestId,
+            uploadSessionId,
+            fileName: file.name,
+            contentType: file.type,
+            contentLength: file.size,
+          }),
         });
 
+        const authorized = await authorizeResponse.json();
+
+        if (!authorizeResponse.ok || !authorized.success || !authorized.pathname) {
+          throw new Error(authorized.error || "Failed to authorize upload");
+        }
+
+        const blob = await upload(authorized.pathname, file, {
+          access: type === "logo" ? "public" : "private",
+          handleUploadUrl: "/api/upload",
+          clientPayload: JSON.stringify({ type }),
+          onUploadProgress: (event) => {
+            setUploadProgress((prev) => ({
+              ...prev,
+              [file.name]: event.percentage,
+            }));
+          },
+        });
+
+        if (file.type.startsWith("image/")) {
+          const previewUrl = URL.createObjectURL(file);
+          setPreviewUrls((prev) => ({
+            ...prev,
+            [blob.url]: previewUrl,
+          }));
+        }
+
         return {
-          url: result.url,
+          url: blob.url,
           name: file.name,
           type: file.type,
           size: file.size,
@@ -115,7 +131,9 @@ export function FileUpload({
       setFiles(updatedFiles);
       onChange?.(updatedFiles);
 
-      toast.success(`${uploadedFiles.length} file${uploadedFiles.length !== 1 ? "s" : ""} uploaded successfully`);
+      toast.success(
+        `${uploadedFiles.length} file${uploadedFiles.length !== 1 ? "s" : ""} uploaded successfully`,
+      );
     } catch (error) {
       console.error("Upload error:", error);
       toast.error(error instanceof Error ? error.message : "Upload failed");
@@ -126,6 +144,15 @@ export function FileUpload({
   };
 
   const handleRemove = (index: number) => {
+    const removed = files[index];
+    if (removed && previewUrls[removed.url]) {
+      URL.revokeObjectURL(previewUrls[removed.url]);
+      setPreviewUrls((prev) => {
+        const next = { ...prev };
+        delete next[removed.url];
+        return next;
+      });
+    }
     const updatedFiles = files.filter((_, i) => i !== index);
     setFiles(updatedFiles);
     onChange?.(updatedFiles);
@@ -155,15 +182,15 @@ export function FileUpload({
         <div className="space-y-2">
           {files.map((file, index) => (
             <div
-              key={index}
+              key={`${file.url}-${index}`}
               className="flex items-center gap-3 p-3 border rounded-lg bg-slate-50"
             >
               <div className="flex-shrink-0">
-                {file.type.startsWith("image/") ? (
+                {file.type.startsWith("image/") && previewUrls[file.url] ? (
                   <div className="relative w-12 h-12 rounded overflow-hidden border border-slate-200">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={file.url}
+                      src={previewUrls[file.url]}
                       alt={file.name}
                       className="w-full h-full object-cover"
                     />
@@ -175,9 +202,7 @@ export function FileUpload({
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-900 truncate">
-                  {file.name}
-                </p>
+                <p className="text-sm font-medium text-slate-900 truncate">{file.name}</p>
                 <p className="text-xs text-slate-500">
                   {(file.size / 1024 / 1024).toFixed(2)} MB
                 </p>
@@ -240,7 +265,7 @@ export function FileUpload({
               "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors",
               isDragging
                 ? "border-primary bg-primary/5"
-                : "border-slate-200 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300"
+                : "border-slate-200 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300",
             )}
           >
             <div className="flex flex-col items-center gap-2">

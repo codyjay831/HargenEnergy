@@ -9,6 +9,7 @@ import {
 } from "@/lib/app-url";
 import { SupportRequestKind } from "@/generated/prisma/client";
 import { escapeHtml, sanitizeEmailSubjectFragment } from "@/lib/html-escape";
+import { resolveClientLogoUrl } from "@/lib/storage/logo-url";
 
 /**
  * Returns a Resend instance or null if the API key is missing.
@@ -35,10 +36,12 @@ function formatMoney(amountCents: number, currency: string): string {
 function clientEmailHeader(data: {
   companyName?: string;
   logoUrl?: string | null;
+  clientId?: string;
 }) {
   const safeCompany = escapeHtml(data.companyName || "Your company");
-  const logo = data.logoUrl
-    ? `<img src="${escapeHtml(data.logoUrl)}" alt="" width="48" height="48" style="object-fit:contain;border-radius:8px;" />`
+  const resolvedLogo = resolveClientLogoUrl(data.logoUrl);
+  const logo = resolvedLogo
+    ? `<img src="${escapeHtml(resolvedLogo)}" alt="" width="48" height="48" style="object-fit:contain;border-radius:8px;" />`
     : "";
 
   return `
@@ -201,6 +204,7 @@ export async function sendClientUpdateEmail(data: {
   clientVisibleUpdate: string;
   companyName?: string;
   logoUrl?: string | null;
+  clientId?: string;
 }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
@@ -236,7 +240,11 @@ export async function sendClientUpdateEmail(data: {
       subject,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
-          ${clientEmailHeader({ companyName: data.companyName, logoUrl: data.logoUrl })}
+          ${clientEmailHeader({
+            companyName: data.companyName,
+            logoUrl: data.logoUrl,
+            clientId: data.clientId,
+          })}
           <h2 style="color: #0f172a;">${safeHeading}</h2>
           <p><strong>Request:</strong> ${safeTitle}</p>
           <p><strong>Status:</strong> ${safeStatus}</p>
@@ -499,6 +507,7 @@ export async function sendPortalInviteEmail(data: {
   companyName: string;
   resetUrl: string;
   logoUrl?: string | null;
+  clientId?: string;
 }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
@@ -513,7 +522,11 @@ export async function sendPortalInviteEmail(data: {
       subject: "Your Hargen Energy client portal is ready",
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
-          ${clientEmailHeader({ companyName: data.companyName, logoUrl: data.logoUrl })}
+          ${clientEmailHeader({
+            companyName: data.companyName,
+            logoUrl: data.logoUrl,
+            clientId: data.clientId,
+          })}
           <h2 style="color: #0f172a;">Set up your portal access</h2>
           <p>Your private client portal is ready for <strong>${escapeHtml(data.companyName)}</strong>.</p>
           <p>Use the button below to choose a password, then sign in to view open requests, approvals, and weekly support usage.</p>
@@ -590,6 +603,7 @@ export async function sendDisbursementApprovalRequestEmail(data: {
   amountCents: number;
   currency: string;
   logoUrl?: string | null;
+  clientId?: string;
 }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
@@ -608,7 +622,11 @@ export async function sendDisbursementApprovalRequestEmail(data: {
       ),
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
-          ${clientEmailHeader({ companyName: data.companyName, logoUrl: data.logoUrl })}
+          ${clientEmailHeader({
+            companyName: data.companyName,
+            logoUrl: data.logoUrl,
+            clientId: data.clientId,
+          })}
           <h2 style="color: #0f172a;">Payment approval needed</h2>
           <p><strong>Request:</strong> ${escapeHtml(data.requestTitle)}</p>
           <p><strong>Vendor:</strong> ${escapeHtml(data.vendor)}</p>
@@ -639,6 +657,7 @@ export async function sendDisbursementStatusEmail(data: {
   currency: string;
   logoUrl?: string | null;
   receiptUrl?: string | null;
+  clientId?: string;
 }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
@@ -661,7 +680,11 @@ export async function sendDisbursementStatusEmail(data: {
       ),
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
-          ${clientEmailHeader({ companyName: data.companyName, logoUrl: data.logoUrl })}
+          ${clientEmailHeader({
+            companyName: data.companyName,
+            logoUrl: data.logoUrl,
+            clientId: data.clientId,
+          })}
           <h2 style="color: #0f172a;">Pass-through payment update</h2>
           <p><strong>Request:</strong> ${escapeHtml(data.requestTitle)}</p>
           <p><strong>Vendor:</strong> ${escapeHtml(data.vendor)}</p>

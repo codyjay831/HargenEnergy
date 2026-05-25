@@ -3,8 +3,12 @@ const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL ||
   "http://localhost:3000";
 
-function baseUrl(): string {
+export function getAppBaseUrl(): string {
   return APP_URL.replace(/\/$/, "");
+}
+
+function baseUrl(): string {
+  return getAppBaseUrl();
 }
 
 // Admin work request (CLIENT_OPS) detail

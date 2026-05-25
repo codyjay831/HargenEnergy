@@ -6,39 +6,52 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { Role } from "@/generated/prisma/client";
 import { discoverLogoUrlFromWebsite } from "@/lib/client-branding";
+import {
+  isAllowedLogoRef,
+  isExternalHttpsUrl,
+  isVercelBlobUrl,
+} from "@/lib/storage/blob-ref";
 import { prisma } from "@/lib/prisma";
 
-const brandingSchema = z.object({
-  clientId: z.string().min(1).max(128),
-  logoUrl: z
-    .string()
-    .trim()
-    .max(2000)
-    .optional()
-    .nullable()
-    .refine(
-      (v) => {
-        if (!v) return true;
-        try {
-          const u = new URL(v);
-          return u.protocol === "http:" || u.protocol === "https:";
-        } catch {
-          return false;
-        }
-      },
-      { message: "Logo URL must be a valid http(s) URL." },
-    ),
-  brandAccent: z
-    .string()
-    .trim()
-    .max(32)
-    .optional()
-    .nullable()
-    .refine(
-      (v) => !v || /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v),
-      { message: "Accent must be a hex color like #0f172a." },
-    ),
-});
+const brandingSchema = z
+  .object({
+    clientId: z.string().min(1).max(128),
+    logoUrl: z.string().trim().max(2000).optional().nullable(),
+    brandAccent: z
+      .string()
+      .trim()
+      .max(32)
+      .optional()
+      .nullable()
+      .refine(
+        (v) => !v || /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v),
+        { message: "Accent must be a hex color like #0f172a." },
+      ),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.logoUrl) {
+      return;
+    }
+
+    if (isVercelBlobUrl(data.logoUrl)) {
+      if (!isAllowedLogoRef(data.logoUrl, data.clientId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Invalid uploaded logo URL.",
+          path: ["logoUrl"],
+        });
+      }
+      return;
+    }
+
+    if (!isExternalHttpsUrl(data.logoUrl)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Logo URL must be a valid http(s) URL or uploaded logo.",
+        path: ["logoUrl"],
+      });
+    }
+  });
 
 async function requireAdmin() {
   const session = await auth();

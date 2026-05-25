@@ -94,6 +94,7 @@ export async function createDisbursementRequest(
       amountCents: disbursement.amountCents,
       currency: disbursement.currency,
       logoUrl: request.client.logoUrl,
+      clientId: request.clientId,
     });
   } catch (emailError) {
     console.error("Failed to send disbursement approval email:", emailError);
@@ -269,6 +270,7 @@ export async function markDisbursementPaid(
     currency: disbursement.currency,
     logoUrl: disbursement.client.logoUrl,
     receiptUrl: parsed.data.receiptUrl,
+    clientId: disbursement.clientId,
   });
 
   revalidatePath(`/portal/requests/${disbursement.supportRequestId}`);

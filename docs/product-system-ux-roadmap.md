@@ -13,9 +13,9 @@ Track incomplete or planned system capabilities.
 
 | Item | Status | Current Behavior | Desired Behavior | Priority | Launch Blocker | Notes |
 |:---|:---:|:---|:---|:---:|:---:|:---|
-| **File Uploads / Attachments** | Not started | `Attachment` model exists in schema but is unused. | Users can upload plan sets, utility bills, and photos to requests. | High | No | Critical for operations context. |
-| **Logo Upload** | Partial | Admin can set `logoUrl` via text input or "Pull from website" tool. | Direct file upload for client branding in admin and portal. | Medium | No | Improves client onboarding experience. |
-| **Support Request Attachments** | Not started | No file input in portal or admin request forms. | Drag-and-drop or file picker for adding context to requests. | High | No | Essential for complex solar ops tasks. |
+| **File Uploads / Attachments** | Complete | Portal uploads via Vercel Blob; blob URLs stored in Postgres; reads via `/api/files/read`. | Users can upload plan sets, utility bills, and photos to requests. | High | No | Requires `BLOB_READ_WRITE_TOKEN` + linked Blob store on Vercel. |
+| **Logo Upload** | Complete | Admin can upload logo to Vercel Blob or paste URL / pull from website. | Direct file upload for client branding in admin and portal. | Medium | No | Public blob URL in portal sidebar and emails. |
+| **Support Request Attachments** | Complete | Portal request form includes file upload. | Drag-and-drop or file picker for adding context to requests. | High | No | Admin request forms still text-only. |
 | **Receipt/Document Support** | Not started | Disbursement requests are text-only. | Admins can upload receipts to disbursements for client review. | Medium | No | Needed for financial transparency. |
 | **Admin System Access Vault** | Partial | Manual entry of vault links and secure notes. | Encrypted storage or deep integration with external vault providers. | Medium | No | Current vault link method is a functional workaround. |
 
@@ -61,7 +61,7 @@ Audit of current UI/UX issues and polish opportunities.
 
 ## 7. Deferred Integrations
 - **Stripe Billing**: Automated subscription management, seat-based pricing, and invoice generation.
-- **File Storage**: Integration with Vercel Blob, AWS S3, or Uploadthing for attachment handling.
+- **File Storage**: Vercel Blob with NextAuth-gated uploads (implemented). Optional future: lifecycle cleanup for `pending/` attachment paths.
 - **Analytics**: Basic dashboard analytics for admin (e.g., "Average time to complete request").
 - **CRM Sync**: Push public intake leads to external CRMs like HubSpot or Apollo.
 

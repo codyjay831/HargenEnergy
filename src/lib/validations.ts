@@ -10,8 +10,8 @@ import {
   ALLOWED_ATTACHMENT_TYPES,
   MAX_FILE_SIZE_ATTACHMENT,
   MAX_PORTAL_ATTACHMENTS,
-} from "@/lib/firebase/attachment-limits";
-import { isAllowedPortalAttachmentUrl } from "@/lib/firebase/attachment-url-validation";
+} from "@/lib/storage/limits";
+import { isAllowedPortalAttachmentRef } from "@/lib/storage/blob-ref";
 
 const trimmedString = z.string().trim();
 
@@ -83,8 +83,8 @@ export function createPortalAttachmentSchema(clientId: string) {
     url: trimmedString
       .min(1)
       .max(2048)
-      .refine((url) => isAllowedPortalAttachmentUrl(url, clientId), {
-        message: "Attachment URL must be a valid Firebase Storage URL.",
+      .refine((url) => isAllowedPortalAttachmentRef(url, clientId), {
+        message: "Attachment must be a valid Vercel Blob URL for this client.",
       }),
     name: trimmedString.min(1).max(255),
     type: trimmedString.refine(

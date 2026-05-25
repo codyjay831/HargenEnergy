@@ -1,28 +1,29 @@
 /**
- * Targeted checks for portal attachment URL validation.
+ * Targeted checks for portal attachment blob URL validation.
  * Run: npx tsx scripts/test-attachment-url-validation.ts
  */
 
 import {
-  isAllowedFirebaseStorageUrl,
-  isAllowedPortalAttachmentUrl,
-  parseFirebaseStorageObjectPath,
-} from "../src/lib/firebase/attachment-url-validation";
+  isAllowedAttachmentPathname,
+  isAllowedLogoPathname,
+  isBlobPathname,
+} from "../src/lib/storage/paths";
+import {
+  isAllowedPortalAttachmentRef,
+  isVercelBlobUrl,
+  pathnameFromBlobRef,
+} from "../src/lib/storage/blob-ref";
 import { createPortalSubmitRequestSchema } from "../src/lib/validations";
 
-const BUCKET = "test-bucket";
 const CLIENT_ID = "client_abc123";
 
-const validSdkUrl =
-  "https://firebasestorage.googleapis.com/v0/b/test-bucket/o/attachments%2Fclient_abc123%2Fpending%2Fsession%2Ffile.pdf?alt=media&token=abc";
+const validBlobUrl =
+  "https://abc123.public.blob.vercel-storage.com/attachments/client_abc123/pending/session/file.pdf";
 
-const wrongBucketUrl =
-  "https://firebasestorage.googleapis.com/v0/b/other-bucket/o/attachments%2Fclient_abc123%2Fpending%2Fsession%2Ffile.pdf?alt=media&token=abc";
+const wrongClientBlobUrl =
+  "https://abc123.public.blob.vercel-storage.com/attachments/other_client/pending/session/file.pdf";
 
 const evilHostUrl = "https://evil.com/attachments/client_abc123/pending/session/file.pdf";
-
-const wrongClientPathUrl =
-  "https://firebasestorage.googleapis.com/v0/b/test-bucket/o/attachments%2Fother_client%2Fpending%2Fsession%2Ffile.pdf?alt=media&token=abc";
 
 function assert(name: string, condition: boolean) {
   if (!condition) {
@@ -33,39 +34,57 @@ function assert(name: string, condition: boolean) {
   console.log(`PASS: ${name}`);
 }
 
-console.log("--- parseFirebaseStorageObjectPath ---");
-const parsed = parseFirebaseStorageObjectPath(validSdkUrl);
-assert("parses SDK bucket", parsed.bucket === BUCKET);
+console.log("--- isBlobPathname ---");
 assert(
-  "parses SDK object path",
-  parsed.objectPath === "attachments/client_abc123/pending/session/file.pdf",
+  "recognizes attachment path",
+  isBlobPathname("attachments/client_abc123/pending/session/file.pdf"),
 );
+assert("recognizes logo path", isBlobPathname("logos/client_abc123/logo.png"));
+assert("rejects https URL", !isBlobPathname(validBlobUrl));
 
-console.log("\n--- isAllowedFirebaseStorageUrl ---");
+console.log("\n--- isAllowedAttachmentPathname ---");
 assert(
-  "accepts valid SDK URL for configured bucket",
-  isAllowedFirebaseStorageUrl(validSdkUrl, BUCKET),
-);
-assert(
-  "rejects wrong bucket",
-  !isAllowedFirebaseStorageUrl(wrongBucketUrl, BUCKET),
-);
-assert(
-  "rejects evil host",
-  !isAllowedFirebaseStorageUrl(evilHostUrl, BUCKET),
-);
-
-console.log("\n--- isAllowedPortalAttachmentUrl ---");
-assert(
-  "accepts valid SDK URL for client path",
-  isAllowedPortalAttachmentUrl(validSdkUrl, CLIENT_ID, BUCKET),
+  "accepts valid client path",
+  isAllowedAttachmentPathname("attachments/client_abc123/pending/session/file.pdf", CLIENT_ID),
 );
 assert(
   "rejects wrong client path",
-  !isAllowedPortalAttachmentUrl(wrongClientPathUrl, CLIENT_ID, BUCKET),
+  !isAllowedAttachmentPathname("attachments/other_client/pending/session/file.pdf", CLIENT_ID),
 );
 
-console.log("\n--- createPortalSubmitRequestSchema (MIME) ---");
+console.log("\n--- isVercelBlobUrl ---");
+assert("accepts vercel blob host", isVercelBlobUrl(validBlobUrl));
+assert("rejects evil host", !isVercelBlobUrl(evilHostUrl));
+
+console.log("\n--- pathnameFromBlobRef ---");
+assert(
+  "parses blob URL pathname",
+  pathnameFromBlobRef(validBlobUrl) ===
+    "attachments/client_abc123/pending/session/file.pdf",
+);
+assert(
+  "accepts raw pathname",
+  pathnameFromBlobRef("attachments/client_abc123/pending/session/file.pdf") ===
+    "attachments/client_abc123/pending/session/file.pdf",
+);
+
+console.log("\n--- isAllowedPortalAttachmentRef ---");
+assert(
+  "accepts valid blob URL for client",
+  isAllowedPortalAttachmentRef(validBlobUrl, CLIENT_ID),
+);
+assert(
+  "rejects wrong client blob URL",
+  !isAllowedPortalAttachmentRef(wrongClientBlobUrl, CLIENT_ID),
+);
+
+console.log("\n--- isAllowedLogoPathname ---");
+assert(
+  "accepts logo path for client",
+  isAllowedLogoPathname("logos/client_abc123/logo.png", CLIENT_ID),
+);
+
+console.log("\n--- createPortalSubmitRequestSchema ---");
 const base = {
   title: "Test",
   workTaskId: "task1",
@@ -77,12 +96,12 @@ const base = {
 const schema = createPortalSubmitRequestSchema(CLIENT_ID);
 
 assert(
-  "accepts valid attachment payload",
+  "accepts blob URL attachment",
   schema.safeParse({
     ...base,
     attachments: [
       {
-        url: validSdkUrl,
+        url: validBlobUrl,
         name: "file.pdf",
         type: "application/pdf",
       },
@@ -96,7 +115,7 @@ assert(
     ...base,
     attachments: [
       {
-        url: validSdkUrl,
+        url: validBlobUrl,
         name: "file.html",
         type: "text/html",
       },
@@ -105,12 +124,12 @@ assert(
 );
 
 assert(
-  "rejects evil host via schema",
+  "rejects wrong client blob URL",
   !schema.safeParse({
     ...base,
     attachments: [
       {
-        url: evilHostUrl,
+        url: wrongClientBlobUrl,
         name: "file.pdf",
         type: "application/pdf",
       },
@@ -119,8 +138,8 @@ assert(
 );
 
 if (process.exitCode) {
-  console.error("\nSome attachment URL validation checks failed.");
+  console.error("\nSome attachment validation checks failed.");
   process.exit(process.exitCode);
 }
 
-console.log("\nAll attachment URL validation checks passed.");
+console.log("\nAll attachment validation checks passed.");

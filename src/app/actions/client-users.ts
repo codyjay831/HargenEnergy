@@ -110,6 +110,7 @@ export async function inviteClientPortalUser(data: {
     companyName: client.companyName,
     resetUrl,
     logoUrl: client.logoUrl,
+    clientId,
   });
 
   if ("error" in emailResult && emailResult.error) {
@@ -148,6 +149,7 @@ export async function resendClientPortalInvite(clientId: string, userId: string)
     companyName: user.client.companyName,
     resetUrl,
     logoUrl: user.client.logoUrl,
+    clientId,
   });
 
   if ("error" in emailResult && emailResult.error) {
