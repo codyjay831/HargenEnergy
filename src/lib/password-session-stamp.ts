@@ -16,7 +16,7 @@ const REDIS_KEY_PREFIX = "hargen:pwdv:v1:";
 let redisClient: Redis | null = null;
 let redisInitAttempted = false;
 
-function hasUpstashCredentials(): boolean {
+export function hasUpstashCredentials(): boolean {
   return !!(
     process.env.UPSTASH_REDIS_REST_URL?.trim() &&
     process.env.UPSTASH_REDIS_REST_TOKEN?.trim()

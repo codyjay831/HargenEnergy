@@ -31,6 +31,14 @@ export type RateLimitBucket =
   | "outreach-yelp-enrich"
   | "outreach-gemini-assist";
 
+const FAIL_CLOSED_BUCKETS = new Set<RateLimitBucket>([
+  "login",
+  "password-reset-request",
+  "password-reset-complete",
+  "public-intake",
+  "admin-setup",
+]);
+
 const BUCKET_CONFIG: Record<
   RateLimitBucket,
   { max: number; windowSec: number }
@@ -74,6 +82,14 @@ type MemoryWindow = { count: number; windowId: number };
 const memoryWindows = new Map<string, MemoryWindow>();
 
 let warnedProdNoBackend = false;
+
+function shouldFailClosedWithoutBackend(bucket: RateLimitBucket): boolean {
+  return (
+    process.env.NODE_ENV === "production" &&
+    process.env.RATE_LIMIT_ALLOW_MEMORY !== "1" &&
+    FAIL_CLOSED_BUCKETS.has(bucket)
+  );
+}
 
 function shouldUseMemoryRateLimitBackend(): boolean {
   if (process.env.NODE_ENV === "development") {
@@ -146,12 +162,27 @@ export async function checkRateLimit(
       if (shouldUseMemoryRateLimitBackend()) {
         return memoryFixedWindow(key, max, windowSec);
       }
+      if (shouldFailClosedWithoutBackend(bucket)) {
+        return { allowed: false, retryAfterSec: 60 };
+      }
       return { allowed: true, retryAfterSec: 0 };
     }
   }
 
   if (shouldUseMemoryRateLimitBackend()) {
     return memoryFixedWindow(key, max, windowSec);
+  }
+
+  if (shouldFailClosedWithoutBackend(bucket)) {
+    if (!warnedProdNoBackend) {
+      warnedProdNoBackend = true;
+      console.error(
+        "[rate-limit] Upstash is required in production for sensitive buckets. " +
+          "Set UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN " +
+          "or explicitly set RATE_LIMIT_ALLOW_MEMORY=1 for single-node fallback.",
+      );
+    }
+    return { allowed: false, retryAfterSec: 60 };
   }
 
   if (process.env.NODE_ENV === "production" && !warnedProdNoBackend) {

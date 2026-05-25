@@ -16,6 +16,7 @@ import { revalidatePath } from "next/cache";
 import Papa from "papaparse";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { requireStaff } from "@/lib/auth-guards";
 import {
   annotateFinderResults,
   buildOutreachSearchReplaySnapshot,
@@ -56,10 +57,7 @@ async function enforceOutreachRateLimit(
 }
 
 export async function createOutreachCompany(data: OutreachCompanyInput) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
-  }
+  await requireStaff("ops.full");
 
   const validatedFields = outreachCompanySchema.safeParse(data);
   if (!validatedFields.success) {

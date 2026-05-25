@@ -1,10 +1,10 @@
 "use server";
 
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { revalidatePath } from "next/cache";
-import { CATALOG_V2 } from "@/lib/catalog-v2-data";
+import { ensureCatalogSeeded, insertCatalogV2 } from "@/lib/catalog-seed";
+import { requireStaff } from "@/lib/auth-guards";
 
 export async function getActiveServices() {
   return await prisma.serviceCategory.findMany({
@@ -20,10 +20,7 @@ export async function getActiveServices() {
 }
 
 export async function getServiceCategories() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
+  await requireStaff("catalog.manage");
 
   return await prisma.serviceCategory.findMany({
     where: { isActive: true },
@@ -43,10 +40,7 @@ export async function upsertServiceCategory(data: {
   description?: string;
   isActive?: boolean;
 }) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
+  await requireStaff("catalog.manage");
 
   const category = await prisma.serviceCategory.upsert({
     where: { id: data.id || "new" },
@@ -68,10 +62,7 @@ export async function upsertServiceCategory(data: {
 }
 
 export async function toggleServiceCategory(id: string, isActive: boolean) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
+  await requireStaff("catalog.manage");
 
   await prisma.serviceCategory.update({
     where: { id },
@@ -101,10 +92,7 @@ export async function upsertWorkTask(data: {
   requiredFields?: CustomField[];
   basePriority?: number;
 }) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
+  await requireStaff("catalog.manage");
 
   try {
     const task = await prisma.workTask.upsert({
@@ -148,10 +136,7 @@ export async function upsertWorkTask(data: {
 }
 
 export async function toggleWorkTask(id: string, isActive: boolean) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
+  await requireStaff("catalog.manage");
 
   await prisma.workTask.update({
     where: { id },
@@ -178,10 +163,7 @@ async function purgeInactiveCatalog(tx: Prisma.TransactionClient) {
 }
 
 export async function purgeInactiveCatalogAction(confirmation: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
+  await requireStaff("catalog.manage");
 
   if (confirmation !== "PURGE_RETIRED_CATALOG") {
     return { error: 'Type "PURGE_RETIRED_CATALOG" to confirm removal of retired catalog rows.' };
@@ -197,40 +179,11 @@ export async function purgeInactiveCatalogAction(confirmation: string) {
   return { message: "Retired catalog rows removed" };
 }
 
-async function insertCatalogV2(tx: Prisma.TransactionClient) {
-  for (const cat of CATALOG_V2) {
-    await tx.serviceCategory.create({
-      data: {
-        name: cat.name,
-        description: cat.description,
-        tasks: {
-          create: cat.tasks.map((task, index) => ({
-            name: task.name,
-            description: task.description,
-            maxMinutes: task.maxMinutes,
-            isActive: true,
-            basePriority: index,
-            suggestedHandoffTier: task.suggestedHandoffTier,
-            suggestedPricingMode: task.suggestedPricingMode,
-          })),
-        },
-      },
-    });
-  }
-}
-
 export async function seedInitialServices() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
+  await requireStaff("catalog.manage");
 
-  const count = await prisma.serviceCategory.count();
-  if (count > 0) return { message: "Already seeded" };
-
-  await prisma.$transaction(async (tx) => {
-    await insertCatalogV2(tx);
-  });
+  const { seeded } = await ensureCatalogSeeded();
+  if (!seeded) return { message: "Already seeded" };
 
   revalidatePath("/admin/services");
   revalidatePath("/portal/requests/new");
@@ -238,10 +191,7 @@ export async function seedInitialServices() {
 }
 
 export async function replaceCatalogWithV2(confirmation: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
+  await requireStaff("catalog.manage");
 
   if (confirmation !== "REPLACE_CATALOG_V2") {
     return { error: 'Type "REPLACE_CATALOG_V2" to confirm catalog replacement.' };

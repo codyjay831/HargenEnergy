@@ -2,6 +2,7 @@ import { getServiceCategories } from "@/app/actions/services";
 import { EngagementType } from "@/generated/prisma/client";
 import { getRecurringTasks } from "@/app/actions/recurring";
 import { prisma } from "@/lib/prisma";
+import { ensureCatalogSeeded } from "@/lib/catalog-seed";
 import { ServiceManagement } from "@/components/admin/ServiceManagement";
 import { RecurringTaskManagement } from "@/components/admin/RecurringTaskManagement";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,6 +11,8 @@ import { Settings2, Calendar } from "lucide-react";
 export const dynamic = "force-dynamic";
 
 export default async function AdminServicesPage() {
+  await ensureCatalogSeeded();
+
   const [categories, recurringTasks, clients] = await Promise.all([
     getServiceCategories(),
     getRecurringTasks(),

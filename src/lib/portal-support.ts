@@ -8,6 +8,9 @@ import {
   getEngagementLabel,
 } from "@/lib/engagement";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
+import { assertClientScope } from "@/lib/auth-guards";
+import type { Session } from "next-auth";
 
 export type PortalSubmitCategory = {
   id: string;
@@ -168,4 +171,16 @@ export async function getClientPortalSupportSetup(
     canSubmit: submitCheck.canSubmit && categories.length > 0,
     blockMessage: submitCheck.blockMessage,
   };
+}
+
+export async function getClientPortalSupportSetupForSession(
+  clientId: string,
+  sessionOverride?: Session,
+): Promise<ClientPortalSupportSetup | { error: "Client not found." }> {
+  const session = sessionOverride ?? (await auth());
+  if (!session?.user) {
+    throw new Error("Unauthorized.");
+  }
+  assertClientScope(session, clientId);
+  return getClientPortalSupportSetup(clientId);
 }

@@ -5,6 +5,8 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { BillingMode, PlanType } from "@/generated/prisma/client";
 
+export const dynamic = "force-dynamic";
+
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
 const PLAN_HOURS = {

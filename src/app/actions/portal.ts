@@ -16,7 +16,7 @@ import {
 } from "@/lib/engagement";
 import { assertActiveClientForPortalSubmit } from "@/lib/request-lifecycle";
 import {
-  getClientPortalSupportSetup,
+  getClientPortalSupportSetupForSession,
 } from "@/lib/portal-support";
 import { revalidatePath } from "next/cache";
 import {
@@ -28,6 +28,7 @@ import {
   portalAddCommentSchema,
 } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { requireClientUser } from "@/lib/auth-guards";
 
 const PORTAL_VALIDATION_ERROR =
   "Please shorten your input or fix the required fields and try again.";
@@ -35,7 +36,12 @@ const PORTAL_RATE_LIMIT_ERROR =
   "Too many requests right now. Please wait a few minutes and try again.";
 
 export async function getPortalSubmitOptions(clientId: string) {
-  const setup = await getClientPortalSupportSetup(clientId);
+  const session = await auth();
+  if (!session?.user) {
+    return { error: "Unauthorized." as const };
+  }
+
+  const setup = await getClientPortalSupportSetupForSession(clientId, session);
   if ("error" in setup) {
     return setup;
   }
@@ -62,12 +68,8 @@ export async function submitPortalRequest(data: {
   metadata?: Record<string, string | number | boolean | null>;
   attachments?: Array<{ url: string; name: string; type: string; size: number }>;
 }) {
-  const session = await auth();
-  const clientId = session?.user?.clientId;
-
-  if (!session?.user || !clientId) {
-    return { error: "Unauthorized. Client access required." };
-  }
+  const session = await requireClientUser("portal.work");
+  const clientId = session.user.clientId!;
 
   const parsed = createPortalSubmitRequestSchema(clientId).safeParse({
     title: data.title,
@@ -248,10 +250,7 @@ export async function addRequestComment(data: {
   isInternal?: boolean;
 }) {
   const session = await auth();
-
-  if (!session?.user) {
-    return { error: "Unauthorized." };
-  }
+  if (!session?.user) return { error: "Unauthorized." };
 
   const parsed = portalAddCommentSchema.safeParse({
     requestId: data.requestId,
@@ -264,6 +263,10 @@ export async function addRequestComment(data: {
 
   const isAdmin = session.user.role === "ADMIN";
   const clientId = session.user.clientId;
+
+  if (!isAdmin) {
+    await requireClientUser("portal.work");
+  }
 
   if (!isAdmin) {
     const commentLimit = await checkRateLimit(
