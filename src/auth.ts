@@ -44,11 +44,21 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
             return null;
           }
 
+          if (user.deactivatedAt) {
+            await bcrypt.compare(password, LOGIN_DUMMY_PASSWORD_HASH);
+            return null;
+          }
+
           const passwordsMatch = await bcrypt.compare(password, user.passwordHash);
 
           if (!passwordsMatch) {
             return null;
           }
+
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { lastLoginAt: new Date() },
+          });
 
           return {
             id: user.id,
@@ -56,6 +66,9 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
             name: user.name,
             role: user.role,
             clientId: user.clientId,
+            staffRole: user.staffRole,
+            clientRole: user.clientRole,
+            deactivatedAt: user.deactivatedAt,
             passwordChangedAt: user.passwordChangedAt,
             createdAt: user.createdAt,
           };
@@ -76,6 +89,9 @@ declare module "next-auth" {
   interface User {
     role?: string;
     clientId?: string | null;
+    staffRole?: "OWNER" | "MEMBER" | null;
+    clientRole?: "OWNER" | "MEMBER" | null;
+    deactivatedAt?: Date | null;
     passwordChangedAt?: Date;
     createdAt?: Date;
   }
@@ -84,6 +100,8 @@ declare module "next-auth" {
       id: string;
       role: string;
       clientId?: string | null;
+      staffRole?: "OWNER" | "MEMBER" | null;
+      clientRole?: "OWNER" | "MEMBER" | null;
     } & DefaultSession["user"];
   }
 }
@@ -93,6 +111,9 @@ declare module "@auth/core/jwt" {
     id?: string;
     role?: string;
     clientId?: string | null;
+    staffRole?: "OWNER" | "MEMBER" | null;
+    clientRole?: "OWNER" | "MEMBER" | null;
+    deactivatedAt?: number | null;
     /** Epoch ms of `User.passwordChangedAt` when the JWT was issued. */
     passwordChangedAt?: number;
   }

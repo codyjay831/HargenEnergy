@@ -8,6 +8,7 @@ import {
   PlusCircle,
   UserCircle,
   KeyRound,
+  Users,
   ChevronRight,
 } from "lucide-react";
 import { LogoutButton } from "@/components/layout/LogoutButton";
@@ -52,6 +53,7 @@ export default async function PortalLayout({
     { name: NAV_LABELS.portalWork, href: "/portal/requests", icon: ClipboardList },
     { name: "Submit Request", href: "/portal/requests/new", icon: PlusCircle },
     { name: "System Access", href: "/portal/access", icon: KeyRound },
+    { name: "Team", href: "/portal/team", icon: Users },
     { name: "Account", href: "/portal/account", icon: UserCircle },
   ];
 

@@ -13,7 +13,7 @@
  * Run manually with:
  *   npm run prisma:seed
  */
-import { PrismaClient, Role } from "../src/generated/prisma/client";
+import { PrismaClient, Role, StaffRole } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 import bcrypt from "bcryptjs";
@@ -62,10 +62,16 @@ async function main() {
         passwordHash,
         passwordChangedAt: new Date(),
         role: Role.ADMIN,
+        staffRole: StaffRole.OWNER,
+        clientRole: null,
+        clientId: null,
       },
       update: {
         name: adminName,
         role: Role.ADMIN,
+        staffRole: StaffRole.OWNER,
+        clientRole: null,
+        clientId: null,
         passwordHash,
         passwordChangedAt: new Date(),
       },

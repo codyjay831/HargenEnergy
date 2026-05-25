@@ -19,6 +19,7 @@ import { prisma } from "@/lib/prisma";
 import { setPasswordSessionStampMs } from "@/lib/password-session-stamp";
 import { passwordSchema } from "@/lib/validations";
 import { checkRateLimit, getRateLimitIdentifier } from "@/lib/rate-limit";
+import { StaffRole } from "@/generated/prisma/client";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -145,6 +146,9 @@ export async function createFirstAdminAction(
           data: {
             name,
             role: "ADMIN",
+            staffRole: StaffRole.OWNER,
+            clientRole: null,
+            clientId: null,
             passwordHash,
             passwordChangedAt: new Date(),
           },
@@ -156,6 +160,9 @@ export async function createFirstAdminAction(
             name,
             passwordHash,
             role: "ADMIN",
+            staffRole: StaffRole.OWNER,
+            clientRole: null,
+            clientId: null,
             passwordChangedAt: new Date(),
           },
         });

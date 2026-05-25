@@ -548,6 +548,45 @@ export async function sendPortalInviteEmail(data: {
   }
 }
 
+export async function sendStaffInviteEmail(data: {
+  to: string;
+  resetUrl: string;
+  name?: string;
+}) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  const { resend, fromEmail } = config;
+
+  const safeHref = escapeHtml(data.resetUrl);
+  const safeName = escapeHtml(data.name || "there");
+
+  try {
+    await resend.emails.send({
+      from: fromEmail,
+      to: data.to,
+      subject: "Your Hargen staff account is ready",
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          <h2 style="color: #0f172a;">Set up your Hargen admin access</h2>
+          <p>Hi ${safeName},</p>
+          <p>You have been invited to the Hargen admin workspace. Use the button below to set your password and sign in.</p>
+          <p style="margin: 28px 0;">
+            <a href="${safeHref}" style="background: #0f172a; color: white; padding: 12px 22px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Set password and sign in</a>
+          </p>
+          <p style="font-size: 14px; color: #64748b;">This link expires in 30 minutes and can only be used once.</p>
+          <p style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 14px; color: #64748b;">
+            Hargen Energy Solar Ops Desk
+          </p>
+        </div>
+      `,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending staff invite email:", error);
+    return { error: "Failed to send staff invite email." };
+  }
+}
+
 export async function sendInternalClientCommentAlert(data: {
   companyName: string;
   requestTitle: string;

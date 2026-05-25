@@ -1,9 +1,10 @@
 "use server";
 
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getStripe } from "@/lib/stripe";
 import { EngagementType, PlanType } from "@/generated/prisma/client";
+import { requireClientUser, requireStaff } from "@/lib/auth-guards";
+import { resolveClientRole } from "@/lib/permissions";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000";
 
@@ -29,11 +30,7 @@ const PRICE_IDS: Record<PlanType, string | null | undefined> = {
 };
 
 export async function createCheckoutSession(clientId: string, planTypeRaw: string) {
-  const session = await auth();
-
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized. Admin access required.");
-  }
+  await requireStaff("billing.manage");
 
   const planType = parseCheckoutPlanType(planTypeRaw);
 
@@ -111,14 +108,17 @@ export async function createCheckoutSession(clientId: string, planTypeRaw: strin
 }
 
 export async function createClientBillingPortalSession() {
-  const session = await auth();
-
-  if (!session?.user?.clientId) {
+  const session = await requireClientUser("billing.view");
+  if (resolveClientRole(session.user.clientRole ?? null) !== "OWNER") {
+    throw new Error("Forbidden. Owner access required.");
+  }
+  const clientId = session.user.clientId;
+  if (!clientId) {
     throw new Error("Unauthorized. Client access required.");
   }
 
   const client = await prisma.client.findUnique({
-    where: { id: session.user.clientId },
+    where: { id: clientId },
   });
 
   if (!client) {

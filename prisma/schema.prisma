@@ -16,6 +16,16 @@ enum Role {
   CLIENT
 }
 
+enum StaffRole {
+  OWNER
+  MEMBER
+}
+
+enum ClientRole {
+  OWNER
+  MEMBER
+}
+
 enum ClientStatus {
   LEAD
   ACTIVE
@@ -161,8 +171,15 @@ model User {
   /** Monotonic-ish marker: sessions minted with an older stamp are invalid after password change/reset. */
   passwordChangedAt DateTime @default(now())
   role         Role        @default(CLIENT)
+  staffRole    StaffRole?
+  clientRole   ClientRole?
   clientId     String?
   client       Client?     @relation(fields: [clientId], references: [id])
+  invitedById  String?
+  invitedBy    User?       @relation("UserInvites", fields: [invitedById], references: [id], onDelete: SetNull)
+  invitees     User[]      @relation("UserInvites")
+  deactivatedAt DateTime?
+  lastLoginAt   DateTime?
   timeEntries  TimeEntry[] @relation("TimeEntryCreator")
   approvedOverflows SupportRequest[] @relation("OverflowApprover")
   comments     RequestComment[]
@@ -174,6 +191,22 @@ model User {
   billingOverridesCreated Client[] @relation("ClientBillingOverrideCreatedBy")
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+
+  @@index([clientId, clientRole])
+  @@index([role, staffRole])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }
 
 model PasswordResetToken {
