@@ -97,9 +97,16 @@ export function Footer() {
           <p className="text-xs text-stone-500">
             © {new Date().getFullYear()} Hargen Energy LLC. All rights reserved.
           </p>
-          <p className="text-xs text-stone-500">
-            Built for solar companies, not homeowners shopping for solar.
-          </p>
+          <div className="flex flex-col items-start sm:items-end gap-1">
+            <p className="text-xs text-stone-500">
+              Built for solar companies, not homeowners shopping for solar.
+            </p>
+            <p className="text-xs text-stone-500">
+              <Link href="/privacy" className="hover:text-stone-700 transition-colors">Privacy</Link>
+              {" · "}
+              <Link href="/terms" className="hover:text-stone-700 transition-colors">Terms</Link>
+            </p>
+          </div>
         </div>
       </div>
     </footer>

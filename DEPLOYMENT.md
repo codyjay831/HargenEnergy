@@ -10,6 +10,7 @@ Ensure all required environment variables are set in your production environment
 - `DATABASE_URL`: PostgreSQL connection string.
 - `AUTH_SECRET`: Secret key for Auth.js (generate with `npx auth secret`).
 - `APP_URL` / `NEXT_PUBLIC_APP_URL`: The full URL of your production site (e.g., `https://hargenenergy.com`).
+- `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`: Required for production rate limiting and distributed password-session stamp checks.
 
 ### Required for First Admin Setup
 - `ADMIN_SETUP_TOKEN`: A high-entropy random string (e.g., `openssl rand -hex 32`). Used **once** to create the first admin via `/setup/admin`. Setup automatically closes once an admin exists. May be removed after setup.
@@ -32,6 +33,18 @@ Portal attachments and admin logo uploads use a **two-step client upload** after
 
 ### Optional (manual seed only)
 - `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME`: **Not used by production builds.** Only consumed by `npm run prisma:seed` for local development convenience.
+
+### Rate limiting fallback override (single-node only)
+- `RATE_LIMIT_ALLOW_MEMORY=1`: Optional escape hatch for single-node deployments only. Do **not** use on multi-instance production because rate limits and password-session revocation become inconsistent across instances.
+
+### Optional (cron route protection)
+- `CRON_SECRET`: Shared secret used by internal cron routes (for example, `/api/cron/recurring`). Send as `Authorization: Bearer <CRON_SECRET>`.
+
+### Required for encrypted sensitive fields
+- `FIELD_ENCRYPTION_KEY`: Strong secret used for server-side encryption/decryption of sensitive DB fields (for example, system access vault links and secure notes).
+
+### Optional observability (Sentry)
+- `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN`: Enable server/client error reporting and tracing.
 
 ## 2. Database & First Admin Setup
 
@@ -148,6 +161,7 @@ Server-side validation on submit accepts only Vercel Blob URLs whose pathname is
 - **Portal Ownership**: Log in as a client user and try to access `/portal/requests/[id]` for a request belonging to another client. You should see a 404 or "Not Found".
 - **Internal Notes**: Verify that internal notes added by admins are NOT visible in the Client Portal.
 - **Login error messages**: Confirm that production login errors do not reveal whether an account exists. The user only sees "Invalid email or password." or "Authentication service unavailable."
+- **CSP report-only**: Confirm `Content-Security-Policy-Report-Only` header is present on app pages and monitor violations before enforcing.
 
 ## 7. Final Launch Checklist
 
@@ -192,6 +206,14 @@ Server-side validation on submit accepts only Vercel Blob URLs whose pathname is
     - [ ] Create a checkout session from a client detail page.
     - [ ] Complete a test payment (if in test mode).
     - [ ] Verify the webhook updates the client's subscription status in the database.
+
+### Ops runbook checks
+- [ ] `/api/health` returns `ok: true` in production.
+- [ ] `CRON_SECRET` is configured and both cron routes require bearer auth.
+- [ ] Scheduler calls include authorization for `/api/cron/recurring` and `/api/cron/blob-cleanup`.
+- [ ] `FIELD_ENCRYPTION_KEY` is set before editing system access records.
+- [ ] One-time encryption backfill run if needed: `npx tsx scripts/migrate-encrypt-system-access.ts`.
+- [ ] Sentry DSNs configured (if enabled) and a test exception is captured.
 
 ## 8. Security Verification
 - [ ] Verify no internal notes or admin-only data are visible in the Client Portal.

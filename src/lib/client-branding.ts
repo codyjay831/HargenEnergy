@@ -1,4 +1,5 @@
 import "server-only";
+import { safeFetch } from "@/lib/safe-fetch";
 
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_HTML_BYTES = 512_000;
@@ -65,7 +66,7 @@ export async function discoverLogoUrlFromWebsite(
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   try {
-    const response = await fetch(base.toString(), {
+    const response = await safeFetch(base.toString(), {
       signal: controller.signal,
       headers: {
         Accept: "text/html,application/xhtml+xml",
