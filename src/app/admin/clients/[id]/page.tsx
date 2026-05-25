@@ -32,6 +32,7 @@ import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { formatIntakePlanLabel } from "@/lib/intake-plan";
 import { ClientSetupGuide } from "@/components/admin/ClientSetupGuide";
 import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
+import { getClientSystemAccessForAdmin } from "@/app/actions/system-access";
 
 export const dynamic = "force-dynamic";
 
@@ -122,6 +123,7 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
   const approvedWorkTaskCount = client.approvedWorkTasks.length;
   const planInterestLabel = formatIntakePlanLabel(walkthroughMetadata?.intakePlan);
   const setupReadinessResult = await getClientSetupReadiness(client.id);
+  const decryptedSystemAccesses = await getClientSystemAccessForAdmin(client.id);
 
   if ("error" in setupReadinessResult) {
     notFound();
@@ -242,7 +244,7 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
               </div>
 
               <div id="system-access" className="scroll-mt-8">
-                {renderSystemAccess(client)}
+                {renderSystemAccess(client.id, decryptedSystemAccesses)}
               </div>
 
               <Card id="activation" className="scroll-mt-8 border-amber-200 bg-amber-50/40">
@@ -294,7 +296,7 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
               {renderTimeLogging(client)}
               {renderClientOpsLogging(client)}
               <div id="system-access" className="scroll-mt-8">
-                {renderSystemAccess(client)}
+                {renderSystemAccess(client.id, decryptedSystemAccesses)}
               </div>
               {renderBranding(client)}
               <div id="billing" className="scroll-mt-8">
@@ -501,14 +503,17 @@ function renderClientOpsLogging(client: Client) {
   );
 }
 
-function renderSystemAccess(client: ClientWithRelations) {
+function renderSystemAccess(
+  clientId: string,
+  records: ClientSystemAccess[],
+) {
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">System Access</CardTitle>
       </CardHeader>
       <CardContent>
-        <ClientSystemAccessManager clientId={client.id} records={client.systemAccesses} />
+        <ClientSystemAccessManager clientId={clientId} records={records} />
       </CardContent>
     </Card>
   );

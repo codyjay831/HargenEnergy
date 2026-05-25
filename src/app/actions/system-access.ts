@@ -3,13 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { auth } from "@/auth";
 import {
-  Role,
   SystemAccessMethod,
   SystemAccessStatus,
   SystemAccessType,
 } from "@/generated/prisma/client";
+import { requireClientUser, requireStaff } from "@/lib/auth-guards";
+import {
+  decryptFieldValue,
+  encryptFieldValue,
+} from "@/lib/crypto/field-encryption";
 import { prisma } from "@/lib/prisma";
 
 const systemTypeSchema = z.nativeEnum(SystemAccessType);
@@ -37,26 +40,10 @@ const clientHandoffSchema = z.object({
   notes: z.string().trim().max(2000).optional().nullable(),
 });
 
-async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== Role.ADMIN) {
-    throw new Error("Unauthorized. Admin access required.");
-  }
-  return session;
-}
-
-async function requireClientUser() {
-  const session = await auth();
-  if (!session?.user?.clientId) {
-    throw new Error("Unauthorized. Client access required.");
-  }
-  return session;
-}
-
 export async function createClientSystemAccess(
   data: z.infer<typeof adminAccessSchema>,
 ) {
-  await requireAdmin();
+  await requireStaff();
 
   const parsed = adminAccessSchema.safeParse(data);
   if (!parsed.success) {
@@ -66,6 +53,8 @@ export async function createClientSystemAccess(
   const record = await prisma.clientSystemAccess.create({
     data: {
       ...parsed.data,
+      vaultLink: encryptFieldValue(parsed.data.vaultLink || null),
+      adminSecureNote: encryptFieldValue(parsed.data.adminSecureNote || null),
       status: parsed.data.status ?? SystemAccessStatus.NOT_PROVIDED,
     },
   });
@@ -79,7 +68,7 @@ export async function updateClientSystemAccess(
   accessId: string,
   data: Partial<z.infer<typeof adminAccessSchema>>,
 ) {
-  await requireAdmin();
+  await requireStaff();
 
   const existing = await prisma.clientSystemAccess.findUnique({
     where: { id: accessId },
@@ -95,7 +84,15 @@ export async function updateClientSystemAccess(
 
   await prisma.clientSystemAccess.update({
     where: { id: accessId },
-    data: parsed.data,
+    data: {
+      ...parsed.data,
+      ...(parsed.data.vaultLink !== undefined
+        ? { vaultLink: encryptFieldValue(parsed.data.vaultLink || null) }
+        : {}),
+      ...(parsed.data.adminSecureNote !== undefined
+        ? { adminSecureNote: encryptFieldValue(parsed.data.adminSecureNote || null) }
+        : {}),
+    },
   });
 
   revalidatePath(`/admin/clients/${existing.clientId}`);
@@ -104,7 +101,7 @@ export async function updateClientSystemAccess(
 }
 
 export async function verifyClientSystemAccess(accessId: string) {
-  await requireAdmin();
+  await requireStaff();
 
   const existing = await prisma.clientSystemAccess.findUnique({
     where: { id: accessId },
@@ -162,7 +159,7 @@ export async function submitClientSystemAccessHandoff(
     where: { id: existing.id },
     data: {
       accessMethod: parsed.data.accessMethod,
-      vaultLink: parsed.data.vaultLink || null,
+      vaultLink: encryptFieldValue(parsed.data.vaultLink || null),
       username: parsed.data.username || null,
       notes: parsed.data.notes || existing.notes,
       status:
@@ -175,4 +172,19 @@ export async function submitClientSystemAccessHandoff(
   revalidatePath("/portal/access");
   revalidatePath(`/admin/clients/${existing.clientId}`);
   return { success: true };
+}
+
+export async function getClientSystemAccessForAdmin(clientId: string) {
+  await requireStaff();
+
+  const rows = await prisma.clientSystemAccess.findMany({
+    where: { clientId },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return rows.map((row) => ({
+    ...row,
+    vaultLink: decryptFieldValue(row.vaultLink),
+    adminSecureNote: decryptFieldValue(row.adminSecureNote),
+  }));
 }

@@ -7,6 +7,7 @@ import { getClientPortalSupportSetup } from "@/lib/portal-support";
 import { prisma } from "@/lib/prisma";
 import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
 import { PortalSetupGuide } from "@/components/portal/PortalSetupGuide";
+import { ChangePasswordForm } from "@/components/forms/ChangePasswordForm";
 
 export const dynamic = "force-dynamic";
 
@@ -105,6 +106,15 @@ export default async function PortalAccount() {
 
         <PortalSupportSetupCard setup={setup} />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Password & Security</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ChangePasswordForm />
+        </CardContent>
+      </Card>
     </div>
   );
 }
