@@ -31,6 +31,8 @@ import {
   isRequestBasedPricingComplete,
   REQUEST_BASED_PRICING_REQUIRED_ERROR,
 } from "@/lib/engagement";
+import { getIntakeClientMutationStrategy } from "@/lib/intake-client-upsert";
+import { writeAuditLog } from "@/lib/audit-log";
 
 export async function submitRequestHelp(data: RequestHelpInput) {
   const validatedFields = requestHelpSchema.safeParse(data);
@@ -76,33 +78,42 @@ export async function submitRequestHelp(data: RequestHelpInput) {
 
   try {
     const mappedPlanType = mapPlanType(plan);
-
-    // Upsert client by email to handle concurrent submissions
-    const client = await prisma.client.upsert({
+    const existingClient = await prisma.client.findUnique({
       where: { email: normalizedEmail },
-      update: {
-        // Update contact info on subsequent submissions
-        companyName,
-        contactName: name,
-        phone,
-        website,
-        serviceArea,
-        role,
-        currentTools: tools,
-      },
-      create: {
-        companyName,
-        contactName: name,
-        email: normalizedEmail,
-        phone,
-        website,
-        serviceArea,
-        role,
-        currentTools: tools,
-        status: ClientStatus.LEAD,
-        ...(mappedPlanType ? { planType: mappedPlanType } : {}),
-      },
     });
+    const mutationStrategy = getIntakeClientMutationStrategy(existingClient?.status);
+
+    const client =
+      mutationStrategy === "create"
+        ? await prisma.client.create({
+            data: {
+              companyName,
+              contactName: name,
+              email: normalizedEmail,
+              phone,
+              website,
+              serviceArea,
+              role,
+              currentTools: tools,
+              status: ClientStatus.LEAD,
+              ...(mappedPlanType ? { planType: mappedPlanType } : {}),
+            },
+          })
+        : mutationStrategy === "update-lead" && existingClient
+          ? await prisma.client.update({
+              where: { id: existingClient.id },
+              data: {
+                companyName,
+                contactName: name,
+                phone,
+                website,
+                serviceArea,
+                role,
+                currentTools: tools,
+                ...(mappedPlanType ? { planType: mappedPlanType } : {}),
+              },
+            })
+          : existingClient!;
 
     const supportRequest = await prisma.supportRequest.create({
       data: {
@@ -244,6 +255,25 @@ export async function updateRequest(
       data: updateData,
       include: { client: true },
     });
+
+    if (
+      (data.status !== undefined && data.status !== existing.status) ||
+      (data.internalNotes !== undefined && data.internalNotes !== existing.internalNotes)
+    ) {
+      await writeAuditLog({
+        actorUserId: session.user.id,
+        action: "request.update",
+        entityType: "SupportRequest",
+        entityId: request.id,
+        metadata: {
+          statusBefore: existing.status,
+          statusAfter: request.status,
+          internalNotesChanged:
+            data.internalNotes !== undefined &&
+            data.internalNotes !== existing.internalNotes,
+        },
+      });
+    }
 
     const emailPromises = [];
 

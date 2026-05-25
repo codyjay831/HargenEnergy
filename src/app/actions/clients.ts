@@ -3,17 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { auth } from "@/auth";
 import {
   BillingMode,
   ClientStatus,
   EngagementType,
   RequestStatus,
-  Role,
   SupportRequestKind,
   SupportRequestSource,
   Urgency,
 } from "@/generated/prisma/client";
+import { requireStaff } from "@/lib/auth-guards";
 import { validateClientBillingModeUpdate } from "@/lib/client-billing-mode";
 import { prisma } from "@/lib/prisma";
 import {
@@ -23,14 +22,7 @@ import {
 import { isUrgencyValue, isEngagementTypeValue } from "@/lib/ui-enums";
 import { updateClientEngagementSchema } from "@/lib/validations";
 import { sendInternalRequestAlert } from "@/lib/email";
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== Role.ADMIN) {
-    throw new Error("Unauthorized. Admin access required.");
-  }
-  return session;
-}
+import { writeAuditLog } from "@/lib/audit-log";
 
 export async function updateClientBillingMode(data: {
   clientId: string;
@@ -38,7 +30,7 @@ export async function updateClientBillingMode(data: {
   reason?: string | null;
   expiresAt?: string | null;
 }) {
-  const session = await requireAdmin();
+  const session = await requireStaff();
 
   const validated = validateClientBillingModeUpdate(data);
   if (!validated.ok) {
@@ -80,6 +72,25 @@ export async function updateClientBillingMode(data: {
     revalidatePath("/portal");
     revalidatePath("/portal/account");
 
+    await writeAuditLog({
+      actorUserId: session.user.id,
+      action: "client.billing_mode_update",
+      entityType: "Client",
+      entityId: data.clientId,
+      metadata: {
+        before: {
+          billingMode: client.billingMode,
+          billingOverrideReason: client.billingOverrideReason,
+          billingOverrideExpiresAt: client.billingOverrideExpiresAt?.toISOString() ?? null,
+        },
+        after: {
+          billingMode: updated.billingMode,
+          billingOverrideReason: updated.billingOverrideReason,
+          billingOverrideExpiresAt: updated.billingOverrideExpiresAt?.toISOString() ?? null,
+        },
+      },
+    });
+
     return { success: true, client: updated };
   } catch (error) {
     console.error("Error updating client billing mode:", error);
@@ -88,7 +99,7 @@ export async function updateClientBillingMode(data: {
 }
 
 export async function activateClient(clientId: string) {
-  await requireAdmin();
+  await requireStaff();
 
   const client = await prisma.client.findUnique({ where: { id: clientId } });
   if (!client) {
@@ -134,7 +145,7 @@ export async function updateClientEngagement(data: {
   engagementType: string;
   approvedWorkTaskIds: string[];
 }) {
-  await requireAdmin();
+  await requireStaff();
 
   const parsed = updateClientEngagementSchema.safeParse(data);
   if (!parsed.success) {
@@ -207,7 +218,7 @@ export async function updateClientEngagement(data: {
 }
 
 export async function getClientEngagementConfig(clientId: string) {
-  await requireAdmin();
+  await requireStaff();
 
   const [client, categories] = await Promise.all([
     prisma.client.findUnique({
@@ -248,7 +259,7 @@ export async function logClientOpsRequest(data: {
   adminOverride?: boolean;
   overrideReason?: string;
 }) {
-  await requireAdmin();
+  await requireStaff();
 
   const parsed = logOpsRequestSchema.safeParse(data);
   if (!parsed.success) {

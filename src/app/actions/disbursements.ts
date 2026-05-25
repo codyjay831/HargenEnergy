@@ -3,17 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { auth } from "@/auth";
 import {
   DisbursementPaymentMethod,
   DisbursementStatus,
-  Role,
 } from "@/generated/prisma/client";
 import {
   sendDisbursementApprovalRequestEmail,
   sendDisbursementStatusEmail,
   sendInternalDisbursementDecisionAlert,
 } from "@/lib/email";
+import { requireClientUser, requireStaff } from "@/lib/auth-guards";
+import { writeAuditLog } from "@/lib/audit-log";
 import { prisma } from "@/lib/prisma";
 
 const createSchema = z.object({
@@ -40,26 +40,10 @@ const markPaidSchema = z.object({
   ]),
 });
 
-async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== Role.ADMIN) {
-    throw new Error("Unauthorized. Admin access required.");
-  }
-  return session;
-}
-
-async function requireClientUser() {
-  const session = await auth();
-  if (!session?.user?.clientId) {
-    throw new Error("Unauthorized. Client access required.");
-  }
-  return session;
-}
-
 export async function createDisbursementRequest(
   data: z.infer<typeof createSchema>,
 ) {
-  const session = await requireAdmin();
+  const session = await requireStaff();
 
   const parsed = createSchema.safeParse(data);
   if (!parsed.success) {
@@ -107,7 +91,7 @@ export async function createDisbursementRequest(
 }
 
 export async function approveDisbursementRequest(disbursementId: string) {
-  const session = await requireClientUser();
+  const session = await requireClientUser("disbursement.approve");
 
   const parsed = decisionSchema.safeParse({ disbursementId });
   if (!parsed.success) {
@@ -158,11 +142,21 @@ export async function approveDisbursementRequest(disbursementId: string) {
 
   revalidatePath(`/portal/requests/${disbursement.supportRequestId}`);
   revalidatePath(`/admin/requests/${disbursement.supportRequestId}`);
+  await writeAuditLog({
+    actorUserId: session.user.id,
+    action: "disbursement.approve",
+    entityType: "DisbursementRequest",
+    entityId: disbursement.id,
+    metadata: {
+      supportRequestId: disbursement.supportRequestId,
+      status: DisbursementStatus.APPROVED,
+    },
+  });
   return { success: true };
 }
 
 export async function declineDisbursementRequest(disbursementId: string) {
-  const session = await requireClientUser();
+  const session = await requireClientUser("disbursement.approve");
 
   const parsed = decisionSchema.safeParse({ disbursementId });
   if (!parsed.success) {
@@ -213,13 +207,23 @@ export async function declineDisbursementRequest(disbursementId: string) {
 
   revalidatePath(`/portal/requests/${disbursement.supportRequestId}`);
   revalidatePath(`/admin/requests/${disbursement.supportRequestId}`);
+  await writeAuditLog({
+    actorUserId: session.user.id,
+    action: "disbursement.decline",
+    entityType: "DisbursementRequest",
+    entityId: disbursement.id,
+    metadata: {
+      supportRequestId: disbursement.supportRequestId,
+      status: DisbursementStatus.DECLINED,
+    },
+  });
   return { success: true };
 }
 
 export async function markDisbursementPaid(
   data: z.infer<typeof markPaidSchema>,
 ) {
-  await requireAdmin();
+  const session = await requireStaff();
 
   const parsed = markPaidSchema.safeParse(data);
   if (!parsed.success) {
@@ -275,5 +279,16 @@ export async function markDisbursementPaid(
 
   revalidatePath(`/portal/requests/${disbursement.supportRequestId}`);
   revalidatePath(`/admin/requests/${disbursement.supportRequestId}`);
+  await writeAuditLog({
+    actorUserId: session.user.id,
+    action: "disbursement.mark_paid",
+    entityType: "DisbursementRequest",
+    entityId: disbursement.id,
+    metadata: {
+      supportRequestId: disbursement.supportRequestId,
+      status: parsed.data.status,
+      receiptUrl: parsed.data.receiptUrl ?? null,
+    },
+  });
   return { success: true };
 }

@@ -7,6 +7,7 @@ import { assertBillableTimeOnRequest } from "@/lib/request-lifecycle";
 import { assertRequestBasedBillableWorkAllowed } from "@/lib/engagement";
 import { revalidatePath } from "next/cache";
 import { isBillableTypeValue } from "@/lib/ui-enums";
+import { writeAuditLog } from "@/lib/audit-log";
 
 export async function createTimeEntry(data: {
   clientId: string;
@@ -118,6 +119,17 @@ export async function deleteTimeEntry(id: string) {
       revalidatePath(`/admin/requests/${timeEntry.supportRequestId}`);
     }
 
+    await writeAuditLog({
+      actorUserId: session.user.id,
+      action: "time_entry.delete",
+      entityType: "TimeEntry",
+      entityId: id,
+      metadata: {
+        clientId: timeEntry.clientId,
+        supportRequestId: timeEntry.supportRequestId,
+      },
+    });
+
     return { success: true };
   } catch (error) {
     console.error("Error deleting time entry:", error);
@@ -143,6 +155,17 @@ export async function confirmTimeEntry(id: string) {
     if (timeEntry.supportRequestId) {
       revalidatePath(`/admin/requests/${timeEntry.supportRequestId}`);
     }
+
+    await writeAuditLog({
+      actorUserId: session.user.id,
+      action: "time_entry.confirm",
+      entityType: "TimeEntry",
+      entityId: id,
+      metadata: {
+        clientId: timeEntry.clientId,
+        supportRequestId: timeEntry.supportRequestId,
+      },
+    });
 
     return { success: true, timeEntry };
   } catch (error) {

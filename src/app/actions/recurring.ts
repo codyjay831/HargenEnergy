@@ -3,15 +3,11 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { 
+import {
   EngagementType,
-  RecurringFrequency, 
-  SupportRequestKind, 
-  SupportRequestSource, 
-  RequestStatus, 
-  Urgency 
+  RecurringFrequency,
 } from "@/generated/prisma/client";
-import { addDays, addWeeks, addMonths } from "date-fns";
+import { processRecurringTasksInternal } from "@/lib/recurring-processor";
 
 export async function getRecurringTasks() {
   const session = await auth();
@@ -84,67 +80,10 @@ export async function processRecurringTasks() {
     throw new Error("Unauthorized");
   }
 
-  const now = new Date();
-  const tasksToRun = await prisma.recurringTask.findMany({
-    where: {
-      isActive: true,
-      nextRunAt: { lte: now },
-    },
-    include: {
-      workTask: true,
-      client: true,
-    },
-  });
-
-  let createdCount = 0;
-
-  for (const task of tasksToRun) {
-    if (task.client.engagementType !== EngagementType.SUPPORT_BLOCK) {
-      continue;
-    }
-
-    await prisma.supportRequest.create({
-      data: {
-        clientId: task.clientId,
-        workTaskId: task.workTaskId,
-        title: `Recurring: ${task.workTask.name}`,
-        kind: SupportRequestKind.CLIENT_OPS,
-        source: SupportRequestSource.ADMIN,
-        supportNeeded: task.workTask.name,
-        description: `Automated recurring task for ${task.workTask.name}`,
-        urgency: Urgency.NORMAL,
-        status: RequestStatus.NEW,
-      },
-    });
-
-    // Update next run date
-    let nextRunAt = task.nextRunAt;
-    if (task.frequency === RecurringFrequency.DAILY) {
-      nextRunAt = addDays(nextRunAt, 1);
-    } else if (task.frequency === RecurringFrequency.WEEKLY) {
-      nextRunAt = addWeeks(nextRunAt, 1);
-    } else if (task.frequency === RecurringFrequency.MONTHLY) {
-      nextRunAt = addMonths(nextRunAt, 1);
-    }
-
-    // If nextRunAt is still in the past (e.g. task was missed for a long time), 
-    // keep adding until it's in the future.
-    while (nextRunAt <= now) {
-      if (task.frequency === RecurringFrequency.DAILY) nextRunAt = addDays(nextRunAt, 1);
-      else if (task.frequency === RecurringFrequency.WEEKLY) nextRunAt = addWeeks(nextRunAt, 1);
-      else if (task.frequency === RecurringFrequency.MONTHLY) nextRunAt = addMonths(nextRunAt, 1);
-    }
-
-    await prisma.recurringTask.update({
-      where: { id: task.id },
-      data: { nextRunAt },
-    });
-
-    createdCount++;
-  }
+  const { createdCount } = await processRecurringTasksInternal();
 
   revalidatePath("/admin/requests");
   revalidatePath("/admin/services");
-  
+
   return { createdCount };
 }
