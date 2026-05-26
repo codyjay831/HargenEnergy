@@ -465,6 +465,7 @@ export default async function ClientDetailPage({
           companyName={client.companyName}
           status={client.status}
           canDelete={isOwner}
+          stripeSubscriptionId={client.stripeSubscriptionId}
         />
       </div>
     </div>

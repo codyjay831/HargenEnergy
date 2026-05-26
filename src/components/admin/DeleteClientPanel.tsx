@@ -22,17 +22,22 @@ export function DeleteClientPanel(props: {
   companyName: string;
   status: ClientStatus;
   canDelete: boolean;
+  stripeSubscriptionId?: string | null;
 }) {
   const router = useRouter();
   const [confirmName, setConfirmName] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!props.canDelete || props.status !== ClientStatus.LEAD) {
+  if (!props.canDelete) {
     return null;
   }
 
   const confirmed = confirmName === props.companyName;
+  const isActiveOrArchived =
+    props.status === ClientStatus.ACTIVE ||
+    props.status === ClientStatus.PAUSED ||
+    props.status === ClientStatus.CANCELLED;
 
   async function handleDelete() {
     setSaving(true);
@@ -56,14 +61,24 @@ export function DeleteClientPanel(props: {
   return (
     <Card className="border-red-200 bg-red-50/30">
       <CardHeader>
-        <CardTitle className="text-base text-red-900">Delete test company</CardTitle>
+        <CardTitle className="text-base text-red-900">
+          Delete company permanently
+        </CardTitle>
         <CardDescription>
-          Permanently removes this prospect and all related walkthrough data. This
-          cannot be undone. Use only for test or junk companies that were never
-          activated.
+          Permanently removes this company and all related data — requests, time
+          entries, portal users, and walkthrough history. This cannot be undone.
+          {isActiveOrArchived
+            ? " Use Archive above instead if you may want to restore this company later."
+            : null}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {props.stripeSubscriptionId ? (
+          <p className="text-sm text-amber-800">
+            This company has a Stripe subscription. Cancel it in the Stripe
+            dashboard separately after deleting here.
+          </p>
+        ) : null}
         <div className="space-y-2">
           <Label htmlFor="confirm-company-name">
             Type <span className="font-medium">{props.companyName}</span> to confirm

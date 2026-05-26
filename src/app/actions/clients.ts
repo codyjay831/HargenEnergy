@@ -516,13 +516,6 @@ export async function deleteClientPermanently(data: {
     return { error: "Client not found." };
   }
 
-  if (client.status !== ClientStatus.LEAD) {
-    return {
-      error:
-        "Only prospect (LEAD) companies can be permanently deleted. Archive active clients instead.",
-    };
-  }
-
   if (client.companyName !== confirmCompanyName) {
     return { error: "Company name does not match." };
   }
@@ -541,7 +534,7 @@ export async function deleteClientPermanently(data: {
       action: "client.delete_permanent",
       entityType: "Client",
       entityId: clientId,
-      metadata: { companyName: client.companyName },
+      metadata: { companyName: client.companyName, status: client.status },
     });
 
     return { success: true };
