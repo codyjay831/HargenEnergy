@@ -1,87 +1,86 @@
 "use client";
 
-import { OnboardingSteps } from "./OnboardingSteps";
-import { WalkthroughDrawer } from "./WalkthroughDrawer";
-import { ClientStatus, RequestStatus } from "@/lib/enums";
-import { BillingMode, EngagementType } from "@/generated/prisma/client";
+import { WalkthroughWorkspace } from "@/components/admin/WalkthroughWorkspace";
 import type { IntakeSnapshotClient, IntakeSnapshotMetadata } from "@/lib/intake-snapshot";
+import type { WalkthroughSchedulingReadiness } from "@/lib/walkthrough-scheduling/scheduling-readiness";
+import { RequestStatusValue } from "@/lib/ui-enums";
+import {
+  WalkthroughAppointmentStatus,
+  WalkthroughFitDecision,
+  WalkthroughSchedulingLinkStatus,
+} from "@/generated/prisma/client";
 
 interface OnboardingWrapperProps {
-  client: {
-    id: string;
-    companyName: string;
-    contactName: string;
-    email: string;
-    status: ClientStatus;
-    planType: string;
-    engagementType: EngagementType;
-    billingMode?: BillingMode | null;
-    billingOverrideReason?: string | null;
-    billingOverrideExpiresAt?: Date | null;
-    billingOverrideCreatedAt?: Date | null;
-    billingOverrideCreatedById?: string | null;
-    approvedWorkTaskCount: number;
-    subscriptionStatus?: string | null;
-    stripeCustomerId?: string | null;
-    stripeSubscriptionId?: string | null;
-    users: { id: string; email: string; name: string | null }[];
-  };
   intakeClient: IntakeSnapshotClient;
   walkthroughMetadata?: IntakeSnapshotMetadata | null;
   latestWalkthroughRequest: {
     id: string;
-    clientId: string;
     title: string;
     supportNeeded: string | null;
     description: string;
     mostHelpful: string | null;
     urgency: string;
-    status: RequestStatus;
-    needsInfo: boolean;
+    status: RequestStatusValue;
     internalNotes: string | null;
-    clientVisibleUpdate: string | null;
-    estimatedMinutes: number | null;
     createdAt: Date;
-    timeEntries: Array<{
-      id: string;
-      description: string;
-      minutes: number;
-      date: Date;
-      billableType: string;
-    }>;
+    requestedTasks?: Array<{ name: string; description?: string | null }>;
+  };
+  schedulingReadiness: WalkthroughSchedulingReadiness;
+  schedulingLink: {
+    status: WalkthroughSchedulingLinkStatus;
+    sentAt: Date | null;
+    openedAt: Date | null;
+    expiresAt: Date;
+  } | null;
+  appointment: {
+    id: string;
+    status: WalkthroughAppointmentStatus;
+    scheduledStartUtc: Date;
+    scheduledEndUtc: Date;
+    timezone: string;
+    meetingUrl: string | null;
+    discoveryNotes: string | null;
+    fitDecision: WalkthroughFitDecision | null;
+    fitDecisionReason: string | null;
+    recapContent: string | null;
+    recapSentAt: Date | null;
   } | null;
 }
 
 export function OnboardingWrapper({
-  client,
   intakeClient,
   walkthroughMetadata,
   latestWalkthroughRequest,
+  schedulingReadiness,
+  schedulingLink,
+  appointment,
 }: OnboardingWrapperProps) {
   return (
-    <>
-      <OnboardingSteps
-        client={{
-          id: client.id,
-          status: client.status,
-          engagementType: client.engagementType,
-        }}
-        latestWalkthroughRequest={
-          latestWalkthroughRequest
-            ? {
-                id: latestWalkthroughRequest.id,
-                title: latestWalkthroughRequest.title,
-                status: latestWalkthroughRequest.status,
-                createdAt: latestWalkthroughRequest.createdAt,
-              }
-            : null
-        }
-      />
-      <WalkthroughDrawer
-        client={intakeClient}
-        request={latestWalkthroughRequest}
-        metadata={walkthroughMetadata}
-      />
-    </>
+    <WalkthroughWorkspace
+      client={intakeClient}
+      request={{
+        id: latestWalkthroughRequest.id,
+        status: latestWalkthroughRequest.status,
+        supportNeeded: latestWalkthroughRequest.supportNeeded,
+        description: latestWalkthroughRequest.description,
+        mostHelpful: latestWalkthroughRequest.mostHelpful,
+        urgency: latestWalkthroughRequest.urgency,
+        internalNotes: latestWalkthroughRequest.internalNotes,
+        requestedTasks: latestWalkthroughRequest.requestedTasks,
+      }}
+      metadata={walkthroughMetadata}
+      schedulingLink={
+        schedulingLink
+          ? {
+              status: schedulingLink.status,
+              sentAt: schedulingLink.sentAt,
+              openedAt: schedulingLink.openedAt,
+              expiresAt: schedulingLink.expiresAt,
+            }
+          : null
+      }
+      appointment={appointment}
+      schedulingReadiness={schedulingReadiness}
+    />
   );
 }

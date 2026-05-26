@@ -32,7 +32,9 @@ import { OnboardingWrapper } from "@/components/onboarding/OnboardingWrapper";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { formatIntakePlanLabel } from "@/lib/intake-plan";
 import { AdminSetupGuide } from "@/components/admin/AdminSetupGuide";
+import { WalkthroughCommandCenter } from "@/components/admin/WalkthroughCommandCenter";
 import { ClientDetailTabs } from "@/components/admin/ClientDetailTabs";
+import { getWalkthroughSchedulingReadiness } from "@/lib/walkthrough-scheduling/scheduling-readiness";
 import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
 import { getClientSystemAccessForAdmin } from "@/app/actions/system-access";
 import { resolveAdminClientTab } from "@/lib/admin-client-tabs";
@@ -127,8 +129,17 @@ export default async function ClientDetailPage({
           },
         },
       },
+      walkthroughSchedulingLink: true,
+      walkthroughAppointments: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
     },
   });
+
+  const latestAppointment = latestWalkthrough?.walkthroughAppointments[0] ?? null;
+  const schedulingLink = latestWalkthrough?.walkthroughSchedulingLink ?? null;
+  const schedulingReadiness = await getWalkthroughSchedulingReadiness();
 
   const suggestedWorkTaskIds =
     latestWalkthrough?.requestedWorkTasks.map((row) => row.workTaskId) ?? [];
@@ -205,9 +216,22 @@ export default async function ClientDetailPage({
       </div>
 
       <div id="setup-guide" className="scroll-mt-8">
-        <AdminSetupGuide
-          readiness={setupReadiness}
-          client={{
+        {isProspect && latestWalkthrough ? (
+          <WalkthroughCommandCenter
+            clientId={client.id}
+            clientStatus={client.status}
+            supportRequestId={latestWalkthrough.id}
+            requestStatus={latestWalkthrough.status}
+            linkStatus={schedulingLink?.status ?? null}
+            appointmentStatus={latestAppointment?.status ?? null}
+            fitDecision={latestAppointment?.fitDecision ?? null}
+            recapSentAt={latestAppointment?.recapSentAt ?? null}
+            readiness={schedulingReadiness}
+          />
+        ) : (
+          <AdminSetupGuide
+            readiness={setupReadiness}
+            client={{
             id: client.id,
             companyName: client.companyName,
             contactName: client.contactName,
@@ -243,6 +267,7 @@ export default async function ClientDetailPage({
           systemAccessRecords={decryptedSystemAccesses}
           adminRequestsHref={`/admin/requests?clientId=${client.id}`}
         />
+        )}
       </div>
 
       <Suspense
@@ -323,25 +348,6 @@ export default async function ClientDetailPage({
           }
           walkthrough={
             <OnboardingWrapper
-              client={{
-                id: client.id,
-                companyName: client.companyName,
-                contactName: client.contactName,
-                email: client.email,
-                status: client.status,
-                planType: client.planType,
-                engagementType: client.engagementType,
-                billingMode: client.billingMode,
-                billingOverrideReason: client.billingOverrideReason,
-                billingOverrideExpiresAt: client.billingOverrideExpiresAt,
-                billingOverrideCreatedAt: client.billingOverrideCreatedAt,
-                billingOverrideCreatedById: client.billingOverrideCreatedById,
-                approvedWorkTaskCount,
-                subscriptionStatus: client.subscriptionStatus,
-                stripeCustomerId: client.stripeCustomerId,
-                stripeSubscriptionId: client.stripeSubscriptionId,
-                users: client.users,
-              }}
               intakeClient={{
                 companyName: client.companyName,
                 contactName: client.contactName,
@@ -353,7 +359,60 @@ export default async function ClientDetailPage({
                 currentTools: client.currentTools,
               }}
               walkthroughMetadata={walkthroughMetadata}
-              latestWalkthroughRequest={walkthroughRequestForDrawer}
+              latestWalkthroughRequest={
+                walkthroughRequestForDrawer
+                  ? {
+                      id: walkthroughRequestForDrawer.id,
+                      title: walkthroughRequestForDrawer.title,
+                      supportNeeded: walkthroughRequestForDrawer.supportNeeded,
+                      description: walkthroughRequestForDrawer.description,
+                      mostHelpful: walkthroughRequestForDrawer.mostHelpful,
+                      urgency: walkthroughRequestForDrawer.urgency,
+                      status: walkthroughRequestForDrawer.status,
+                      internalNotes: walkthroughRequestForDrawer.internalNotes,
+                      createdAt: walkthroughRequestForDrawer.createdAt,
+                      requestedTasks: walkthroughRequestForDrawer.requestedTasks,
+                    }
+                  : {
+                      id: latestWalkthrough!.id,
+                      title: latestWalkthrough!.title,
+                      supportNeeded: latestWalkthrough!.supportNeeded,
+                      description: latestWalkthrough!.description,
+                      mostHelpful: latestWalkthrough!.mostHelpful,
+                      urgency: latestWalkthrough!.urgency,
+                      status: latestWalkthrough!.status,
+                      internalNotes: latestWalkthrough!.internalNotes,
+                      createdAt: latestWalkthrough!.createdAt,
+                    }
+              }
+              schedulingReadiness={schedulingReadiness}
+              schedulingLink={
+                schedulingLink
+                  ? {
+                      status: schedulingLink.status,
+                      sentAt: schedulingLink.sentAt,
+                      openedAt: schedulingLink.openedAt,
+                      expiresAt: schedulingLink.expiresAt,
+                    }
+                  : null
+              }
+              appointment={
+                latestAppointment
+                  ? {
+                      id: latestAppointment.id,
+                      status: latestAppointment.status,
+                      scheduledStartUtc: latestAppointment.scheduledStartUtc,
+                      scheduledEndUtc: latestAppointment.scheduledEndUtc,
+                      timezone: latestAppointment.timezone,
+                      meetingUrl: latestAppointment.meetingUrl,
+                      discoveryNotes: latestAppointment.discoveryNotes,
+                      fitDecision: latestAppointment.fitDecision,
+                      fitDecisionReason: latestAppointment.fitDecisionReason,
+                      recapContent: latestAppointment.recapContent,
+                      recapSentAt: latestAppointment.recapSentAt,
+                    }
+                  : null
+              }
             />
           }
           setup={

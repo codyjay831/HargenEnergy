@@ -41,6 +41,18 @@ export function adminClientUrl(clientId: string): string {
   return `${baseUrl()}/admin/clients/${encodeURIComponent(clientId)}`;
 }
 
+export function walkthroughSchedulingUrl(rawToken: string): string {
+  return `${baseUrl()}/schedule/walkthrough/${encodeURIComponent(rawToken)}`;
+}
+
+export function adminCalendarSettingsUrl(): string {
+  return `${baseUrl()}/admin/settings/calendar`;
+}
+
+export function adminWalkthroughAvailabilityUrl(): string {
+  return `${baseUrl()}/admin/settings/walkthrough-availability`;
+}
+
 export function portalAccessUrl(): string {
   return `${baseUrl()}/portal/access`;
 }

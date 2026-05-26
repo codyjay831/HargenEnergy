@@ -30,7 +30,9 @@ export type RateLimitBucket =
   | "outreach-google-search"
   | "outreach-permitstack-search"
   | "outreach-yelp-enrich"
-  | "outreach-gemini-assist";
+  | "outreach-gemini-assist"
+  | "walkthrough-book"
+  | "walkthrough-scheduling";
 
 const FAIL_CLOSED_BUCKETS = new Set<RateLimitBucket>([
   "login",
@@ -38,6 +40,7 @@ const FAIL_CLOSED_BUCKETS = new Set<RateLimitBucket>([
   "password-reset-complete",
   "public-intake",
   "admin-setup",
+  "walkthrough-book",
 ]);
 
 const BUCKET_CONFIG: Record<
@@ -62,6 +65,10 @@ const BUCKET_CONFIG: Record<
   "outreach-yelp-enrich": { max: 30, windowSec: 60 * 60 },
   /** Admin outreach: Gemini PermitStack query assist. */
   "outreach-gemini-assist": { max: 10, windowSec: 60 * 60 },
+  /** Public walkthrough booking page. */
+  "walkthrough-book": { max: 20, windowSec: 60 * 60 },
+  /** Public walkthrough scheduling page loads. */
+  "walkthrough-scheduling": { max: 30, windowSec: 15 * 60 },
 };
 
 let redisClient: Redis | null = null;

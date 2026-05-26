@@ -1,0 +1,218 @@
+import {
+  ClientStatus,
+  RequestStatus,
+  WalkthroughAppointmentStatus,
+  WalkthroughFitDecision,
+  WalkthroughSchedulingLinkStatus,
+} from "@/generated/prisma/client";
+
+export type WalkthroughPipelineStage =
+  | "new_request"
+  | "qualified"
+  | "link_sent"
+  | "scheduled"
+  | "completed"
+  | "recap"
+  | "proposal_setup"
+  | "active_client"
+  | "not_a_fit";
+
+type PipelineInput = {
+  clientStatus: ClientStatus;
+  requestStatus: RequestStatus | null;
+  linkStatus: WalkthroughSchedulingLinkStatus | null;
+  appointmentStatus: WalkthroughAppointmentStatus | null;
+  fitDecision: WalkthroughFitDecision | null;
+  recapSentAt: Date | null;
+};
+
+export function deriveWalkthroughPipelineStage(
+  input: PipelineInput,
+): WalkthroughPipelineStage {
+  if (input.clientStatus === ClientStatus.ACTIVE) {
+    return "active_client";
+  }
+  if (
+    input.requestStatus === RequestStatus.CANCELLED ||
+    input.fitDecision === WalkthroughFitDecision.NOT_A_FIT
+  ) {
+    return "not_a_fit";
+  }
+  if (input.recapSentAt || input.requestStatus === RequestStatus.COMPLETE) {
+    return "proposal_setup";
+  }
+  if (
+    input.appointmentStatus === WalkthroughAppointmentStatus.COMPLETED ||
+    input.appointmentStatus === WalkthroughAppointmentStatus.NO_SHOW
+  ) {
+    return input.recapSentAt ? "recap" : "completed";
+  }
+  if (
+    input.appointmentStatus === WalkthroughAppointmentStatus.SCHEDULED ||
+    input.appointmentStatus === WalkthroughAppointmentStatus.RESCHEDULED
+  ) {
+    return "scheduled";
+  }
+  if (input.linkStatus === WalkthroughSchedulingLinkStatus.ACTIVE) {
+    return "link_sent";
+  }
+  if (input.linkStatus === WalkthroughSchedulingLinkStatus.USED) {
+    return "scheduled";
+  }
+  if (
+    input.requestStatus === RequestStatus.REVIEWED ||
+    input.requestStatus === RequestStatus.IN_PROGRESS ||
+    input.requestStatus === RequestStatus.NEEDS_INFO
+  ) {
+    return "qualified";
+  }
+  return "new_request";
+}
+
+export const WALKTHROUGH_PIPELINE_RAIL = [
+  { id: "request", label: "Request", stages: ["new_request"] as WalkthroughPipelineStage[] },
+  { id: "qualify", label: "Qualify", stages: ["qualified"] as WalkthroughPipelineStage[] },
+  { id: "schedule", label: "Schedule", stages: ["link_sent"] as WalkthroughPipelineStage[] },
+  {
+    id: "walkthrough",
+    label: "Walkthrough",
+    stages: ["scheduled", "completed"] as WalkthroughPipelineStage[],
+  },
+  { id: "recap", label: "Recap", stages: ["recap"] as WalkthroughPipelineStage[] },
+  {
+    id: "decision",
+    label: "Decision",
+    stages: ["proposal_setup", "not_a_fit"] as WalkthroughPipelineStage[],
+  },
+] as const;
+
+export type WalkthroughStageConfig = {
+  heading: string;
+  description: string;
+  primaryLabel: string;
+  secondaryLabels: string[];
+};
+
+export function getWalkthroughPipelineStageLabel(
+  stage: WalkthroughPipelineStage,
+): string {
+  switch (stage) {
+    case "new_request":
+      return "Needs review";
+    case "qualified":
+      return "Ready to schedule";
+    case "link_sent":
+      return "Link sent";
+    case "scheduled":
+      return "Scheduled";
+    case "completed":
+      return "Completed";
+    case "recap":
+      return "Recap ready";
+    case "proposal_setup":
+      return "Ready to activate";
+    case "active_client":
+      return "Active client";
+    case "not_a_fit":
+      return "Not a fit";
+  }
+}
+
+export type WalkthroughPipelineBadgeVariant =
+  | "default"
+  | "secondary"
+  | "destructive"
+  | "outline";
+
+export function getWalkthroughPipelineStageBadgeVariant(
+  stage: WalkthroughPipelineStage,
+): WalkthroughPipelineBadgeVariant {
+  switch (stage) {
+    case "new_request":
+      return "destructive";
+    case "qualified":
+    case "link_sent":
+      return "secondary";
+    case "scheduled":
+    case "completed":
+    case "recap":
+      return "default";
+    case "proposal_setup":
+      return "outline";
+    case "active_client":
+      return "default";
+    case "not_a_fit":
+      return "outline";
+  }
+}
+
+export function getWalkthroughStageConfig(
+  stage: WalkthroughPipelineStage,
+): WalkthroughStageConfig {
+  switch (stage) {
+    case "new_request":
+      return {
+        heading: "Walkthrough not scheduled",
+        description:
+          "This company submitted a walkthrough request. Review their needs, schedule a discovery call, then decide whether to activate them as a client.",
+        primaryLabel: "Review request",
+        secondaryLabels: ["Mark not a fit", "Request more info"],
+      };
+    case "qualified":
+      return {
+        heading: "Ready to schedule",
+        description: "This prospect looks worth a conversation. Send a secure scheduling link.",
+        primaryLabel: "Send scheduling link",
+        secondaryLabels: ["Mark not a fit"],
+      };
+    case "link_sent":
+      return {
+        heading: "Scheduling link sent",
+        description: "Waiting for the prospect to pick a time on the scheduling page.",
+        primaryLabel: "Copy scheduling link",
+        secondaryLabels: ["Resend link", "Regenerate link", "Revoke link"],
+      };
+    case "scheduled":
+      return {
+        heading: "Walkthrough scheduled",
+        description: "Discovery call is on the calendar. Prepare and run the walkthrough.",
+        primaryLabel: "Open walkthrough workspace",
+        secondaryLabels: ["Reschedule", "Cancel", "Mark no-show"],
+      };
+    case "completed":
+      return {
+        heading: "Walkthrough completed",
+        description: "Capture recap and decide whether to move forward.",
+        primaryLabel: "Create recap",
+        secondaryLabels: ["Activate as client", "Needs follow-up", "Not a fit"],
+      };
+    case "recap":
+      return {
+        heading: "Recap ready",
+        description: "Send recap or make a fit decision.",
+        primaryLabel: "Send recap",
+        secondaryLabels: ["Activate as client", "Not a fit"],
+      };
+    case "proposal_setup":
+      return {
+        heading: "Ready to activate",
+        description: "Configure scope, billing, and portal access in Setup.",
+        primaryLabel: "Configure scope / billing",
+        secondaryLabels: ["Open setup"],
+      };
+    case "active_client":
+      return {
+        heading: "Active client",
+        description: "Walkthrough complete and client is active.",
+        primaryLabel: "View setup",
+        secondaryLabels: [],
+      };
+    case "not_a_fit":
+      return {
+        heading: "Not a fit",
+        description: "This prospect was marked not a fit.",
+        primaryLabel: "View request",
+        secondaryLabels: [],
+      };
+  }
+}

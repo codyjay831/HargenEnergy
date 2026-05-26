@@ -858,3 +858,184 @@ export async function sendInternalDisbursementDecisionAlert(data: {
     return { error: "Failed to send internal disbursement alert." };
   }
 }
+
+function formatWalkthroughWhen(startUtc: Date, timezone: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "full",
+    timeStyle: "short",
+    timeZone: timezone,
+  }).format(startUtc);
+}
+
+export async function sendWalkthroughSchedulingLinkEmail(input: {
+  to: string;
+  contactName: string;
+  companyName: string;
+  schedulingUrl: string;
+}) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  const { resend, fromEmail } = config;
+
+  try {
+    await resend.emails.send({
+      from: fromEmail,
+      to: input.to,
+      subject: EMAIL_SUBJECTS.walkthroughSchedulingLink(input.companyName),
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          <h2 style="color: #0f172a;">Schedule your walkthrough</h2>
+          <p>Hi ${escapeHtml(input.contactName)},</p>
+          <p>Thanks for your interest in Hargen Energy. Pick a time that works for a discovery walkthrough for <strong>${escapeHtml(input.companyName)}</strong>.</p>
+          <p style="margin: 24px 0;">
+            <a href="${escapeHtml(input.schedulingUrl)}" style="background: #0f172a; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;">Choose a time</a>
+          </p>
+          <p style="font-size: 14px; color: #64748b;">This link expires in 14 days.</p>
+        </div>
+      `,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending walkthrough scheduling link email:", error);
+    return { error: "Failed to send scheduling link email." };
+  }
+}
+
+export async function sendWalkthroughBookingConfirmationEmail(input: {
+  to: string;
+  contactName: string;
+  companyName: string;
+  startUtc: Date;
+  timezone: string;
+  meetingUrl: string | null;
+  schedulingToken: string;
+}) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  const { resend, fromEmail } = config;
+  const when = formatWalkthroughWhen(input.startUtc, input.timezone);
+  const manageUrl = `${process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/schedule/walkthrough/${encodeURIComponent(input.schedulingToken)}`;
+
+  try {
+    await resend.emails.send({
+      from: fromEmail,
+      to: input.to,
+      subject: EMAIL_SUBJECTS.walkthroughBookingConfirmation(input.companyName),
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          <h2 style="color: #0f172a;">Walkthrough scheduled</h2>
+          <p>Hi ${escapeHtml(input.contactName)},</p>
+          <p>Your Hargen walkthrough for <strong>${escapeHtml(input.companyName)}</strong> is confirmed.</p>
+          <p><strong>When:</strong> ${escapeHtml(when)} (${escapeHtml(input.timezone)})</p>
+          ${input.meetingUrl ? `<p><strong>Google Meet:</strong> <a href="${escapeHtml(input.meetingUrl)}">${escapeHtml(input.meetingUrl)}</a></p>` : ""}
+          <p style="margin: 24px 0;">
+            <a href="${escapeHtml(manageUrl)}" style="background: #0f172a; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;">View or cancel</a>
+          </p>
+        </div>
+      `,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending walkthrough booking confirmation:", error);
+    return { error: "Failed to send booking confirmation email." };
+  }
+}
+
+export async function sendWalkthroughReminderEmail(input: {
+  to: string;
+  contactName: string;
+  companyName: string;
+  startUtc: Date;
+  timezone: string;
+  meetingUrl: string | null;
+  reminderLabel: string;
+}) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  const { resend, fromEmail } = config;
+  const when = formatWalkthroughWhen(input.startUtc, input.timezone);
+
+  try {
+    await resend.emails.send({
+      from: fromEmail,
+      to: input.to,
+      subject: EMAIL_SUBJECTS.walkthroughReminder(input.companyName),
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          <h2 style="color: #0f172a;">${escapeHtml(input.reminderLabel)}</h2>
+          <p>Hi ${escapeHtml(input.contactName)},</p>
+          <p>Reminder for your Hargen walkthrough with <strong>${escapeHtml(input.companyName)}</strong>.</p>
+          <p><strong>When:</strong> ${escapeHtml(when)} (${escapeHtml(input.timezone)})</p>
+          ${input.meetingUrl ? `<p><strong>Google Meet:</strong> <a href="${escapeHtml(input.meetingUrl)}">${escapeHtml(input.meetingUrl)}</a></p>` : ""}
+        </div>
+      `,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending walkthrough reminder email:", error);
+    return { error: "Failed to send reminder email." };
+  }
+}
+
+export async function sendWalkthroughCancelEmail(input: {
+  to: string;
+  contactName: string;
+  companyName: string;
+  startUtc: Date;
+  timezone: string;
+}) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  const { resend, fromEmail } = config;
+  const when = formatWalkthroughWhen(input.startUtc, input.timezone);
+
+  try {
+    await resend.emails.send({
+      from: fromEmail,
+      to: input.to,
+      subject: EMAIL_SUBJECTS.walkthroughCancel(input.companyName),
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          <h2 style="color: #0f172a;">Walkthrough canceled</h2>
+          <p>Hi ${escapeHtml(input.contactName)},</p>
+          <p>Your walkthrough for <strong>${escapeHtml(input.companyName)}</strong> scheduled for ${escapeHtml(when)} has been canceled.</p>
+          <p>Reply to this email if you'd like to reschedule.</p>
+        </div>
+      `,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending walkthrough cancel email:", error);
+    return { error: "Failed to send cancel email." };
+  }
+}
+
+export async function sendWalkthroughRecapEmail(input: {
+  to: string;
+  contactName: string;
+  companyName: string;
+  recapContent: string;
+}) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  const { resend, fromEmail } = config;
+
+  try {
+    await resend.emails.send({
+      from: fromEmail,
+      to: input.to,
+      subject: EMAIL_SUBJECTS.walkthroughRecap(input.companyName),
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          <h2 style="color: #0f172a;">Walkthrough recap</h2>
+          <p>Hi ${escapeHtml(input.contactName)},</p>
+          <div style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(input.recapContent)}</div>
+        </div>
+      `,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending walkthrough recap email:", error);
+    return { error: "Failed to send recap email." };
+  }
+}

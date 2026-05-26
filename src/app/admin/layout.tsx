@@ -9,6 +9,8 @@ import {
   Megaphone,
   Settings2,
   Shield,
+  CalendarDays,
+  CalendarClock,
 } from "lucide-react";
 import { LogoutButton } from "@/components/layout/LogoutButton";
 import { auth } from "@/auth";
@@ -26,6 +28,12 @@ const sidebarItems = [
   { name: "Billing", href: "/admin/billing", icon: CreditCard },
   { name: "Team", href: "/admin/team", icon: Shield },
   { name: "Service Catalog", href: "/admin/services", icon: Settings2 },
+  { name: "Calendar", href: "/admin/settings/calendar", icon: CalendarDays },
+  {
+    name: "Walkthrough Hours",
+    href: "/admin/settings/walkthrough-availability",
+    icon: CalendarClock,
+  },
   { name: "Account", href: "/admin/account", icon: UserCog },
 ];
 

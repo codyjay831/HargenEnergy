@@ -1,3 +1,4 @@
+/** @deprecated Replaced by WalkthroughWorkspace — safe to remove once confirmed unused. */
 /**
  * Prospect setup actions not covered by guided setup sheets.
  * Billing, portal invite, and engagement are opened from the setup guide rail.

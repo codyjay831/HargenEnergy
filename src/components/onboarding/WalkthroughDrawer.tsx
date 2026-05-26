@@ -1,3 +1,4 @@
+/** @deprecated Replaced by WalkthroughWorkspace — safe to remove once confirmed unused. */
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";

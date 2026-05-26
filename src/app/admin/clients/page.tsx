@@ -14,6 +14,11 @@ import { ClientStatus } from "@/generated/prisma/client";
 import { cn } from "@/lib/utils";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { BillingStatusBadge } from "@/components/admin/BillingStatusBadge";
+import {
+  deriveWalkthroughPipelineStage,
+  getWalkthroughPipelineStageBadgeVariant,
+  getWalkthroughPipelineStageLabel,
+} from "@/lib/walkthrough-scheduling/pipeline";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +71,21 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
         where: { kind: "PROSPECT_INTAKE" },
         orderBy: { createdAt: "desc" },
         take: 1,
-        select: { id: true, title: true, status: true },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          walkthroughSchedulingLink: { select: { status: true } },
+          walkthroughAppointments: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: {
+              status: true,
+              fitDecision: true,
+              recapSentAt: true,
+            },
+          },
+        },
       },
     },
     orderBy: {
@@ -117,6 +136,7 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
               <TableRow>
                 <TableHead>Company</TableHead>
                 <TableHead>Contact</TableHead>
+                <TableHead>Pipeline</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Plan</TableHead>
                 <TableHead>Subscription</TableHead>
@@ -126,20 +146,36 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
             </TableHeader>
             <TableBody>
               {clients.map((client) => {
-                const hasUnreviewedWalkthrough = client.requests[0]?.status === "NEW";
+                const latestRequest = client.requests[0];
+                const latestAppointment = latestRequest?.walkthroughAppointments[0] ?? null;
+                const pipelineStage =
+                  client.status === ClientStatus.LEAD && latestRequest
+                    ? deriveWalkthroughPipelineStage({
+                        clientStatus: client.status,
+                        requestStatus: latestRequest.status,
+                        linkStatus: latestRequest.walkthroughSchedulingLink?.status ?? null,
+                        appointmentStatus: latestAppointment?.status ?? null,
+                        fitDecision: latestAppointment?.fitDecision ?? null,
+                        recapSentAt: latestAppointment?.recapSentAt ?? null,
+                      })
+                    : null;
+                const hasUnreviewedWalkthrough = latestRequest?.status === "NEW";
                 return (
                   <TableRow key={client.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        {client.companyName}
-                        {hasUnreviewedWalkthrough && (
-                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                            Needs review
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
+                    <TableCell className="font-medium">{client.companyName}</TableCell>
                     <TableCell>{client.contactName}</TableCell>
+                    <TableCell>
+                      {pipelineStage ? (
+                        <Badge
+                          variant={getWalkthroughPipelineStageBadgeVariant(pipelineStage)}
+                          className="text-[10px] px-1.5 py-0 whitespace-nowrap"
+                        >
+                          {getWalkthroughPipelineStageLabel(pipelineStage)}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={client.status === ClientStatus.ACTIVE ? "default" : "secondary"}>
                         {client.status === ClientStatus.ACTIVE ? "Active" : "Prospect"}

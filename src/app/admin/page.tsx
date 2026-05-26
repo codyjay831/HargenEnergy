@@ -30,6 +30,11 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { PriorityButtons } from "@/components/admin/PriorityButtons";
+import {
+  deriveWalkthroughPipelineStage,
+  getWalkthroughPipelineStageBadgeVariant,
+  getWalkthroughPipelineStageLabel,
+} from "@/lib/walkthrough-scheduling/pipeline";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatUrgencyLabel } from "@/lib/ui-enums";
 
@@ -100,8 +105,8 @@ export default async function AdminDashboard() {
 
   const stats = [
     { 
-      title: `New ${PRODUCT_LANGUAGE.walkthrough.plural}`, 
-      subtitle: "Unreviewed prospect intakes",
+      title: "Needs Review", 
+      subtitle: "New walkthrough requests awaiting review",
       value: newWalkthroughsCount.toString(), 
       icon: Inbox, 
       color: "text-amber-600", 
@@ -109,7 +114,8 @@ export default async function AdminDashboard() {
       link: "/admin/clients?needsReview=1&status=ALL"
     },
     { 
-      title: `${PRODUCT_LANGUAGE.prospect.plural} Awaiting Activation`, 
+      title: "Walkthrough Pipeline", 
+      subtitle: `${PRODUCT_LANGUAGE.prospect.plural} qualified and moving toward activation`,
       value: prospectsAwaitingActivationCount.toString(), 
       icon: UserCheck, 
       color: "text-blue-600", 
@@ -152,7 +158,19 @@ export default async function AdminDashboard() {
 
   const recentWalkthroughs = await prisma.supportRequest.findMany({
     where: { kind: SupportRequestKind.PROSPECT_INTAKE },
-    include: { client: true },
+    include: {
+      client: true,
+      walkthroughSchedulingLink: { select: { status: true } },
+      walkthroughAppointments: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          status: true,
+          fitDecision: true,
+          recapSentAt: true,
+        },
+      },
+    },
     orderBy: { createdAt: "desc" },
     take: 5,
   });
@@ -188,7 +206,7 @@ export default async function AdminDashboard() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">Sales funnel and delivery pipeline at a glance.</p>
+          <p className="text-muted-foreground">Walkthrough pipeline and delivery at a glance.</p>
         </div>
         <div className="flex items-center gap-3">
           <Link 
@@ -350,7 +368,17 @@ export default async function AdminDashboard() {
               />
             ) : (
               <div className="space-y-4">
-                {recentWalkthroughs.map((request) => (
+                {recentWalkthroughs.map((request) => {
+                  const appointment = request.walkthroughAppointments[0] ?? null;
+                  const pipelineStage = deriveWalkthroughPipelineStage({
+                    clientStatus: request.client.status,
+                    requestStatus: request.status,
+                    linkStatus: request.walkthroughSchedulingLink?.status ?? null,
+                    appointmentStatus: appointment?.status ?? null,
+                    fitDecision: appointment?.fitDecision ?? null,
+                    recapSentAt: appointment?.recapSentAt ?? null,
+                  });
+                  return (
                   <Link
                     key={request.id}
                     href={`/admin/clients/${request.clientId}?tab=walkthrough&open=walkthrough`}
@@ -370,9 +398,15 @@ export default async function AdminDashboard() {
                         </span>
                       </div>
                     </div>
-                    <StatusBadge status={request.status} className="ml-2 shrink-0" />
+                    <Badge
+                      variant={getWalkthroughPipelineStageBadgeVariant(pipelineStage)}
+                      className="ml-2 shrink-0 text-[10px] px-1.5 py-0"
+                    >
+                      {getWalkthroughPipelineStageLabel(pipelineStage)}
+                    </Badge>
                   </Link>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
