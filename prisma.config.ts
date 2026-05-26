@@ -3,6 +3,34 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
+/** Prisma CLI (migrate, db push) must use a direct Postgres URL — not a pooler. */
+function migrationDatabaseUrl(): string {
+  const direct = process.env["DIRECT_URL"]?.trim();
+  if (direct) {
+    return ensureConnectTimeout(direct);
+  }
+
+  const databaseUrl = process.env["DATABASE_URL"]?.trim();
+  if (!databaseUrl) {
+    return "";
+  }
+
+  // Neon: pooled hostnames (-pooler) cannot acquire pg_advisory_lock during migrate deploy.
+  const withoutPooler = databaseUrl.includes("-pooler.")
+    ? databaseUrl.replace("-pooler.", ".")
+    : databaseUrl;
+
+  return ensureConnectTimeout(withoutPooler);
+}
+
+function ensureConnectTimeout(url: string): string {
+  if (/[?&]connect_timeout=/i.test(url)) {
+    return url;
+  }
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}connect_timeout=30`;
+}
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
@@ -10,6 +38,6 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    url: process.env["DIRECT_URL"] || process.env["DATABASE_URL"],
+    url: migrationDatabaseUrl(),
   },
 });

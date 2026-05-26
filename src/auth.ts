@@ -24,7 +24,7 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
       if (!baseJwt) {
         return params.token;
       }
-      let token = await baseJwt(params);
+      const token = await baseJwt(params);
       if (!token || params.user) {
         return token;
       }

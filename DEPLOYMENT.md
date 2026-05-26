@@ -7,7 +7,8 @@ This guide covers the steps required to deploy the Hargen Energy website and bac
 Ensure all required environment variables are set in your production environment (e.g., Vercel, Railway, or VPS). Refer to `.env.example` for the full list.
 
 ### Required for Runtime
-- `DATABASE_URL`: PostgreSQL connection string.
+- `DATABASE_URL`: PostgreSQL connection string (pooled URL is fine for the app on Neon).
+- `DIRECT_URL`: Optional but recommended on Neon. Direct Postgres URL for `prisma migrate deploy` during build. If omitted, build derives it from `DATABASE_URL` by removing `-pooler` from the hostname.
 - `AUTH_SECRET`: Secret key for Auth.js (generate with `npx auth secret`).
 - `APP_URL` / `NEXT_PUBLIC_APP_URL`: The full URL of your production site (e.g., `https://hargenenergy.com`).
 - `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`: Required for production rate limiting and distributed password-session stamp checks.
