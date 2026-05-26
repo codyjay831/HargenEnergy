@@ -10,6 +10,13 @@ function migrationDatabaseUrl(): string {
     return ensureConnectTimeout(direct);
   }
 
+  const unpooled =
+    process.env["DATABASE_URL_UNPOOLED"]?.trim() ||
+    process.env["POSTGRES_URL_NON_POOLING"]?.trim();
+  if (unpooled) {
+    return ensureConnectTimeout(unpooled);
+  }
+
   const databaseUrl = process.env["DATABASE_URL"]?.trim();
   if (!databaseUrl) {
     return "";
