@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type HTMLAttributes } from "react";
 import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -142,7 +142,7 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
       return;
     }
 
-    const result = await submitRequestHelp(data);
+    const result = await submitRequestHelp(validated.data);
 
     if (result.success) {
       if ("summary" in result && result.summary) {
@@ -346,13 +346,15 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
     );
   }
 
+  const step1Hidden = step !== 1;
+
   return (
     <form onSubmit={step === 2 ? handleSubmit : (e) => e.preventDefault()} className="relative space-y-8">
       <div
         className="absolute -left-[9999px] h-px w-px overflow-hidden"
         aria-hidden="true"
       >
-        <label htmlFor="websiteUrlHoneypot">Company website URL</label>
+        <label htmlFor="websiteUrlHoneypot">Leave blank</label>
         <input
           type="text"
           id="websiteUrlHoneypot"
@@ -381,78 +383,108 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
         </div>
       )}
 
-      {step === 1 ? (
-        <>
-          <div>
-            <h2 className="font-heading text-lg font-semibold text-stone-900">{COPY.step1Title}</h2>
-          </div>
+      {step === 1 && (
+        <div>
+          <h2 className="font-heading text-lg font-semibold text-stone-900">{COPY.step1Title}</h2>
+        </div>
+      )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="companyName">{COPY.companyName}</Label>
-              <Input
-                id="companyName"
-                value={step1Values.companyName}
-                onChange={(e) =>
-                  setStep1Values((v) => ({ ...v, companyName: e.target.value }))
-                }
-                placeholder="Solar Pros LLC"
-                required
-              />
-              <FieldError message={fieldErrors.companyName} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="name">{COPY.yourName}</Label>
-              <Input
-                id="name"
-                value={step1Values.name}
-                onChange={(e) => setStep1Values((v) => ({ ...v, name: e.target.value }))}
-                placeholder="John Doe"
-                required
-              />
-              <FieldError message={fieldErrors.name} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">{COPY.email}</Label>
-              <Input
-                id="email"
-                type="email"
-                value={step1Values.email}
-                onChange={(e) => setStep1Values((v) => ({ ...v, email: e.target.value }))}
-                placeholder="john@solarpros.com"
-                required
-              />
-              <FieldError message={fieldErrors.email} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">{COPY.phone}</Label>
-              <Input
-                id="phone"
-                type="tel"
-                value={step1Values.phone}
-                onChange={(e) => setStep1Values((v) => ({ ...v, phone: e.target.value }))}
-                placeholder="(555) 000-0000"
-              />
-              <p className="text-xs text-muted-foreground">{COPY.phoneHelper}</p>
-              <FieldError message={fieldErrors.phone} />
-            </div>
-          </div>
-
+      <div
+        className={cn(
+          "space-y-8",
+          step1Hidden && "absolute -left-[9999px] h-px w-px overflow-hidden",
+        )}
+        aria-hidden={step1Hidden}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <Label htmlFor="bottleneck">{COPY.bottleneck}</Label>
-            <Textarea
-              id="bottleneck"
-              value={step1Values.bottleneck}
+            <Label htmlFor="companyName">{COPY.companyName}</Label>
+            <Input
+              id="companyName"
+              name="companyName"
+              autoComplete="organization"
+              value={step1Values.companyName}
               onChange={(e) =>
-                setStep1Values((v) => ({ ...v, bottleneck: e.target.value }))
+                setStep1Values((v) => ({ ...v, companyName: e.target.value }))
               }
-              placeholder={COPY.bottleneckPlaceholder}
-              className="min-h-[100px]"
+              placeholder="Solar Pros LLC"
+              readOnly={step1Hidden}
+              tabIndex={step1Hidden ? -1 : undefined}
               required
             />
-            <FieldError message={fieldErrors.bottleneck} />
+            <FieldError message={fieldErrors.companyName} />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="name">{COPY.yourName}</Label>
+            <Input
+              id="name"
+              name="name"
+              autoComplete="name"
+              value={step1Values.name}
+              onChange={(e) => setStep1Values((v) => ({ ...v, name: e.target.value }))}
+              placeholder="John Doe"
+              readOnly={step1Hidden}
+              tabIndex={step1Hidden ? -1 : undefined}
+              required
+            />
+            <FieldError message={fieldErrors.name} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">{COPY.email}</Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              value={step1Values.email}
+              onChange={(e) => setStep1Values((v) => ({ ...v, email: e.target.value }))}
+              placeholder="john@solarpros.com"
+              readOnly={step1Hidden}
+              tabIndex={step1Hidden ? -1 : undefined}
+              required
+            />
+            <FieldError message={fieldErrors.email} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="phone">{COPY.phone}</Label>
+            <Input
+              id="phone"
+              name="phone"
+              type="tel"
+              autoComplete="tel"
+              value={step1Values.phone}
+              onChange={(e) => setStep1Values((v) => ({ ...v, phone: e.target.value }))}
+              placeholder="(555) 000-0000"
+              readOnly={step1Hidden}
+              tabIndex={step1Hidden ? -1 : undefined}
+            />
+            <p className="text-xs text-muted-foreground">{COPY.phoneHelper}</p>
+            <FieldError message={fieldErrors.phone} />
+          </div>
+        </div>
 
+        <div className="space-y-2">
+          <Label htmlFor="bottleneck">{COPY.bottleneck}</Label>
+          <Textarea
+            id="bottleneck"
+            name="bottleneck"
+            autoComplete="off"
+            value={step1Values.bottleneck}
+            onChange={(e) =>
+              setStep1Values((v) => ({ ...v, bottleneck: e.target.value }))
+            }
+            placeholder={COPY.bottleneckPlaceholder}
+            className="min-h-[100px]"
+            readOnly={step1Hidden}
+            tabIndex={step1Hidden ? -1 : undefined}
+            required
+          />
+          <FieldError message={fieldErrors.bottleneck} />
+        </div>
+      </div>
+
+      {step === 1 ? (
+        <>
           <div className="space-y-4">
             <div>
               <Label>{COPY.supportAreas}</Label>
@@ -506,44 +538,49 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
             <h2 className="font-heading text-lg font-semibold text-stone-900">{COPY.step2Title}</h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="role">{COPY.role}</Label>
-              <Input id="role" name="role" placeholder="Operations Manager" />
-              <FieldError message={fieldErrors.role} />
+          <fieldset
+            className="space-y-8 min-w-0 border-0 p-0 m-0"
+            {...({ autoComplete: "off" } as HTMLAttributes<HTMLFieldSetElement>)}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="role">{COPY.role}</Label>
+                <Input id="role" name="role" placeholder="Operations Manager" />
+                <FieldError message={fieldErrors.role} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="website">{COPY.website}</Label>
+                <Input id="website" name="website" placeholder="solarpros.com" />
+                <p className="text-xs text-muted-foreground">{COPY.websiteHelper}</p>
+                <FieldError message={fieldErrors.website} />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="serviceArea">{COPY.serviceArea}</Label>
+                <Input
+                  id="serviceArea"
+                  name="serviceArea"
+                  placeholder="Northern California, Bay Area"
+                />
+                <FieldError message={fieldErrors.serviceArea} />
+              </div>
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="website">{COPY.website}</Label>
-              <Input id="website" name="website" placeholder="https://solarpros.com" />
-              <p className="text-xs text-muted-foreground">{COPY.websiteHelper}</p>
-              <FieldError message={fieldErrors.website} />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="serviceArea">{COPY.serviceArea}</Label>
-              <Input
-                id="serviceArea"
-                name="serviceArea"
-                placeholder="Northern California, Bay Area"
+              <Label htmlFor="takeOffPlate">{COPY.firstPriority}</Label>
+              <Textarea
+                id="takeOffPlate"
+                name="takeOffPlate"
+                placeholder={COPY.firstPriorityPlaceholder}
               />
-              <FieldError message={fieldErrors.serviceArea} />
+              <FieldError message={fieldErrors.takeOffPlate} />
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="takeOffPlate">{COPY.firstPriority}</Label>
-            <Textarea
-              id="takeOffPlate"
-              name="takeOffPlate"
-              placeholder={COPY.firstPriorityPlaceholder}
-            />
-            <FieldError message={fieldErrors.takeOffPlate} />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="tools">{COPY.tools}</Label>
-            <Textarea id="tools" name="tools" placeholder={COPY.toolsPlaceholder} />
-            <FieldError message={fieldErrors.tools} />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="tools">{COPY.tools}</Label>
+              <Textarea id="tools" name="tools" placeholder={COPY.toolsPlaceholder} />
+              <FieldError message={fieldErrors.tools} />
+            </div>
+          </fieldset>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">

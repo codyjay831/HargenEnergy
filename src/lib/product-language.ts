@@ -152,7 +152,7 @@ export const FORM_COPY = {
       "Select all that apply — we'll discuss scope on the walkthrough.",
     role: "Role / title",
     website: "Company website",
-    websiteHelper: "Include https:// (e.g. https://solarpros.com)",
+    websiteHelper: "e.g. solarpros.com or https://solarpros.com",
     serviceArea: "Service area (states/counties)",
     firstPriority: "What would help most this week?",
     firstPriorityPlaceholder:

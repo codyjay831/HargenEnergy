@@ -24,3 +24,11 @@ export function safeExternalHref(value: string | null | undefined): string | nul
   }
   return url.toString()
 }
+
+/** Prepends https:// when missing, then validates via safeExternalHref. */
+export function normalizeHttpUrl(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  return safeExternalHref(candidate)
+}

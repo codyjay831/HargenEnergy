@@ -12,6 +12,7 @@ import {
   MAX_PORTAL_ATTACHMENTS,
 } from "@/lib/storage/limits";
 import { isAllowedPortalAttachmentRef } from "@/lib/storage/blob-ref";
+import { normalizeHttpUrl, safeExternalHref } from "@/lib/utils";
 
 const trimmedString = z.string().trim();
 
@@ -39,19 +40,11 @@ export const requestHelpSchema = z.object({
     .optional(),
   website: trimmedString
     .max(500, "Website must be at most 500 characters.")
-    .refine(
-      (v) => {
-        if (!v) return true;
-        try {
-          const u = new URL(v);
-          return u.protocol === "http:" || u.protocol === "https:";
-        } catch {
-          return false;
-        }
-      },
-      { message: "Website must be a valid http(s) URL." },
-    )
-    .optional(),
+    .optional()
+    .transform((v) => (v ? normalizeHttpUrl(v) ?? v : undefined))
+    .refine((v) => !v || safeExternalHref(v) !== null, {
+      message: "Enter a valid website address.",
+    }),
   serviceArea: trimmedString
     .max(500, "Service area must be at most 500 characters.")
     .optional(),

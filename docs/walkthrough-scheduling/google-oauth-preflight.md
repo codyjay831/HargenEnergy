@@ -8,10 +8,13 @@ Complete this checklist before enabling `WALKTHROUGH_SCHEDULING_ENABLED` in prod
 - [ ] Google Calendar API enabled in the project
 - [ ] OAuth consent screen configured (External or Internal)
 - [ ] Scope approved: `https://www.googleapis.com/auth/calendar.events`
-- [ ] Authorized redirect URI registered:
+- [ ] Authorized redirect URI registered (must match `GOOGLE_OAUTH_REDIRECT_URI` or `{APP_URL}/api/integrations/google/callback` exactly):
   - Production: `https://hargenenergy.com/api/integrations/google/callback`
+  - Also register `https://www.hargenenergy.com/api/integrations/google/callback` if `APP_URL` uses `www`
   - Staging: `{STAGING_APP_URL}/api/integrations/google/callback`
   - Local: `http://localhost:3000/api/integrations/google/callback`
+- [ ] `APP_URL` and `NEXT_PUBLIC_APP_URL` set to production domain (no trailing slash)
+- [ ] `GOOGLE_OAUTH_REDIRECT_URI` set in Vercel Production (recommended — avoids www/apex drift)
 - [ ] OAuth consent screen **In production** (or Internal workspace) — Testing mode only allows test users for **admin** connect
 - [ ] `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` set in Vercel (Production + Preview as needed)
 - [ ] `FIELD_ENCRYPTION_KEY` set in production (required for token storage)
