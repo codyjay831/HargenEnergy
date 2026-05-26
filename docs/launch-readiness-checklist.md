@@ -56,7 +56,7 @@ Check boxes as you complete verification. Items tagged 🔴/🟠/🟡 deserve ex
 
 ### Soft launch (marketing + intake only, no portal clients)
 
-Possible with: DB, Resend, honeypot intake, admin for walkthrough queue. Stripe/portal/blob can wait if no client invites yet.
+Possible with: DB, Resend, honeypot intake, admin for discovery queue. Stripe/portal/blob can wait if no client invites yet.
 
 ---
 
@@ -209,7 +209,7 @@ Run after deploy — also in `DEPLOYMENT.md` §6–8:
 | Marketing pages | ✅ | Home, services, pricing, about, how-it-works |
 | Public request help form | ✅ | Honeypot + rate limit |
 | Admin dashboard + client CRM | ✅ | |
-| Walkthrough / intake queue | ✅ | PROSPECT_INTAKE kind |
+| Discovery / intake queue | ✅ | PROSPECT_INTAKE kind |
 | Client activation + portal invite | ✅ | Via password reset link |
 | Portal: dashboard, requests, submit, detail, comments | ✅ | ACTIVE clients only |
 | Portal: system access handoff | ✅ | Vault links in DB — see S4 |

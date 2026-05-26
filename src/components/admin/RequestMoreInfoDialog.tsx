@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { markWalkthroughNeedsInfo } from "@/app/actions/walkthrough-scheduling-admin";
+import { markDiscoveryNeedsInfo } from "@/app/actions/discovery-scheduling-admin";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -45,7 +45,7 @@ function RequestMoreInfoDialogContent({
 
   const handleSubmit = () => {
     startTransition(async () => {
-      const result = await markWalkthroughNeedsInfo(supportRequestId, message);
+      const result = await markDiscoveryNeedsInfo(supportRequestId, message);
       if (result.error) {
         toast.error(result.error);
         return;
@@ -77,7 +77,7 @@ function RequestMoreInfoDialogContent({
           value={message}
           onChange={(event) => setMessage(event.target.value)}
           rows={5}
-          placeholder="Describe the details or documents you need before scheduling a walkthrough..."
+          placeholder="Describe the details or documents you need before scheduling a discovery..."
           disabled={isPending}
         />
         <p className="text-xs text-muted-foreground">

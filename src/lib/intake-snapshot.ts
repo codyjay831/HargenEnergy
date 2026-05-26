@@ -123,7 +123,7 @@ export function renderIntakeAlertHtml(data: {
 
   return `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
-      <h2 style="color: #0f172a;">New Walkthrough Request</h2>
+      <h2 style="color: #0f172a;">New Discovery Request</h2>
       ${fieldBlocks}
       ${schedulingNote}
       <p style="margin-top: 20px;">

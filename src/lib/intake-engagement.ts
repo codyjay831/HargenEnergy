@@ -52,12 +52,12 @@ export async function applyIntakeWorkTasksToClient(
   });
 
   if (!intake) {
-    return { ok: false, error: "No walkthrough intake found for this client." };
+    return { ok: false, error: "No discovery intake found for this client." };
   }
 
   const taskIds = intake.requestedWorkTasks.map((row) => row.workTaskId);
   if (taskIds.length === 0) {
-    return { ok: false, error: "This walkthrough has no catalog work tasks to apply." };
+    return { ok: false, error: "This discovery has no catalog work tasks to apply." };
   }
 
   const activeCount = await prisma.workTask.count({

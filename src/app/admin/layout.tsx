@@ -30,8 +30,8 @@ const sidebarItems = [
   { name: "Service Catalog", href: "/admin/services", icon: Settings2 },
   { name: "Calendar", href: "/admin/settings/calendar", icon: CalendarDays },
   {
-    name: "Walkthrough Hours",
-    href: "/admin/settings/walkthrough-availability",
+    name: "Discovery Hours",
+    href: "/admin/settings/discovery-availability",
     icon: CalendarClock,
   },
   { name: "Account", href: "/admin/account", icon: UserCog },

@@ -1,6 +1,6 @@
 export const ADMIN_CLIENT_TABS = [
   "overview",
-  "walkthrough",
+  "discovery",
   "setup",
   "billing",
 ] as const;
@@ -11,14 +11,8 @@ export function isAdminClientTab(value: string): value is AdminClientTab {
   return (ADMIN_CLIENT_TABS as readonly string[]).includes(value);
 }
 
-/** Resolve active tab from URL params (`?tab=` with legacy `?open=walkthrough`). */
-export function resolveAdminClientTab(
-  tab?: string | null,
-  open?: string | null,
-): AdminClientTab {
-  if (open === "walkthrough") {
-    return "walkthrough";
-  }
+/** Resolve active tab from URL `?tab=` param. */
+export function resolveAdminClientTab(tab?: string | null): AdminClientTab {
   if (tab && isAdminClientTab(tab)) {
     return tab;
   }
@@ -35,7 +29,7 @@ export function adminClientTabHref(clientId: string, tab: AdminClientTab): strin
 
 export const ADMIN_CLIENT_TAB_LABELS: Record<AdminClientTab, string> = {
   overview: "Overview",
-  walkthrough: "Walkthrough",
+  discovery: "Discovery call",
   setup: "Setup & access",
   billing: "Billing",
 };

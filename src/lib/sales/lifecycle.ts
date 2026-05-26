@@ -1,7 +1,7 @@
 /**
  * Sales Domain: Qualification and Onboarding
  * 
- * Business logic for pre-sale walkthrough requests and prospect qualification.
+ * Business logic for pre-sale discovery requests and prospect qualification.
  */
 
 import { RequestStatus, SupportRequestKind } from "@/lib/enums";
@@ -51,11 +51,11 @@ export function getQualificationStatusLabel(status: RequestStatus): string {
   return QUALIFICATION_STATUS_LABELS[status] || status.replace(/_/g, " ");
 }
 
-// Validation: Walkthrough requests must be non-billable
+// Validation: Discovery requests must be non-billable
 export function assertNonBillableForIntake(kind: SupportRequestKind, billableType: string): { error: string } | null {
   if (kind === SupportRequestKind.PROSPECT_INTAKE && billableType !== "NON_BILLABLE") {
     return {
-      error: "Walkthrough and discovery time must be non-billable. Billable tracking starts after client activation.",
+      error: "Discovery and discovery time must be non-billable. Billable tracking starts after client activation.",
     };
   }
   return null;

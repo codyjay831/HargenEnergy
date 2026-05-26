@@ -170,14 +170,14 @@ enum GoogleCalendarConnectionStatus {
   ERROR
 }
 
-enum WalkthroughSchedulingLinkStatus {
+enum DiscoverySchedulingLinkStatus {
   ACTIVE
   USED
   EXPIRED
   REVOKED
 }
 
-enum WalkthroughAppointmentStatus {
+enum DiscoveryAppointmentStatus {
   SCHEDULED
   RESCHEDULED
   COMPLETED
@@ -192,7 +192,7 @@ enum GoogleCalendarSyncStatus {
   SKIPPED
 }
 
-enum WalkthroughReminderType {
+enum DiscoveryReminderType {
   CONFIRMATION
   TWENTY_FOUR_HOUR
   ONE_HOUR
@@ -200,19 +200,19 @@ enum WalkthroughReminderType {
   CANCEL
 }
 
-enum WalkthroughReminderChannel {
+enum DiscoveryReminderChannel {
   EMAIL
   SMS
 }
 
-enum WalkthroughReminderStatus {
+enum DiscoveryReminderStatus {
   PENDING
   SENT
   FAILED
   SKIPPED
 }
 
-enum WalkthroughFitDecision {
+enum DiscoveryFitDecision {
   GOOD_FIT
   MAYBE_FIT
   NOT_A_FIT
@@ -245,7 +245,7 @@ model User {
   approvedDisbursements  DisbursementRequest[] @relation("DisbursementApprover")
   billingOverridesCreated Client[] @relation("ClientBillingOverrideCreatedBy")
   googleCalendarConnection GoogleCalendarConnection?
-  walkthroughSchedulingLinksCreated WalkthroughSchedulingLink[] @relation("WalkthroughSchedulingLinkCreator")
+  discoverySchedulingLinksCreated DiscoverySchedulingLink[] @relation("DiscoverySchedulingLinkCreator")
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -314,8 +314,8 @@ model Client {
   disbursements      DisbursementRequest[]
   recurringTasks     RecurringTask[]
   approvedWorkTasks  ClientApprovedWorkTask[]
-  walkthroughSchedulingLinks WalkthroughSchedulingLink[]
-  walkthroughAppointments WalkthroughAppointment[]
+  discoverySchedulingLinks DiscoverySchedulingLink[]
+  discoveryAppointments DiscoveryAppointment[]
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
@@ -371,8 +371,8 @@ model SupportRequest {
   attachments         Attachment[]
   comments            RequestComment[]
   disbursements       DisbursementRequest[]
-  walkthroughSchedulingLink WalkthroughSchedulingLink?
-  walkthroughAppointments WalkthroughAppointment[]
+  discoverySchedulingLink DiscoverySchedulingLink?
+  discoveryAppointments DiscoveryAppointment[]
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
@@ -412,7 +412,7 @@ model GoogleCalendarConnection {
   updatedAt             DateTime @updatedAt
 }
 
-model WalkthroughAvailabilitySettings {
+model DiscoveryAvailabilitySettings {
   id                    String   @id @default("default")
   timezone              String   @default("America/Los_Angeles")
   slotDurationMinutes   Int      @default(45)
@@ -429,13 +429,13 @@ model WalkthroughAvailabilitySettings {
   updatedByUserId       String?
 }
 
-model WalkthroughSchedulingLink {
+model DiscoverySchedulingLink {
   id               String   @id @default(cuid())
   tokenHash        String   @unique
   encryptedToken   String?
   clientId         String
   supportRequestId String   @unique
-  status           WalkthroughSchedulingLinkStatus @default(ACTIVE)
+  status           DiscoverySchedulingLinkStatus @default(ACTIVE)
   sentAt           DateTime?
   openedAt         DateTime?
   expiresAt        DateTime
@@ -446,14 +446,14 @@ model WalkthroughSchedulingLink {
 
   client           Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   supportRequest   SupportRequest @relation(fields: [supportRequestId], references: [id], onDelete: Cascade)
-  createdBy        User?    @relation("WalkthroughSchedulingLinkCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  appointment      WalkthroughAppointment?
+  createdBy        User?    @relation("DiscoverySchedulingLinkCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  appointment      DiscoveryAppointment?
 
   @@index([clientId])
   @@index([status])
 }
 
-model WalkthroughAppointment {
+model DiscoveryAppointment {
   id                  String   @id @default(cuid())
   clientId            String
   supportRequestId    String
@@ -466,7 +466,7 @@ model WalkthroughAppointment {
   customerContactName String
   customerEmail       String
   customerPhone       String?
-  status              WalkthroughAppointmentStatus @default(SCHEDULED)
+  status              DiscoveryAppointmentStatus @default(SCHEDULED)
   googleEventId       String?
   googleEventLink     String?
   googleSyncStatus    GoogleCalendarSyncStatus @default(PENDING)
@@ -475,7 +475,7 @@ model WalkthroughAppointment {
   completedAt         DateTime?
   noShowAt            DateTime?
   discoveryNotes      String?
-  fitDecision         WalkthroughFitDecision?
+  fitDecision         DiscoveryFitDecision?
   fitDecisionReason   String?
   recapContent        String?
   recapSentAt         DateTime?
@@ -484,8 +484,8 @@ model WalkthroughAppointment {
 
   client              Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   supportRequest      SupportRequest @relation(fields: [supportRequestId], references: [id], onDelete: Cascade)
-  schedulingLink      WalkthroughSchedulingLink? @relation(fields: [schedulingLinkId], references: [id], onDelete: SetNull)
-  reminders           WalkthroughReminder[]
+  schedulingLink      DiscoverySchedulingLink? @relation(fields: [schedulingLinkId], references: [id], onDelete: SetNull)
+  reminders           DiscoveryReminder[]
 
   @@index([clientId])
   @@index([supportRequestId])
@@ -493,18 +493,18 @@ model WalkthroughAppointment {
   @@index([scheduledStartUtc, scheduledEndUtc])
 }
 
-model WalkthroughReminder {
+model DiscoveryReminder {
   id            String   @id @default(cuid())
   appointmentId String
-  type          WalkthroughReminderType
-  channel       WalkthroughReminderChannel
+  type          DiscoveryReminderType
+  channel       DiscoveryReminderChannel
   scheduledFor  DateTime
   sentAt        DateTime?
-  status        WalkthroughReminderStatus @default(PENDING)
+  status        DiscoveryReminderStatus @default(PENDING)
   error         String?
   createdAt     DateTime @default(now())
 
-  appointment   WalkthroughAppointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  appointment   DiscoveryAppointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
 
   @@unique([appointmentId, type, channel])
   @@index([status, scheduledFor])
@@ -629,8 +629,8 @@ model WorkTask {
   name            String
   description     String?
   isActive        Boolean          @default(true)
-  showOnWalkthrough Boolean        @default(false)
-  walkthroughOrder  Int            @default(0)
+  showOnDiscovery Boolean        @default(false)
+  discoveryOrder    Int            @default(0)
   maxMinutes      Int?
   requiredFields  Json?            // Array of strings or objects
   requiredDocs    Json?            // Array of strings or objects

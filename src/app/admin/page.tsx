@@ -22,7 +22,7 @@ import {
   ClientStatus,
   BillableType,
   SupportRequestKind,
-  WalkthroughAppointmentStatus,
+  DiscoveryAppointmentStatus,
 } from "@/generated/prisma/client";
 import { format, startOfWeek } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
@@ -34,18 +34,18 @@ import { buttonVariants } from "@/components/ui/button";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { PriorityButtons } from "@/components/admin/PriorityButtons";
 import {
-  deriveWalkthroughPipelineStage,
-  getWalkthroughPipelineStageBadgeVariant,
-  getWalkthroughPipelineStageLabel,
-  pickWalkthroughAppointmentForPipeline,
-  type WalkthroughPipelineStage,
-} from "@/lib/walkthrough-scheduling/pipeline";
+  deriveDiscoveryPipelineStage,
+  getDiscoveryPipelineStageBadgeVariant,
+  getDiscoveryPipelineStageLabel,
+  pickDiscoveryAppointmentForPipeline,
+  type DiscoveryPipelineStage,
+} from "@/lib/discovery-scheduling/pipeline";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatUrgencyLabel } from "@/lib/ui-enums";
 
 export const dynamic = "force-dynamic";
 
-const NEEDS_SCHEDULING_STAGES: WalkthroughPipelineStage[] = [
+const NEEDS_SCHEDULING_STAGES: DiscoveryPipelineStage[] = [
   "qualified",
   "link_sent",
   "booking_canceled",
@@ -53,7 +53,7 @@ const NEEDS_SCHEDULING_STAGES: WalkthroughPipelineStage[] = [
 ];
 
 function schedulingAttentionSubtitle(
-  stage: WalkthroughPipelineStage,
+  stage: DiscoveryPipelineStage,
   canceledAt: Date | null | undefined,
 ): string {
   switch (stage) {
@@ -75,7 +75,7 @@ function schedulingAttentionSubtitle(
 export default async function AdminDashboard() {
   // Funnel metrics
   const [
-    newWalkthroughsCount,
+    newDiscoverysCount,
     prospectsAwaitingActivationCount,
     newWorkRequestsCount,
     inProgressWorkCount,
@@ -84,7 +84,7 @@ export default async function AdminDashboard() {
     overflowTimeThisWeek,
     prioritizedRequests,
     needsRescheduleCount,
-    upcomingWalkthroughs,
+    upcomingDiscoverys,
     schedulingCandidates,
   ] = await Promise.all([
     prisma.supportRequest.count({
@@ -141,17 +141,17 @@ export default async function AdminDashboard() {
         kind: SupportRequestKind.PROSPECT_INTAKE,
         client: { status: ClientStatus.LEAD },
         status: { notIn: [RequestStatus.COMPLETE, RequestStatus.CANCELLED] },
-        walkthroughAppointments: {
-          some: { status: WalkthroughAppointmentStatus.CANCELED },
+        discoveryAppointments: {
+          some: { status: DiscoveryAppointmentStatus.CANCELED },
         },
       },
     }),
-    prisma.walkthroughAppointment.findMany({
+    prisma.discoveryAppointment.findMany({
       where: {
         status: {
           in: [
-            WalkthroughAppointmentStatus.SCHEDULED,
-            WalkthroughAppointmentStatus.RESCHEDULED,
+            DiscoveryAppointmentStatus.SCHEDULED,
+            DiscoveryAppointmentStatus.RESCHEDULED,
           ],
         },
         scheduledStartUtc: { gte: new Date() },
@@ -172,8 +172,8 @@ export default async function AdminDashboard() {
       },
       include: {
         client: true,
-        walkthroughSchedulingLink: { select: { status: true } },
-        walkthroughAppointments: {
+        discoverySchedulingLink: { select: { status: true } },
+        discoveryAppointments: {
           orderBy: { createdAt: "desc" },
           take: 10,
           select: {
@@ -196,8 +196,8 @@ export default async function AdminDashboard() {
   const stats = [
     { 
       title: "Needs Review", 
-      subtitle: "Walkthrough requests needing review or awaiting prospect response",
-      value: newWalkthroughsCount.toString(), 
+      subtitle: "Discovery requests needing review or awaiting prospect response",
+      value: newDiscoverysCount.toString(), 
       icon: Inbox, 
       color: "text-amber-600", 
       bg: "bg-amber-50",
@@ -205,7 +205,7 @@ export default async function AdminDashboard() {
     },
     {
       title: "Needs Reschedule",
-      subtitle: "Prospect canceled a booked walkthrough",
+      subtitle: "Prospect canceled a booked discovery",
       value: needsRescheduleCount.toString(),
       icon: CalendarClock,
       color: "text-rose-600",
@@ -213,7 +213,7 @@ export default async function AdminDashboard() {
       link: "/admin/clients?status=LEAD",
     },
     { 
-      title: "Walkthrough Pipeline", 
+      title: "Discovery Pipeline", 
       subtitle: `${PRODUCT_LANGUAGE.prospect.plural} qualified and moving toward activation`,
       value: prospectsAwaitingActivationCount.toString(), 
       icon: UserCheck, 
@@ -257,13 +257,13 @@ export default async function AdminDashboard() {
 
   const needsSchedulingItems = schedulingCandidates
     .map((request) => {
-      const appointment = pickWalkthroughAppointmentForPipeline(
-        request.walkthroughAppointments,
+      const appointment = pickDiscoveryAppointmentForPipeline(
+        request.discoveryAppointments,
       );
-      const pipelineStage = deriveWalkthroughPipelineStage({
+      const pipelineStage = deriveDiscoveryPipelineStage({
         clientStatus: request.client.status,
         requestStatus: request.status,
-        linkStatus: request.walkthroughSchedulingLink?.status ?? null,
+        linkStatus: request.discoverySchedulingLink?.status ?? null,
         appointmentStatus: appointment?.status ?? null,
         fitDecision: appointment?.fitDecision ?? null,
         recapSentAt: appointment?.recapSentAt ?? null,
@@ -304,7 +304,7 @@ export default async function AdminDashboard() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">Walkthrough pipeline and delivery at a glance.</p>
+          <p className="text-muted-foreground">Discovery pipeline and delivery at a glance.</p>
         </div>
         <div className="flex items-center gap-3">
           <Link 
@@ -448,24 +448,24 @@ export default async function AdminDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Upcoming walkthroughs</CardTitle>
+            <CardTitle>Upcoming discoverys</CardTitle>
             <Link href="/admin/clients?status=LEAD" className="text-xs text-primary hover:underline font-medium">
               View All
             </Link>
           </CardHeader>
           <CardContent>
-            {upcomingWalkthroughs.length === 0 ? (
+            {upcomingDiscoverys.length === 0 ? (
               <EmptyState
                 icon={CalendarClock}
-                title="No upcoming walkthroughs"
+                title="No upcoming discoverys"
                 description="Booked discovery calls on the calendar will appear here."
               />
             ) : (
               <div className="space-y-4">
-                {upcomingWalkthroughs.map((appointment) => (
+                {upcomingDiscoverys.map((appointment) => (
                   <Link
                     key={appointment.id}
-                    href={`/admin/clients/${appointment.clientId}?tab=walkthrough&open=walkthrough`}
+                    href={`/admin/clients/${appointment.clientId}?tab=discovery`}
                     className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
@@ -514,7 +514,7 @@ export default async function AdminDashboard() {
                 {needsSchedulingItems.map(({ request, appointment, pipelineStage }) => (
                   <Link
                     key={request.id}
-                    href={`/admin/clients/${request.clientId}?tab=walkthrough&open=walkthrough`}
+                    href={`/admin/clients/${request.clientId}?tab=discovery`}
                     className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
@@ -529,10 +529,10 @@ export default async function AdminDashboard() {
                       </div>
                     </div>
                     <Badge
-                      variant={getWalkthroughPipelineStageBadgeVariant(pipelineStage)}
+                      variant={getDiscoveryPipelineStageBadgeVariant(pipelineStage)}
                       className="ml-2 shrink-0 text-[10px] px-1.5 py-0"
                     >
-                      {getWalkthroughPipelineStageLabel(pipelineStage)}
+                      {getDiscoveryPipelineStageLabel(pipelineStage)}
                     </Badge>
                   </Link>
                 ))}

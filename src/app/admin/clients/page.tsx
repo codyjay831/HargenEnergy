@@ -15,11 +15,11 @@ import { cn } from "@/lib/utils";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { BillingStatusBadge } from "@/components/admin/BillingStatusBadge";
 import {
-  deriveWalkthroughPipelineStage,
-  getWalkthroughPipelineStageBadgeVariant,
-  getWalkthroughPipelineStageLabel,
-  pickWalkthroughAppointmentForPipeline,
-} from "@/lib/walkthrough-scheduling/pipeline";
+  deriveDiscoveryPipelineStage,
+  getDiscoveryPipelineStageBadgeVariant,
+  getDiscoveryPipelineStageLabel,
+  pickDiscoveryAppointmentForPipeline,
+} from "@/lib/discovery-scheduling/pipeline";
 
 export const dynamic = "force-dynamic";
 
@@ -81,8 +81,8 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
           id: true,
           title: true,
           status: true,
-          walkthroughSchedulingLink: { select: { status: true } },
-          walkthroughAppointments: {
+          discoverySchedulingLink: { select: { status: true } },
+          discoveryAppointments: {
             orderBy: { createdAt: "desc" },
             take: 10,
             select: {
@@ -106,7 +106,7 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
         <h1 className="text-2xl font-bold">Clients</h1>
         <p className="text-sm text-muted-foreground mt-1">
           {needsReviewFilter
-            ? "Walkthrough requests needing review or awaiting prospect response."
+            ? "Discovery requests needing review or awaiting prospect response."
             : PRODUCT_LANGUAGE.prospect.listSubtitle}
         </p>
       </div>
@@ -129,11 +129,11 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
       {clients.length === 0 ? (
         <div className="bg-white border rounded-lg p-12 text-center text-muted-foreground">
           {needsReviewFilter
-            ? "No walkthrough requests need review right now."
+            ? "No discovery requests need review right now."
             : statusFilter === "LEAD"
-              ? `No ${PRODUCT_LANGUAGE.prospect.plural.toLowerCase()} yet. ${PRODUCT_LANGUAGE.walkthrough.plural} create ${PRODUCT_LANGUAGE.prospect.plural.toLowerCase()} automatically when submitted via the public form.`
+              ? `No ${PRODUCT_LANGUAGE.prospect.plural.toLowerCase()} yet. ${PRODUCT_LANGUAGE.discoveryRequest.plural} create ${PRODUCT_LANGUAGE.prospect.plural.toLowerCase()} automatically when submitted via the public form.`
               : statusFilter === "ACTIVE"
-                ? `No active ${PRODUCT_LANGUAGE.client.plural.toLowerCase()} yet. Activate a ${PRODUCT_LANGUAGE.prospect.singular.toLowerCase()} after walkthrough, contract, and payment.`
+                ? `No active ${PRODUCT_LANGUAGE.client.plural.toLowerCase()} yet. Activate a ${PRODUCT_LANGUAGE.prospect.singular.toLowerCase()} after discovery, contract, and payment.`
                 : "No companies yet."}
         </div>
       ) : (
@@ -155,25 +155,25 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
               {clients.map((client) => {
                 const latestRequest = client.requests[0];
                 const latestAppointment = latestRequest
-                  ? pickWalkthroughAppointmentForPipeline(
-                      latestRequest.walkthroughAppointments,
+                  ? pickDiscoveryAppointmentForPipeline(
+                      latestRequest.discoveryAppointments,
                     )
                   : null;
                 const pipelineStage =
                   client.status === ClientStatus.LEAD && latestRequest
-                    ? deriveWalkthroughPipelineStage({
+                    ? deriveDiscoveryPipelineStage({
                         clientStatus: client.status,
                         requestStatus: latestRequest.status,
-                        linkStatus: latestRequest.walkthroughSchedulingLink?.status ?? null,
+                        linkStatus: latestRequest.discoverySchedulingLink?.status ?? null,
                         appointmentStatus: latestAppointment?.status ?? null,
                         fitDecision: latestAppointment?.fitDecision ?? null,
                         recapSentAt: latestAppointment?.recapSentAt ?? null,
                       })
                     : null;
-                const hasUnreviewedWalkthrough =
+                const hasUnreviewedDiscovery =
                   latestRequest?.status === "NEW" &&
                   !latestAppointment &&
-                  latestRequest.walkthroughSchedulingLink?.status !== "ACTIVE";
+                  latestRequest.discoverySchedulingLink?.status !== "ACTIVE";
                 return (
                   <TableRow key={client.id}>
                     <TableCell className="font-medium">{client.companyName}</TableCell>
@@ -181,10 +181,10 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
                     <TableCell>
                       {pipelineStage ? (
                         <Badge
-                          variant={getWalkthroughPipelineStageBadgeVariant(pipelineStage)}
+                          variant={getDiscoveryPipelineStageBadgeVariant(pipelineStage)}
                           className="text-[10px] px-1.5 py-0 whitespace-nowrap"
                         >
-                          {getWalkthroughPipelineStageLabel(pipelineStage)}
+                          {getDiscoveryPipelineStageLabel(pipelineStage)}
                         </Badge>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
@@ -217,7 +217,7 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
                     </TableCell>
                     <TableCell className="text-right">
                       <Link
-                        href={`/admin/clients/${client.id}${hasUnreviewedWalkthrough ? "?tab=walkthrough&open=walkthrough" : ""}`}
+                        href={`/admin/clients/${client.id}${hasUnreviewedDiscovery ? "?tab=discovery" : ""}`}
                         className="text-primary hover:underline text-sm font-medium"
                       >
                         Manage

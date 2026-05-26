@@ -13,25 +13,22 @@ import {
 type ClientDetailTabsProps = {
   clientId: string;
   initialTab: AdminClientTab;
-  showWalkthroughTab: boolean;
+  showDiscoveryTab: boolean;
   overview: React.ReactNode;
-  walkthrough: React.ReactNode;
+  discovery: React.ReactNode;
   setup: React.ReactNode;
   billing: React.ReactNode;
 };
 
 function resolveActiveTab(
   tabParam: string | null | undefined,
-  openParam: string | null | undefined,
   initialTab: AdminClientTab,
-  showWalkthroughTab: boolean,
+  showDiscoveryTab: boolean,
 ): AdminClientTab {
-  const hasUrlTabHint = Boolean(tabParam || openParam);
-  let activeTab = hasUrlTabHint
-    ? resolveAdminClientTab(tabParam, openParam)
-    : initialTab;
+  const hasUrlTabHint = Boolean(tabParam);
+  let activeTab = hasUrlTabHint ? resolveAdminClientTab(tabParam) : initialTab;
 
-  if (activeTab === "walkthrough" && !showWalkthroughTab) {
+  if (activeTab === "discovery" && !showDiscoveryTab) {
     activeTab = "overview";
   }
 
@@ -41,37 +38,36 @@ function resolveActiveTab(
 export function ClientDetailTabs({
   clientId,
   initialTab,
-  showWalkthroughTab,
+  showDiscoveryTab,
   overview,
-  walkthrough,
+  discovery,
   setup,
   billing,
 }: ClientDetailTabsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams?.get("tab");
-  const openParam = searchParams?.get("open");
-  const activeTab = resolveActiveTab(tabParam, openParam, initialTab, showWalkthroughTab);
+  const activeTab = resolveActiveTab(tabParam, initialTab, showDiscoveryTab);
 
   const handleTabChange = useCallback(
     (value: string | number | null) => {
       if (typeof value !== "string" || !isAdminClientTab(value)) {
         return;
       }
-      if (value === "walkthrough" && !showWalkthroughTab) {
+      if (value === "discovery" && !showDiscoveryTab) {
         return;
       }
 
       router.replace(adminClientTabHref(clientId, value), { scroll: false });
     },
-    [clientId, router, showWalkthroughTab],
+    [clientId, router, showDiscoveryTab],
   );
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
       <TabsList className="w-full max-w-2xl flex-wrap h-auto">
         <TabsTrigger value="overview">Overview</TabsTrigger>
-        {showWalkthroughTab && <TabsTrigger value="walkthrough">Walkthrough</TabsTrigger>}
+        {showDiscoveryTab && <TabsTrigger value="discovery">Discovery call</TabsTrigger>}
         <TabsTrigger value="setup">Setup & access</TabsTrigger>
         <TabsTrigger value="billing">Billing</TabsTrigger>
       </TabsList>
@@ -80,9 +76,9 @@ export function ClientDetailTabs({
         {overview}
       </TabsContent>
 
-      {showWalkthroughTab && (
-        <TabsContent value="walkthrough" className="mt-0">
-          {walkthrough}
+      {showDiscoveryTab && (
+        <TabsContent value="discovery" className="mt-0">
+          {discovery}
         </TabsContent>
       )}
 

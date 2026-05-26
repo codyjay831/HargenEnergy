@@ -88,8 +88,8 @@ export async function upsertWorkTask(data: {
   name: string;
   description?: string;
   isActive?: boolean;
-  showOnWalkthrough?: boolean;
-  walkthroughOrder?: number;
+  showOnDiscovery?: boolean;
+  discoveryOrder?: number;
   maxMinutes?: number;
   requiredDocs?: string[];
   requiredFields?: CustomField[];
@@ -104,8 +104,8 @@ export async function upsertWorkTask(data: {
         name: data.name,
         description: data.description,
         isActive: data.isActive,
-        showOnWalkthrough: data.showOnWalkthrough,
-        walkthroughOrder: data.walkthroughOrder,
+        showOnDiscovery: data.showOnDiscovery,
+        discoveryOrder: data.discoveryOrder,
         maxMinutes: data.maxMinutes,
         requiredDocs: (data.requiredDocs ?? undefined) as
           | Prisma.InputJsonValue
@@ -120,8 +120,8 @@ export async function upsertWorkTask(data: {
         name: data.name,
         description: data.description,
         isActive: data.isActive ?? true,
-        showOnWalkthrough: data.showOnWalkthrough ?? false,
-        walkthroughOrder: data.walkthroughOrder ?? 0,
+        showOnDiscovery: data.showOnDiscovery ?? false,
+        discoveryOrder: data.discoveryOrder ?? 0,
         maxMinutes: data.maxMinutes,
         requiredDocs: (data.requiredDocs ?? undefined) as
           | Prisma.InputJsonValue

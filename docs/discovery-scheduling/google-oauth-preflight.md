@@ -1,0 +1,42 @@
+# Google OAuth Preflight — Discovery Scheduling
+
+Complete this checklist before enabling `DISCOVERY_SCHEDULING_ENABLED` in production.
+
+## Checklist
+
+- [ ] Google Cloud project created for Hargen Energy
+- [ ] Google Calendar API enabled in the project
+- [ ] OAuth consent screen configured (External or Internal)
+- [ ] Scope approved: `https://www.googleapis.com/auth/calendar.events`
+- [ ] Authorized redirect URI registered (must match `GOOGLE_OAUTH_REDIRECT_URI` or `{APP_URL}/api/integrations/google/callback` exactly):
+  - Production: `https://hargenenergy.com/api/integrations/google/callback`
+  - Also register `https://www.hargenenergy.com/api/integrations/google/callback` if `APP_URL` uses `www`
+  - Staging: `{STAGING_APP_URL}/api/integrations/google/callback`
+  - Local: `http://localhost:3000/api/integrations/google/callback`
+- [ ] `APP_URL` and `NEXT_PUBLIC_APP_URL` set to production domain (no trailing slash)
+- [ ] `GOOGLE_OAUTH_REDIRECT_URI` set in Vercel Production (recommended — avoids www/apex drift)
+- [ ] OAuth consent screen **In production** (or Internal workspace) — Testing mode only allows test users for **admin** connect
+- [ ] `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` set in Vercel (Production + Preview as needed)
+- [ ] `FIELD_ENCRYPTION_KEY` set in production (required for token storage)
+- [ ] Admin connect flow tested on target domain
+
+## Record (fill in at go-live)
+
+| Field | Value |
+|-------|-------|
+| Google Cloud Project ID | _pending_ |
+| Consent screen status | _pending_ |
+| Verification date | _pending_ |
+| Redirect URIs registered | _pending_ |
+| Test connect result | _pending_ |
+| Sign-off | _pending_ |
+
+## Notes
+
+- Only **admin** users complete Google OAuth. Customers book via public scheduling links; they do not sign in with Google.
+- Customer self-scheduling does not require Google app verification for end users, but admin calendar connect must work on the production domain.
+
+## Go / No-Go
+
+- **Go:** All checklist items pass; admin can connect calendar and select a calendar on staging/production.
+- **No-Go:** OAuth in Testing mode with non-test admin accounts, missing redirect URI, or Calendar API disabled.

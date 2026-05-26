@@ -30,7 +30,7 @@ import {
 } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { requireClientUser } from "@/lib/auth-guards";
-import { validateRequestedWalkthroughTaskIds } from "@/lib/walkthrough-catalog";
+import { validateRequestedDiscoveryTaskIds } from "@/lib/discovery-catalog";
 
 const PORTAL_VALIDATION_ERROR =
   "Please shorten your input or fix the required fields and try again.";
@@ -75,7 +75,7 @@ export async function requestScopeChange(data: {
 
   let resolvedTaskNames: string[] = [];
   if (parsed.data.requestedWorkTaskIds && parsed.data.requestedWorkTaskIds.length > 0) {
-    const taskValidation = await validateRequestedWalkthroughTaskIds(
+    const taskValidation = await validateRequestedDiscoveryTaskIds(
       parsed.data.requestedWorkTaskIds,
     );
     if (!taskValidation.ok) {

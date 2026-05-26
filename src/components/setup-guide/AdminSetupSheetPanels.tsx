@@ -58,7 +58,7 @@ export type AdminSetupSheetPanelsProps = {
     approvedWorkTaskIds: string[];
     suggestedWorkTaskIds: string[];
     categories: CatalogCategory[];
-    walkthroughPlanRequestBased?: boolean;
+    discoveryPlanRequestBased?: boolean;
   };
   systemAccessRecords: ClientSystemAccess[];
   adminRequestsHref: string;
@@ -81,7 +81,7 @@ export function AdminSetupSheetPanels({
       return (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Mark the company active after walkthrough, contract, and payment. Then configure
+            Mark the company active after discovery, contract, and payment. Then configure
             billing and send a portal invite.
           </p>
           {isActive ? (
@@ -100,7 +100,7 @@ export function AdminSetupSheetPanels({
           approvedWorkTaskIds={engagement.approvedWorkTaskIds}
           suggestedWorkTaskIds={engagement.suggestedWorkTaskIds}
           categories={engagement.categories}
-          walkthroughPlanRequestBased={engagement.walkthroughPlanRequestBased}
+          discoveryPlanRequestBased={engagement.discoveryPlanRequestBased}
         />
       );
 

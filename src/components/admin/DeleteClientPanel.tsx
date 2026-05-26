@@ -66,7 +66,7 @@ export function DeleteClientPanel(props: {
         </CardTitle>
         <CardDescription>
           Permanently removes this company and all related data — requests, time
-          entries, portal users, and walkthrough history. This cannot be undone.
+          entries, portal users, and discovery history. This cannot be undone.
           {isActiveOrArchived
             ? " Use Archive above instead if you may want to restore this company later."
             : null}

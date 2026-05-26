@@ -55,7 +55,7 @@ Audit of current UI/UX issues and polish opportunities.
 - **Success Feedback**: The "Request Help" success screen is a simple card; add a "What happens next" timeline.
 - **Form Validation**: Add real-time validation for email/phone formats to prevent submission errors.
 - **Spam Protection**: Honeypot is implemented; monitor for need of Turnstile or similar if bot traffic increases.
-- **Copy Clarity**: Audit marketing copy to ensure "Walkthrough" and "Solar Ops Desk" terminology is consistent.
+- **Copy Clarity**: Audit marketing copy to ensure "Discovery" and "Solar Ops Desk" terminology is consistent.
 
 ---
 

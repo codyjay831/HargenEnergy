@@ -83,7 +83,7 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
 
   // Redirect PROSPECT_INTAKE requests to the prospect page with drawer
   if (request.kind === SupportRequestKind.PROSPECT_INTAKE) {
-    redirect(`/admin/clients/${request.clientId}?tab=walkthrough&open=walkthrough`);
+    redirect(`/admin/clients/${request.clientId}?tab=discovery`);
   }
 
   const isSupportBlockClient =

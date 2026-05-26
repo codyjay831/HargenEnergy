@@ -13,24 +13,24 @@ import {
 } from "@/lib/client-billing-readiness";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import type { ClientPortalSupportSetup } from "@/lib/portal-support";
-import type { ClientWalkthroughRequest } from "@/lib/portal-walkthrough";
+import type { ClientDiscoveryRequest } from "@/lib/portal-discovery";
 import {
   flattenApprovedTaskIds,
-  walkthroughScopeMatchesApproved,
-} from "@/lib/portal-walkthrough-utils";
+  discoveryScopeMatchesApproved,
+} from "@/lib/portal-discovery-utils";
 import { cn } from "@/lib/utils";
 import { useSetupGuide } from "./SetupGuideProvider";
 
 export type PortalSetupSheetPanelsProps = {
   readiness: ClientSetupReadiness;
   setup?: ClientPortalSupportSetup | null;
-  walkthrough?: ClientWalkthroughRequest | null;
+  discovery?: ClientDiscoveryRequest | null;
 };
 
 export function PortalSetupSheetPanels({
   readiness,
   setup,
-  walkthrough,
+  discovery,
 }: PortalSetupSheetPanelsProps) {
   const { activeSheet } = useSetupGuide();
   if (!activeSheet) return null;
@@ -104,7 +104,7 @@ export function PortalSetupSheetPanels({
           </p>
         );
       }
-      return <SupportAreasPanel setup={setup} walkthrough={walkthrough} />;
+      return <SupportAreasPanel setup={setup} discovery={discovery} />;
 
     case "send-work":
       return (
@@ -134,25 +134,25 @@ export function PortalSetupSheetPanels({
 
 function SupportAreasPanel({
   setup,
-  walkthrough,
+  discovery,
 }: {
   setup: ClientPortalSupportSetup;
-  walkthrough?: ClientWalkthroughRequest | null;
+  discovery?: ClientDiscoveryRequest | null;
 }) {
   const copy = PRODUCT_LANGUAGE.supportSetup;
   const approvedTaskIds = flattenApprovedTaskIds(setup.supportAreas);
   const scopeMatches =
-    !walkthrough || walkthroughScopeMatchesApproved(walkthrough.taskIds, approvedTaskIds);
+    !discovery || discoveryScopeMatchesApproved(discovery.taskIds, approvedTaskIds);
 
   return (
     <div className="space-y-6">
-      {walkthrough && walkthrough.tasks.length > 0 && (
+      {discovery && discovery.tasks.length > 0 && (
         <div className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {copy.requestedAreasTitle}
           </p>
           <div className="space-y-2">
-            {walkthrough.tasks.map((task) => (
+            {discovery.tasks.map((task) => (
               <div key={task.id} className="rounded-md border bg-muted/20 px-3 py-2">
                 <p className="text-sm font-medium">{task.name}</p>
                 {task.description ? (
@@ -188,7 +188,7 @@ function SupportAreasPanel({
         )}
       </div>
 
-      {walkthrough && !scopeMatches && (
+      {discovery && !scopeMatches && (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           {copy.scopeDiffNotice}
         </p>

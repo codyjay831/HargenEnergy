@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Calendar, CheckCircle2 } from "lucide-react";
 import { requireStaff } from "@/lib/auth-guards";
 import { getActiveGoogleCalendarConnection } from "@/lib/google-calendar/token-store";
-import { getWalkthroughSchedulingReadiness } from "@/lib/walkthrough-scheduling/scheduling-readiness";
+import { getDiscoverySchedulingReadiness } from "@/lib/discovery-scheduling/scheduling-readiness";
 import { GoogleCalendarSettingsPanel } from "@/components/admin/GoogleCalendarSettingsPanel";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,7 +39,7 @@ export default async function CalendarSettingsPage({ searchParams }: CalendarSet
   const resolvedSearchParams = await searchParams;
   const [connection, readiness] = await Promise.all([
     getActiveGoogleCalendarConnection(),
-    getWalkthroughSchedulingReadiness(),
+    getDiscoverySchedulingReadiness(),
   ]);
 
   const connected = Boolean(connection);
@@ -59,7 +59,7 @@ export default async function CalendarSettingsPage({ searchParams }: CalendarSet
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Google Calendar</h1>
           <p className="text-muted-foreground">
-            Connect Google Calendar for walkthrough booking and availability checks.
+            Connect Google Calendar for discovery booking and availability checks.
           </p>
         </div>
       </div>
@@ -81,7 +81,7 @@ export default async function CalendarSettingsPage({ searchParams }: CalendarSet
         <CardHeader>
           <CardTitle>Connection</CardTitle>
           <CardDescription>
-            Walkthrough scheduling uses this calendar for free/busy checks and event creation.
+            Discovery scheduling uses this calendar for free/busy checks and event creation.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -117,7 +117,7 @@ export default async function CalendarSettingsPage({ searchParams }: CalendarSet
         <CardHeader>
           <CardTitle>Scheduling readiness</CardTitle>
           <CardDescription>
-            Calendar connection is one requirement for sending walkthrough scheduling links.
+            Calendar connection is one requirement for sending discovery scheduling links.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
@@ -148,8 +148,8 @@ export default async function CalendarSettingsPage({ searchParams }: CalendarSet
             </ul>
           )}
 
-          <Link href="/admin/settings/walkthrough-availability" className="text-sm text-primary hover:underline">
-            Configure walkthrough availability
+          <Link href="/admin/settings/discovery-availability" className="text-sm text-primary hover:underline">
+            Configure discovery availability
           </Link>
         </CardContent>
       </Card>

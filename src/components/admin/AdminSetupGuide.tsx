@@ -69,15 +69,15 @@ export function AdminSetupGuide({ readiness, ...sheetProps }: AdminSetupGuidePro
   const nextStep = findNextStep(readiness.adminSteps, ADMIN_NEXT_STEP_ORDER);
   const allComplete = nextStep == null;
 
-  const openWalkthrough = () => {
+  const openDiscovery = () => {
     const url = new URL(window.location.href);
-    url.searchParams.set("tab", "walkthrough");
-    url.searchParams.set("open", "walkthrough");
+    url.searchParams.set("tab", "discovery");
+    url.searchParams.set("open", "discovery");
     router.push(url.pathname + url.search);
   };
 
   return (
-    <SetupGuideProvider variant="admin" onOpenWalkthrough={openWalkthrough}>
+    <SetupGuideProvider variant="admin" onOpenDiscovery={openDiscovery}>
       <Card className="border-sky-200/80 shadow-sm">
         <CardContent className="pt-6">
           <SetupGuideShell

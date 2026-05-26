@@ -8,7 +8,7 @@ import {
   encryptFieldValue,
 } from "@/lib/crypto/field-encryption";
 import { refreshGoogleAccessToken, revokeGoogleToken } from "@/lib/google-calendar/oauth";
-import { GOOGLE_CALENDAR_SCOPE } from "@/lib/walkthrough-scheduling/constants";
+import { GOOGLE_CALENDAR_SCOPE } from "@/lib/discovery-scheduling/constants";
 import { prisma } from "@/lib/prisma";
 
 export async function upsertGoogleCalendarConnection(input: {

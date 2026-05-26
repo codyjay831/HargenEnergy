@@ -38,7 +38,7 @@ export const ADMIN_NEXT_STEP_ORDER = [
   "customer-system-access",
   "capacity",
   "first-work",
-  "walkthrough-reviewed",
+  "discovery-reviewed",
 ];
 
 export const CUSTOMER_SETUP_RAIL: SetupRailConfig[] = [

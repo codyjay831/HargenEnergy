@@ -430,8 +430,8 @@ async function deleteClientData(
   }
 
   await tx.disbursementRequest.deleteMany({ where: { clientId } });
-  await tx.walkthroughAppointment.deleteMany({ where: { clientId } });
-  await tx.walkthroughSchedulingLink.deleteMany({ where: { clientId } });
+  await tx.discoveryAppointment.deleteMany({ where: { clientId } });
+  await tx.discoverySchedulingLink.deleteMany({ where: { clientId } });
   await tx.attachment.deleteMany({ where: { clientId } });
   await tx.timeEntry.deleteMany({ where: { clientId } });
   await tx.recurringTask.deleteMany({ where: { clientId } });

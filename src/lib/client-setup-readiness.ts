@@ -7,7 +7,7 @@ import {
   SupportRequestKind,
   SystemAccessStatus,
   RequestStatus,
-  WalkthroughFitDecision,
+  DiscoveryFitDecision,
 } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -85,7 +85,7 @@ export type ClientSetupReadiness = {
   portalAccessReady: boolean;
   firstWorkSubmitted: boolean;
   scopeReady: boolean;
-  hasWalkthroughIntake: boolean;
+  hasDiscoveryIntake: boolean;
   billing: ClientBillingReadiness;
   systemAccess: SystemAccessReadiness;
   scope: ScopeReadiness;
@@ -115,7 +115,7 @@ export type DeriveClientSetupReadinessInput = {
   activeCatalogTaskCount: number;
   clientPortalUserCount: number;
   clientOpsRequestCount: number;
-  hasWalkthroughIntake: boolean;
+  hasDiscoveryIntake: boolean;
   prospectInDiscoveryPhase: boolean;
   systemAccessStatuses: SystemAccessStatus[];
   hrefs: SetupGuideHrefs;
@@ -123,7 +123,7 @@ export type DeriveClientSetupReadinessInput = {
 
 export type SetupGuideHrefs = {
   adminClient: string;
-  walkthrough: string;
+  discovery: string;
   activation: string;
   engagement: string;
   approvedWork: string;
@@ -143,7 +143,7 @@ export function buildSetupGuideHrefs(clientId: string): SetupGuideHrefs {
   const adminBase = `/admin/clients/${clientId}`;
   return {
     adminClient: adminBase,
-    walkthrough: `${adminBase}?tab=walkthrough&open=walkthrough`,
+    discovery: `${adminBase}?tab=discovery`,
     activation: `${adminBase}?tab=setup`,
     engagement: `${adminBase}?tab=setup`,
     approvedWork: `${adminBase}?tab=setup`,
@@ -329,7 +329,7 @@ export function deriveClientSetupReadiness(
     billing,
   });
 
-  const deferPostWalkthroughSetup = input.prospectInDiscoveryPhase;
+  const deferPostDiscoverySetup = input.prospectInDiscoveryPhase;
 
   const adminSteps: ClientSetupStep[] = [
     {
@@ -346,17 +346,17 @@ export function deriveClientSetupReadiness(
       customerVisible: false,
     },
     {
-      id: "walkthrough-reviewed",
-      title: "Walkthrough / intake reviewed",
-      description: input.hasWalkthroughIntake
+      id: "discovery-reviewed",
+      title: "Discovery / intake reviewed",
+      description: input.hasDiscoveryIntake
         ? "Prospect intake exists and can be reviewed."
         : "No prospect intake request found yet.",
       owner: "admin",
-      status: input.hasWalkthroughIntake ? "complete" : "incomplete",
+      status: input.hasDiscoveryIntake ? "complete" : "incomplete",
       blockers: ["informational"],
       required: false,
       actionLabel: "Review intake",
-      actionHref: input.hrefs.walkthrough,
+      actionHref: input.hrefs.discovery,
       adminOnly: true,
       customerVisible: false,
     },
@@ -683,7 +683,7 @@ export function deriveClientSetupReadiness(
     },
   ];
 
-  const postWalkthroughStepIds = new Set([
+  const postDiscoveryStepIds = new Set([
     "lifecycle-active",
     "engagement-selected",
     "approved-work",
@@ -696,9 +696,9 @@ export function deriveClientSetupReadiness(
     "first-work",
   ]);
 
-  const finalAdminSteps = deferPostWalkthroughSetup
+  const finalAdminSteps = deferPostDiscoverySetup
     ? adminSteps.map((step) => {
-        if (postWalkthroughStepIds.has(step.id)) {
+        if (postDiscoveryStepIds.has(step.id)) {
           return {
             ...step,
             status: "future" as SetupStepStatus,
@@ -706,7 +706,7 @@ export function deriveClientSetupReadiness(
             blockers: [] as SetupStepBlocker[],
           };
         }
-        if (step.id === "walkthrough-reviewed") {
+        if (step.id === "discovery-reviewed") {
           return { ...step, status: "not_required" as SetupStepStatus, required: false };
         }
         return step;
@@ -730,7 +730,7 @@ export function deriveClientSetupReadiness(
     portalAccessReady,
     firstWorkSubmitted,
     scopeReady: scope.ready,
-    hasWalkthroughIntake: input.hasWalkthroughIntake,
+    hasDiscoveryIntake: input.hasDiscoveryIntake,
     billing,
     systemAccess,
     scope,
@@ -778,7 +778,7 @@ export async function getClientSetupReadiness(
 
   const approvedIds = client.approvedWorkTasks.map((entry) => entry.workTaskId);
 
-  const [activeCatalogTaskCount, activeApprovedWorkTaskCount, clientOpsRequestCount, hasWalkthrough, latestIntake] =
+  const [activeCatalogTaskCount, activeApprovedWorkTaskCount, clientOpsRequestCount, hasDiscovery, latestIntake] =
     await Promise.all([
       prisma.workTask.count({ where: { isActive: true } }),
       approvedIds.length === 0
@@ -797,7 +797,7 @@ export async function getClientSetupReadiness(
         orderBy: { createdAt: "desc" },
         select: {
           status: true,
-          walkthroughAppointments: {
+          discoveryAppointments: {
             orderBy: { createdAt: "desc" },
             take: 1,
             select: { recapSentAt: true, fitDecision: true },
@@ -806,13 +806,13 @@ export async function getClientSetupReadiness(
       }),
     ]);
 
-  const latestAppointment = latestIntake?.walkthroughAppointments[0] ?? null;
+  const latestAppointment = latestIntake?.discoveryAppointments[0] ?? null;
   const prospectInDiscoveryPhase =
     client.status === ClientStatus.LEAD &&
     !(
       latestAppointment?.recapSentAt ||
       latestIntake?.status === RequestStatus.COMPLETE ||
-      latestAppointment?.fitDecision === WalkthroughFitDecision.GOOD_FIT
+      latestAppointment?.fitDecision === DiscoveryFitDecision.GOOD_FIT
     );
 
   return deriveClientSetupReadiness({
@@ -835,7 +835,7 @@ export async function getClientSetupReadiness(
     activeCatalogTaskCount,
     clientPortalUserCount: client.users.length,
     clientOpsRequestCount,
-    hasWalkthroughIntake: hasWalkthrough > 0,
+    hasDiscoveryIntake: hasDiscovery > 0,
     prospectInDiscoveryPhase,
     systemAccessStatuses: client.systemAccesses.map((record) => record.status),
     hrefs: buildSetupGuideHrefs(clientId),

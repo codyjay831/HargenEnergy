@@ -40,9 +40,9 @@ export const PAGE_INTENTS = {
   requestHelp: {
     path: "/request-help",
     primaryKeyword: "request solar operations support",
-    title: "Request a Walkthrough | Solar Operations Support",
+    title: "Request a Discovery | Solar Operations Support",
     description:
-      "Tell us where your solar operations are stuck. Request a walkthrough and hear back within one business day. No long-term contract required to start.",
+      "Tell us where your solar operations are stuck. Request a discovery and hear back within one business day. No long-term contract required to start.",
   },
 } as const;
 

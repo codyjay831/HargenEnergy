@@ -26,14 +26,14 @@ import {
   REQUEST_BASED_PRICING_REQUIRED_ERROR,
 } from "@/lib/engagement";
 import { persistPublicIntake } from "@/lib/intake-submit";
-import { validateRequestedWalkthroughTaskIds } from "@/lib/walkthrough-catalog";
+import { validateRequestedDiscoveryTaskIds } from "@/lib/discovery-catalog";
 import { formatIntakePlanLabel } from "@/lib/intake-plan";
 import { formatUrgencyLabel } from "@/lib/ui-enums";
 import { writeAuditLog } from "@/lib/audit-log";
-import { ensureWalkthroughSchedulingLink } from "@/lib/walkthrough-scheduling/ensure-scheduling-link";
-import { getWalkthroughSchedulingReadiness } from "@/lib/walkthrough-scheduling/scheduling-readiness";
+import { ensureDiscoverySchedulingLink } from "@/lib/discovery-scheduling/ensure-scheduling-link";
+import { getDiscoverySchedulingReadiness } from "@/lib/discovery-scheduling/scheduling-readiness";
 
-export type WalkthroughSubmissionSummary = {
+export type DiscoverySubmissionSummary = {
   requestId: string;
   submittedAt: string;
   bottleneck: string;
@@ -78,7 +78,7 @@ export async function submitRequestHelp(data: RequestHelpInput) {
 
   const normalizedEmail = email.trim().toLowerCase();
 
-  const taskValidation = await validateRequestedWalkthroughTaskIds(
+  const taskValidation = await validateRequestedDiscoveryTaskIds(
     validatedFields.data.requestedWorkTaskIds,
   );
   if (!taskValidation.ok) {
@@ -107,16 +107,16 @@ export async function submitRequestHelp(data: RequestHelpInput) {
     const { plan, urgency, bottleneck } = validatedFields.data;
 
     let schedulingUrl: string | undefined;
-    const readiness = await getWalkthroughSchedulingReadiness();
+    const readiness = await getDiscoverySchedulingReadiness();
     if (readiness.ready) {
-      const linkResult = await ensureWalkthroughSchedulingLink({
+      const linkResult = await ensureDiscoverySchedulingLink({
         supportRequestId: requestId,
         sendSchedulingEmail: false,
         createdByUserId: null,
         errorIfActiveExists: false,
         audit: {
           actorUserId: null,
-          action: "walkthrough.scheduling_link.auto_created",
+          action: "discovery.scheduling_link.auto_created",
         },
       });
       if ("schedulingUrl" in linkResult) {
@@ -149,7 +149,7 @@ export async function submitRequestHelp(data: RequestHelpInput) {
     revalidatePath("/admin");
     revalidateAdminClientPage(clientId);
 
-    const summary: WalkthroughSubmissionSummary = {
+    const summary: DiscoverySubmissionSummary = {
       requestId,
       submittedAt: new Date().toISOString(),
       bottleneck,

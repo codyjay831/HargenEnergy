@@ -5,11 +5,11 @@ import { PortalBillingPortalButton } from "@/components/forms/PortalBillingPorta
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { BillingMode } from "@/generated/prisma/client";
 import type { ClientPortalSupportSetup } from "@/lib/portal-support";
-import type { ClientWalkthroughRequest } from "@/lib/portal-walkthrough";
+import type { ClientDiscoveryRequest } from "@/lib/portal-discovery";
 import {
   flattenApprovedTaskIds,
-  walkthroughScopeMatchesApproved,
-} from "@/lib/portal-walkthrough-utils";
+  discoveryScopeMatchesApproved,
+} from "@/lib/portal-discovery-utils";
 import {
   getBillingBadgeVariant,
   getClientBillingReadiness,
@@ -17,13 +17,13 @@ import {
 
 interface PortalSupportSetupCardProps {
   setup: ClientPortalSupportSetup;
-  walkthrough?: ClientWalkthroughRequest | null;
+  discovery?: ClientDiscoveryRequest | null;
 }
 
 function RequestedAreasList({
-  walkthrough,
+  discovery,
 }: {
-  walkthrough: ClientWalkthroughRequest;
+  discovery: ClientDiscoveryRequest;
 }) {
   const copy = PRODUCT_LANGUAGE.supportSetup;
 
@@ -33,7 +33,7 @@ function RequestedAreasList({
         {copy.requestedAreasTitle}
       </span>
       <div className="space-y-2">
-        {walkthrough.tasks.map((task) => (
+        {discovery.tasks.map((task) => (
           <div key={task.id} className="rounded-md border bg-muted/20 px-3 py-2">
             <p className="text-sm font-medium">{task.name}</p>
             {task.description ? (
@@ -48,7 +48,7 @@ function RequestedAreasList({
 
 export function PortalSupportSetupCard({
   setup,
-  walkthrough,
+  discovery,
 }: PortalSupportSetupCardProps) {
   const copy = PRODUCT_LANGUAGE.supportSetup;
   const billing = getClientBillingReadiness({
@@ -65,8 +65,8 @@ export function PortalSupportSetupCard({
 
   const approvedTaskIds = flattenApprovedTaskIds(setup.supportAreas);
   const scopeMatches =
-    !walkthrough ||
-    walkthroughScopeMatchesApproved(walkthrough.taskIds, approvedTaskIds);
+    !discovery ||
+    discoveryScopeMatchesApproved(discovery.taskIds, approvedTaskIds);
 
   return (
     <Card id="support-setup">
@@ -84,7 +84,7 @@ export function PortalSupportSetupCard({
           <span className="text-sm font-medium">{setup.engagementLabel}</span>
         </div>
 
-        {walkthrough && <RequestedAreasList walkthrough={walkthrough} />}
+        {discovery && <RequestedAreasList discovery={discovery} />}
 
         {setup.isRequestBased ? (
           <p className="text-sm text-muted-foreground leading-relaxed">
@@ -135,7 +135,7 @@ export function PortalSupportSetupCard({
               )}
             </div>
 
-            {walkthrough && !scopeMatches && (
+            {discovery && !scopeMatches && (
               <p className="text-xs text-sky-800 bg-sky-50 border border-sky-200 rounded-md p-3 leading-relaxed">
                 {copy.scopeDiffNotice}
               </p>

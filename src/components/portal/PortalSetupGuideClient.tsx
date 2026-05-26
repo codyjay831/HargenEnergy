@@ -3,7 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import type { ClientSetupReadiness } from "@/lib/client-setup-readiness";
 import type { ClientPortalSupportSetup } from "@/lib/portal-support";
-import type { ClientWalkthroughRequest } from "@/lib/portal-walkthrough";
+import type { ClientDiscoveryRequest } from "@/lib/portal-discovery";
 import { SetupGuideShell } from "@/components/setup-guide/SetupGuideShell";
 import { SetupGuideProvider } from "@/components/setup-guide/SetupGuideProvider";
 import { SetupStepSheet } from "@/components/setup-guide/SetupStepSheet";
@@ -40,13 +40,13 @@ function PortalSetupSummary({ readiness }: { readiness: ClientSetupReadiness }) 
 type PortalSetupGuideClientProps = {
   readiness: ClientSetupReadiness;
   setup?: ClientPortalSupportSetup | null;
-  walkthrough?: ClientWalkthroughRequest | null;
+  discovery?: ClientDiscoveryRequest | null;
 };
 
 export function PortalSetupGuideClient({
   readiness,
   setup,
-  walkthrough,
+  discovery,
 }: PortalSetupGuideClientProps) {
   const railNodes = computeRailNodes(readiness.customerSteps, CUSTOMER_SETUP_RAIL);
   const nextStep = findNextStep(readiness.customerSteps, CUSTOMER_NEXT_STEP_ORDER);
@@ -71,7 +71,7 @@ export function PortalSetupGuideClient({
         <PortalSetupSheetPanels
           readiness={readiness}
           setup={setup}
-          walkthrough={walkthrough}
+          discovery={discovery}
         />
       </SetupStepSheet>
     </SetupGuideProvider>

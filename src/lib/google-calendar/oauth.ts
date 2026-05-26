@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getAppBaseUrl } from "@/lib/app-url";
-import { GOOGLE_CALENDAR_SCOPE } from "@/lib/walkthrough-scheduling/constants";
+import { GOOGLE_CALENDAR_SCOPE } from "@/lib/discovery-scheduling/constants";
 
 export function getGoogleOAuthRedirectUri(): string {
   const override = process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim();

@@ -76,7 +76,7 @@ export function assertBillableTimeOnRequest(
     billableType !== BillableType.NON_BILLABLE
   ) {
     return {
-      error: "Billable or overflow time cannot be logged on walkthrough requests. Mark time as non-billable.",
+      error: "Billable or overflow time cannot be logged on discovery requests. Mark time as non-billable.",
     };
   }
   return null;

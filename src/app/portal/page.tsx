@@ -25,9 +25,9 @@ import { isRequestBasedPricingComplete } from "@/lib/engagement";
 import { getClientPortalSupportSetup } from "@/lib/portal-support";
 import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
 import { PortalSetupGuide } from "@/components/portal/PortalSetupGuide";
-import { getClientWalkthroughRequest } from "@/lib/portal-walkthrough";
-import { getPublicWalkthroughCatalog } from "@/lib/walkthrough-catalog";
-import { YourWalkthroughRequest } from "@/components/portal/YourWalkthroughRequest";
+import { getClientDiscoveryRequest } from "@/lib/portal-discovery";
+import { getPublicDiscoveryCatalog } from "@/lib/discovery-catalog";
+import { YourDiscoveryRequest } from "@/components/portal/YourDiscoveryCallRequest";
 
 export const dynamic = "force-dynamic";
 
@@ -63,8 +63,8 @@ export default async function PortalDashboard() {
 
   const supportSetup = await getClientPortalSupportSetup(clientId);
   const setupReadinessResult = await getClientSetupReadiness(clientId);
-  const walkthrough = await getClientWalkthroughRequest(clientId);
-  const walkthroughCatalog = walkthrough ? await getPublicWalkthroughCatalog() : [];
+  const discovery = await getClientDiscoveryRequest(clientId);
+  const discoveryCatalog = discovery ? await getPublicDiscoveryCatalog() : [];
   const setupBlocked = !("error" in supportSetup) && !supportSetup.canSubmit;
 
   const isSupportBlock = client.engagementType === EngagementType.SUPPORT_BLOCK;
@@ -189,15 +189,15 @@ export default async function PortalDashboard() {
         </div>
       )}
 
-      {walkthrough && (
-        <YourWalkthroughRequest walkthrough={walkthrough} catalog={walkthroughCatalog} />
+      {discovery && (
+        <YourDiscoveryRequest discovery={discovery} catalog={discoveryCatalog} />
       )}
 
       {!("error" in setupReadinessResult) && (
         <PortalSetupGuide
           readiness={setupReadinessResult}
           setup={"error" in supportSetup ? null : supportSetup}
-          walkthrough={walkthrough}
+          discovery={discovery}
         />
       )}
 

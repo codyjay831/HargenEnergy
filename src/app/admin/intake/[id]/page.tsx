@@ -25,6 +25,6 @@ export default async function IntakeDetailPage({ params }: IntakeDetailPageProps
   }
 
   // Redirect to the prospect page with the drawer open
-  redirect(`/admin/clients/${request.clientId}?tab=walkthrough&open=walkthrough`);
+  redirect(`/admin/clients/${request.clientId}?tab=discovery`);
 
 }

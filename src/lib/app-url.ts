@@ -16,19 +16,14 @@ export function adminRequestUrl(requestId: string): string {
   return `${baseUrl()}/admin/requests/${encodeURIComponent(requestId)}`;
 }
 
-// Admin walkthrough (PROSPECT_INTAKE) deep-link to prospect walkthrough tab
-export function adminIntakeRequestUrl(clientId: string): string {
-  return `${baseUrl()}/admin/clients/${encodeURIComponent(clientId)}?tab=walkthrough&open=walkthrough`;
-}
-
 // Alias for clarity - same as adminRequestUrl
 export function adminWorkRequestUrl(requestId: string): string {
   return `${baseUrl()}/admin/requests/${encodeURIComponent(requestId)}`;
 }
 
-// Alias for clarity - same as adminIntakeRequestUrl
-export function adminWalkthroughUrl(clientId: string): string {
-  return `${baseUrl()}/admin/clients/${encodeURIComponent(clientId)}?tab=walkthrough&open=walkthrough`;
+/** Admin PROSPECT_INTAKE deep-link to client discovery tab */
+export function adminDiscoveryUrl(clientId: string): string {
+  return `${baseUrl()}/admin/clients/${encodeURIComponent(clientId)}?tab=discovery`;
 }
 
 // Portal request detail
@@ -41,28 +36,28 @@ export function adminClientUrl(clientId: string): string {
   return `${baseUrl()}/admin/clients/${encodeURIComponent(clientId)}`;
 }
 
-export function walkthroughSchedulingUrl(rawToken: string): string {
-  return `${baseUrl()}/schedule/walkthrough/${encodeURIComponent(rawToken)}`;
+export function discoverySchedulingUrl(rawToken: string): string {
+  return `${baseUrl()}/schedule/discovery/${encodeURIComponent(rawToken)}`;
 }
 
-export function walkthroughCalendarIcsUrl(rawToken: string): string {
-  return `${baseUrl()}/schedule/walkthrough/${encodeURIComponent(rawToken)}/calendar.ics`;
+export function discoveryCalendarIcsUrl(rawToken: string): string {
+  return `${baseUrl()}/schedule/discovery/${encodeURIComponent(rawToken)}/calendar.ics`;
 }
 
-export function walkthroughSignedCalendarIcsUrl(
+export function discoverySignedCalendarIcsUrl(
   appointmentId: string,
   signature: string,
 ): string {
   const params = new URLSearchParams({ sig: signature });
-  return `${baseUrl()}/api/walkthrough/appointments/${encodeURIComponent(appointmentId)}/calendar.ics?${params.toString()}`;
+  return `${baseUrl()}/api/discovery/appointments/${encodeURIComponent(appointmentId)}/calendar.ics?${params.toString()}`;
 }
 
 export function adminCalendarSettingsUrl(): string {
   return `${baseUrl()}/admin/settings/calendar`;
 }
 
-export function adminWalkthroughAvailabilityUrl(): string {
-  return `${baseUrl()}/admin/settings/walkthrough-availability`;
+export function adminDiscoveryAvailabilityUrl(): string {
+  return `${baseUrl()}/admin/settings/discovery-availability`;
 }
 
 export function portalAccessUrl(): string {

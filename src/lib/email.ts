@@ -3,13 +3,12 @@ import "server-only";
 import { Resend } from "resend";
 
 import {
-  adminIntakeRequestUrl,
+  adminDiscoveryUrl,
   adminRequestUrl,
-  adminWalkthroughUrl,
   portalRequestUrl,
-  walkthroughCalendarIcsUrl,
-  walkthroughSchedulingUrl,
-  walkthroughSignedCalendarIcsUrl,
+  discoveryCalendarIcsUrl,
+  discoverySchedulingUrl,
+  discoverySignedCalendarIcsUrl,
 } from "@/lib/app-url";
 import { SupportRequestKind } from "@/generated/prisma/client";
 import { escapeHtml, sanitizeEmailSubjectFragment } from "@/lib/html-escape";
@@ -18,9 +17,9 @@ import { renderIntakeAlertHtml } from "@/lib/intake-snapshot";
 import { EMAIL_SUBJECTS } from "@/lib/product-language";
 import {
   buildCancelIcsForAppointment,
-  buildWalkthroughCalendarArtifacts,
-} from "@/lib/walkthrough-scheduling/calendar-ics-server";
-import { signWalkthroughAppointmentCalendar } from "@/lib/walkthrough-scheduling/calendar-signature";
+  buildDiscoveryCalendarArtifacts,
+} from "@/lib/discovery-scheduling/calendar-ics-server";
+import { signDiscoveryAppointmentCalendar } from "@/lib/discovery-scheduling/calendar-signature";
 
 /**
  * Returns a Resend instance or null if the API key is missing.
@@ -121,28 +120,28 @@ export async function sendRequestConfirmation(
   const schedulingUrl = options?.schedulingUrl?.trim();
   const scheduleCta = schedulingUrl
     ? `<p style="margin: 24px 0;">
-            <a href="${escapeHtml(schedulingUrl)}" style="background: #0f172a; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;">Choose your walkthrough time</a>
+            <a href="${escapeHtml(schedulingUrl)}" style="background: #0f172a; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;">Choose your discovery time</a>
           </p>
           <p style="font-size: 14px; color: #64748b;">This scheduling link expires in 14 days.</p>`
     : "";
 
   const followUpCopy = schedulingUrl
-    ? `<p>Pick a time for your discovery walkthrough using the button above. We will review what you shared and come prepared for the conversation.</p>`
+    ? `<p>Pick a time for your discovery discovery using the button above. We will review what you shared and come prepared for the conversation.</p>`
     : `<p>We will review the bottleneck and support needs you shared. If we need more details to understand scope, we will follow up with you directly.</p>`;
 
   try {
     await resend.emails.send({
       from: fromEmail,
       to,
-      subject: EMAIL_SUBJECTS.walkthroughConfirmation(companyName),
+      subject: EMAIL_SUBJECTS.discoveryConfirmation(companyName),
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
-          <h2 style="color: #0f172a;">Walkthrough request received</h2>
-          <p>Hargen Energy has received your walkthrough request for <strong>${safeCompany}</strong>.</p>
+          <h2 style="color: #0f172a;">Discovery request received</h2>
+          <p>Hargen Energy has received your discovery request for <strong>${safeCompany}</strong>.</p>
           ${taskSummary}
           ${scheduleCta}
           ${followUpCopy}
-          <p>We will start with a walkthrough to understand your backlog and where you are stuck. Portal access and ongoing client work begin after onboarding, contract, and payment are in place.</p>
+          <p>We will start with a discovery to understand your backlog and where you are stuck. Portal access and ongoing client work begin after onboarding, contract, and payment are in place.</p>
           <p style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 14px; color: #64748b;">
             Hargen Energy Solar Ops Desk<br />
             Flexible Solar Operations Support
@@ -196,11 +195,11 @@ export async function sendInternalRequestAlert(data: {
   const isInboundLead = data.kind === SupportRequestKind.PROSPECT_INTAKE;
   const adminUrl =
     isInboundLead && data.clientId
-      ? adminIntakeRequestUrl(data.clientId)
+      ? adminDiscoveryUrl(data.clientId)
       : adminRequestUrl(data.requestId);
 
   const subjectBase = isInboundLead
-    ? EMAIL_SUBJECTS.walkthroughAdminAlert(data.companyName)
+    ? EMAIL_SUBJECTS.discoveryAdminAlert(data.companyName)
     : `New client ops request: ${data.companyName}`;
   const subject = sanitizeEmailSubjectFragment(
     data.subjectPrefix ? `${data.subjectPrefix} ${subjectBase}` : subjectBase,
@@ -883,7 +882,7 @@ export async function sendInternalDisbursementDecisionAlert(data: {
   }
 }
 
-function formatWalkthroughWhen(startUtc: Date, timezone: string): string {
+function formatDiscoveryWhen(startUtc: Date, timezone: string): string {
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "full",
     timeStyle: "short",
@@ -891,7 +890,7 @@ function formatWalkthroughWhen(startUtc: Date, timezone: string): string {
   }).format(startUtc);
 }
 
-type WalkthroughCalendarEmailContext = {
+type DiscoveryCalendarEmailContext = {
   appointmentId: string;
   companyName: string;
   startUtc: Date;
@@ -902,8 +901,8 @@ type WalkthroughCalendarEmailContext = {
   manageUrl?: string | null;
 };
 
-function getWalkthroughCalendarLinks(input: WalkthroughCalendarEmailContext) {
-  const artifacts = buildWalkthroughCalendarArtifacts({
+function getDiscoveryCalendarLinks(input: DiscoveryCalendarEmailContext) {
+  const artifacts = buildDiscoveryCalendarArtifacts({
     appointmentId: input.appointmentId,
     companyName: input.companyName,
     startUtc: input.startUtc,
@@ -914,10 +913,10 @@ function getWalkthroughCalendarLinks(input: WalkthroughCalendarEmailContext) {
   });
 
   const icsUrl = input.schedulingToken
-    ? walkthroughCalendarIcsUrl(input.schedulingToken)
-    : walkthroughSignedCalendarIcsUrl(
+    ? discoveryCalendarIcsUrl(input.schedulingToken)
+    : discoverySignedCalendarIcsUrl(
         input.appointmentId,
-        signWalkthroughAppointmentCalendar(input.appointmentId),
+        signDiscoveryAppointmentCalendar(input.appointmentId),
       );
 
   return {
@@ -926,7 +925,7 @@ function getWalkthroughCalendarLinks(input: WalkthroughCalendarEmailContext) {
   };
 }
 
-function renderWalkthroughCalendarLinks(input: { googleUrl: string; icsUrl: string }): string {
+function renderDiscoveryCalendarLinks(input: { googleUrl: string; icsUrl: string }): string {
   const googleUrl = escapeHtml(input.googleUrl);
   const icsUrl = escapeHtml(input.icsUrl);
 
@@ -942,7 +941,7 @@ function renderWalkthroughCalendarLinks(input: { googleUrl: string; icsUrl: stri
   `;
 }
 
-export async function sendWalkthroughNeedsInfoEmail(input: {
+export async function sendDiscoveryNeedsInfoEmail(input: {
   to: string;
   contactName: string;
   companyName: string;
@@ -960,12 +959,12 @@ export async function sendWalkthroughNeedsInfoEmail(input: {
       from: fromEmail,
       to: input.to,
       replyTo: input.replyTo,
-      subject: EMAIL_SUBJECTS.walkthroughNeedsInfo(input.companyName),
+      subject: EMAIL_SUBJECTS.discoveryNeedsInfo(input.companyName),
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
           <h2 style="color: #0f172a;">More information needed</h2>
           <p>Hi ${escapeHtml(input.contactName)},</p>
-          <p>Thanks for your walkthrough request for <strong>${escapeHtml(input.companyName)}</strong>. We need a few more details before we can move forward.</p>
+          <p>Thanks for your discovery request for <strong>${escapeHtml(input.companyName)}</strong>. We need a few more details before we can move forward.</p>
           <div style="margin: 20px 0; padding: 20px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
             <p style="margin: 0; font-weight: bold; color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">What we need:</p>
             <p style="margin-top: 10px; color: #0f172a; line-height: 1.6;">${safeMessage}</p>
@@ -980,12 +979,12 @@ export async function sendWalkthroughNeedsInfoEmail(input: {
     });
     return { success: true };
   } catch (error) {
-    console.error("Error sending walkthrough needs info email:", error);
+    console.error("Error sending discovery needs info email:", error);
     return { error: "Failed to send needs info email." };
   }
 }
 
-export async function sendWalkthroughSchedulingLinkEmail(input: {
+export async function sendDiscoverySchedulingLinkEmail(input: {
   to: string;
   contactName: string;
   companyName: string;
@@ -999,12 +998,12 @@ export async function sendWalkthroughSchedulingLinkEmail(input: {
     await resend.emails.send({
       from: fromEmail,
       to: input.to,
-      subject: EMAIL_SUBJECTS.walkthroughSchedulingLink(input.companyName),
+      subject: EMAIL_SUBJECTS.discoverySchedulingLink(input.companyName),
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
-          <h2 style="color: #0f172a;">Schedule your walkthrough</h2>
+          <h2 style="color: #0f172a;">Schedule your discovery</h2>
           <p>Hi ${escapeHtml(input.contactName)},</p>
-          <p>Thanks for your interest in Hargen Energy. Pick a time that works for a discovery walkthrough for <strong>${escapeHtml(input.companyName)}</strong>.</p>
+          <p>Thanks for your interest in Hargen Energy. Pick a time that works for a discovery discovery for <strong>${escapeHtml(input.companyName)}</strong>.</p>
           <p style="margin: 24px 0;">
             <a href="${escapeHtml(input.schedulingUrl)}" style="background: #0f172a; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;">Choose a time</a>
           </p>
@@ -1014,12 +1013,12 @@ export async function sendWalkthroughSchedulingLinkEmail(input: {
     });
     return { success: true };
   } catch (error) {
-    console.error("Error sending walkthrough scheduling link email:", error);
+    console.error("Error sending discovery scheduling link email:", error);
     return { error: "Failed to send scheduling link email." };
   }
 }
 
-export async function sendWalkthroughBookingConfirmationEmail(input: {
+export async function sendDiscoveryBookingConfirmationEmail(input: {
   to: string;
   contactName: string;
   companyName: string;
@@ -1034,9 +1033,9 @@ export async function sendWalkthroughBookingConfirmationEmail(input: {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
   const { resend, fromEmail } = config;
-  const when = formatWalkthroughWhen(input.startUtc, input.timezone);
-  const manageUrl = walkthroughSchedulingUrl(input.schedulingToken);
-  const calendar = getWalkthroughCalendarLinks({
+  const when = formatDiscoveryWhen(input.startUtc, input.timezone);
+  const manageUrl = discoverySchedulingUrl(input.schedulingToken);
+  const calendar = getDiscoveryCalendarLinks({
     appointmentId: input.appointmentId,
     companyName: input.companyName,
     startUtc: input.startUtc,
@@ -1051,35 +1050,35 @@ export async function sendWalkthroughBookingConfirmationEmail(input: {
     await resend.emails.send({
       from: fromEmail,
       to: input.to,
-      subject: EMAIL_SUBJECTS.walkthroughBookingConfirmation(input.companyName),
+      subject: EMAIL_SUBJECTS.discoveryBookingConfirmation(input.companyName),
       attachments: [
         {
-          filename: "hargen-walkthrough.ics",
+          filename: "hargen-discovery.ics",
           content: Buffer.from(calendar.publishIcs).toString("base64"),
         },
       ],
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
-          <h2 style="color: #0f172a;">Walkthrough scheduled</h2>
+          <h2 style="color: #0f172a;">Discovery scheduled</h2>
           <p>Hi ${escapeHtml(input.contactName)},</p>
-          <p>Your Hargen walkthrough for <strong>${escapeHtml(input.companyName)}</strong> is confirmed.</p>
+          <p>Your Hargen discovery for <strong>${escapeHtml(input.companyName)}</strong> is confirmed.</p>
           <p><strong>When:</strong> ${escapeHtml(when)} (${escapeHtml(input.timezone)})</p>
           ${input.meetingUrl ? `<p><strong>Google Meet:</strong> <a href="${escapeHtml(input.meetingUrl)}">${escapeHtml(input.meetingUrl)}</a></p>` : ""}
           <p style="margin: 24px 0;">
             <a href="${escapeHtml(manageUrl)}" style="background: #0f172a; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;">View or cancel</a>
           </p>
-          ${renderWalkthroughCalendarLinks(calendar)}
+          ${renderDiscoveryCalendarLinks(calendar)}
         </div>
       `,
     });
     return { success: true };
   } catch (error) {
-    console.error("Error sending walkthrough booking confirmation:", error);
+    console.error("Error sending discovery booking confirmation:", error);
     return { error: "Failed to send booking confirmation email." };
   }
 }
 
-export async function sendWalkthroughRescheduleEmail(input: {
+export async function sendDiscoveryRescheduleEmail(input: {
   to: string;
   contactName: string;
   companyName: string;
@@ -1094,9 +1093,9 @@ export async function sendWalkthroughRescheduleEmail(input: {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
   const { resend, fromEmail } = config;
-  const when = formatWalkthroughWhen(input.startUtc, input.timezone);
-  const manageUrl = walkthroughSchedulingUrl(input.schedulingToken);
-  const calendar = getWalkthroughCalendarLinks({
+  const when = formatDiscoveryWhen(input.startUtc, input.timezone);
+  const manageUrl = discoverySchedulingUrl(input.schedulingToken);
+  const calendar = getDiscoveryCalendarLinks({
     appointmentId: input.appointmentId,
     companyName: input.companyName,
     startUtc: input.startUtc,
@@ -1111,35 +1110,35 @@ export async function sendWalkthroughRescheduleEmail(input: {
     await resend.emails.send({
       from: fromEmail,
       to: input.to,
-      subject: EMAIL_SUBJECTS.walkthroughReschedule(input.companyName),
+      subject: EMAIL_SUBJECTS.discoveryReschedule(input.companyName),
       attachments: [
         {
-          filename: "hargen-walkthrough.ics",
+          filename: "hargen-discovery.ics",
           content: Buffer.from(calendar.publishIcs).toString("base64"),
         },
       ],
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
-          <h2 style="color: #0f172a;">Walkthrough rescheduled</h2>
+          <h2 style="color: #0f172a;">Discovery rescheduled</h2>
           <p>Hi ${escapeHtml(input.contactName)},</p>
-          <p>Your Hargen walkthrough for <strong>${escapeHtml(input.companyName)}</strong> has a new time.</p>
+          <p>Your Hargen discovery for <strong>${escapeHtml(input.companyName)}</strong> has a new time.</p>
           <p><strong>When:</strong> ${escapeHtml(when)} (${escapeHtml(input.timezone)})</p>
           ${input.meetingUrl ? `<p><strong>Google Meet:</strong> <a href="${escapeHtml(input.meetingUrl)}">${escapeHtml(input.meetingUrl)}</a></p>` : ""}
           <p style="margin: 24px 0;">
             <a href="${escapeHtml(manageUrl)}" style="background: #0f172a; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;">View appointment</a>
           </p>
-          ${renderWalkthroughCalendarLinks(calendar)}
+          ${renderDiscoveryCalendarLinks(calendar)}
         </div>
       `,
     });
     return { success: true };
   } catch (error) {
-    console.error("Error sending walkthrough reschedule email:", error);
+    console.error("Error sending discovery reschedule email:", error);
     return { error: "Failed to send reschedule confirmation email." };
   }
 }
 
-export async function sendWalkthroughReminderEmail(input: {
+export async function sendDiscoveryReminderEmail(input: {
   to: string;
   contactName: string;
   companyName: string;
@@ -1154,8 +1153,8 @@ export async function sendWalkthroughReminderEmail(input: {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
   const { resend, fromEmail } = config;
-  const when = formatWalkthroughWhen(input.startUtc, input.timezone);
-  const calendar = getWalkthroughCalendarLinks({
+  const when = formatDiscoveryWhen(input.startUtc, input.timezone);
+  const calendar = getDiscoveryCalendarLinks({
     appointmentId: input.appointmentId,
     companyName: input.companyName,
     startUtc: input.startUtc,
@@ -1168,26 +1167,26 @@ export async function sendWalkthroughReminderEmail(input: {
     await resend.emails.send({
       from: fromEmail,
       to: input.to,
-      subject: EMAIL_SUBJECTS.walkthroughReminder(input.companyName),
+      subject: EMAIL_SUBJECTS.discoveryReminder(input.companyName),
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
           <h2 style="color: #0f172a;">${escapeHtml(input.reminderLabel)}</h2>
           <p>Hi ${escapeHtml(input.contactName)},</p>
-          <p>Reminder for your Hargen walkthrough with <strong>${escapeHtml(input.companyName)}</strong>.</p>
+          <p>Reminder for your Hargen discovery with <strong>${escapeHtml(input.companyName)}</strong>.</p>
           <p><strong>When:</strong> ${escapeHtml(when)} (${escapeHtml(input.timezone)})</p>
           ${input.meetingUrl ? `<p><strong>Google Meet:</strong> <a href="${escapeHtml(input.meetingUrl)}">${escapeHtml(input.meetingUrl)}</a></p>` : ""}
-          ${renderWalkthroughCalendarLinks(calendar)}
+          ${renderDiscoveryCalendarLinks(calendar)}
         </div>
       `,
     });
     return { success: true };
   } catch (error) {
-    console.error("Error sending walkthrough reminder email:", error);
+    console.error("Error sending discovery reminder email:", error);
     return { error: "Failed to send reminder email." };
   }
 }
 
-export async function sendWalkthroughCancelAdminNotification(input: {
+export async function sendDiscoveryCancelAdminNotification(input: {
   companyName: string;
   clientId: string;
   startUtc: Date;
@@ -1199,20 +1198,20 @@ export async function sendWalkthroughCancelAdminNotification(input: {
     return { error: "Internal notification email not configured." };
   }
   const { resend, fromEmail } = config;
-  const when = formatWalkthroughWhen(input.startUtc, input.timezone);
-  const adminUrl = escapeHtml(adminWalkthroughUrl(input.clientId));
+  const when = formatDiscoveryWhen(input.startUtc, input.timezone);
+  const adminUrl = escapeHtml(adminDiscoveryUrl(input.clientId));
 
   try {
     await resend.emails.send({
       from: fromEmail,
       to: ADMIN_EMAIL,
       subject: sanitizeEmailSubjectFragment(
-        `Walkthrough canceled: ${input.companyName}`,
+        `Discovery canceled: ${input.companyName}`,
         200,
       ),
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
-          <h2 style="color: #0f172a;">Prospect canceled walkthrough</h2>
+          <h2 style="color: #0f172a;">Prospect canceled discovery</h2>
           <p><strong>Company:</strong> ${escapeHtml(input.companyName)}</p>
           <p><strong>Was scheduled for:</strong> ${escapeHtml(when)} (${escapeHtml(input.timezone)})</p>
           <p style="margin-top: 20px;">
@@ -1223,12 +1222,12 @@ export async function sendWalkthroughCancelAdminNotification(input: {
     });
     return { success: true };
   } catch (error) {
-    console.error("Error sending walkthrough cancel admin notification:", error);
+    console.error("Error sending discovery cancel admin notification:", error);
     return { error: "Failed to send admin notification." };
   }
 }
 
-export async function sendWalkthroughCancelEmail(input: {
+export async function sendDiscoveryCancelEmail(input: {
   to: string;
   contactName: string;
   companyName: string;
@@ -1242,7 +1241,7 @@ export async function sendWalkthroughCancelEmail(input: {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
   const { resend, fromEmail } = config;
-  const when = formatWalkthroughWhen(input.startUtc, input.timezone);
+  const when = formatDiscoveryWhen(input.startUtc, input.timezone);
   const cancelIcs = buildCancelIcsForAppointment({
     appointmentId: input.appointmentId,
     companyName: input.companyName,
@@ -1256,30 +1255,30 @@ export async function sendWalkthroughCancelEmail(input: {
     await resend.emails.send({
       from: fromEmail,
       to: input.to,
-      subject: EMAIL_SUBJECTS.walkthroughCancel(input.companyName),
+      subject: EMAIL_SUBJECTS.discoveryCancel(input.companyName),
       attachments: [
         {
-          filename: "hargen-walkthrough-cancel.ics",
+          filename: "hargen-discovery-cancel.ics",
           content: Buffer.from(cancelIcs).toString("base64"),
         },
       ],
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
-          <h2 style="color: #0f172a;">Walkthrough canceled</h2>
+          <h2 style="color: #0f172a;">Discovery canceled</h2>
           <p>Hi ${escapeHtml(input.contactName)},</p>
-          <p>Your walkthrough for <strong>${escapeHtml(input.companyName)}</strong> scheduled for ${escapeHtml(when)} has been canceled.</p>
+          <p>Your discovery for <strong>${escapeHtml(input.companyName)}</strong> scheduled for ${escapeHtml(when)} has been canceled.</p>
           <p>Reply to this email if you'd like to reschedule.</p>
         </div>
       `,
     });
     return { success: true };
   } catch (error) {
-    console.error("Error sending walkthrough cancel email:", error);
+    console.error("Error sending discovery cancel email:", error);
     return { error: "Failed to send cancel email." };
   }
 }
 
-export async function sendWalkthroughRecapEmail(input: {
+export async function sendDiscoveryRecapEmail(input: {
   to: string;
   contactName: string;
   companyName: string;
@@ -1293,10 +1292,10 @@ export async function sendWalkthroughRecapEmail(input: {
     await resend.emails.send({
       from: fromEmail,
       to: input.to,
-      subject: EMAIL_SUBJECTS.walkthroughRecap(input.companyName),
+      subject: EMAIL_SUBJECTS.discoveryRecap(input.companyName),
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
-          <h2 style="color: #0f172a;">Walkthrough recap</h2>
+          <h2 style="color: #0f172a;">Discovery recap</h2>
           <p>Hi ${escapeHtml(input.contactName)},</p>
           <div style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(input.recapContent)}</div>
         </div>
@@ -1304,7 +1303,7 @@ export async function sendWalkthroughRecapEmail(input: {
     });
     return { success: true };
   } catch (error) {
-    console.error("Error sending walkthrough recap email:", error);
+    console.error("Error sending discovery recap email:", error);
     return { error: "Failed to send recap email." };
   }
 }

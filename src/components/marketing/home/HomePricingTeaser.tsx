@@ -23,7 +23,7 @@ export function HomePricingTeaser() {
           <h2 className={marketingH2}>Flexible support blocks.</h2>
           <p className={cn(marketingLead, "mt-3")}>
             Reserve weekly solar operations capacity that fits your current volume.
-            Weekly blocks; scope and rate confirmed on your walkthrough.
+            Weekly blocks; scope and rate confirmed on your discovery.
           </p>
         </div>
 

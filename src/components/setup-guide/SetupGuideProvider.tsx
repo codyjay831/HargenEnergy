@@ -19,7 +19,7 @@ type SetupGuideContextValue = {
   openSheet: (key: SetupSheetKey) => void;
   openRailNode: (railId: string) => void;
   closeSheet: () => void;
-  onOpenWalkthrough?: () => void;
+  onOpenDiscovery?: () => void;
 };
 
 const SetupGuideContext = createContext<SetupGuideContextValue | null>(null);
@@ -39,25 +39,25 @@ export function useSetupGuideOptional() {
 type SetupGuideProviderProps = {
   variant: SetupGuideVariant;
   children: ReactNode;
-  onOpenWalkthrough?: () => void;
+  onOpenDiscovery?: () => void;
 };
 
 export function SetupGuideProvider({
   variant,
   children,
-  onOpenWalkthrough,
+  onOpenDiscovery,
 }: SetupGuideProviderProps) {
   const [activeSheet, setActiveSheet] = useState<SetupSheetKey | null>(null);
 
   const openSheet = useCallback(
     (key: SetupSheetKey) => {
-      if (key === "walkthrough" && onOpenWalkthrough) {
-        onOpenWalkthrough();
+      if (key === "discovery" && onOpenDiscovery) {
+        onOpenDiscovery();
         return;
       }
       setActiveSheet(key);
     },
-    [onOpenWalkthrough],
+    [onOpenDiscovery],
   );
 
   const openRailNode = useCallback(
@@ -82,9 +82,9 @@ export function SetupGuideProvider({
       openSheet,
       openRailNode,
       closeSheet,
-      onOpenWalkthrough,
+      onOpenDiscovery,
     }),
-    [activeSheet, closeSheet, onOpenWalkthrough, openRailNode, openSheet, variant],
+    [activeSheet, closeSheet, onOpenDiscovery, openRailNode, openSheet, variant],
   );
 
   return (

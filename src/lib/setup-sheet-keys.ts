@@ -4,7 +4,7 @@ export type SetupSheetKey =
   | "billing"
   | "system-access"
   | "portal-invite"
-  | "walkthrough"
+  | "discovery"
   | "client-details"
   | "work-requests"
   | "portal-account"
@@ -30,7 +30,7 @@ export const CUSTOMER_RAIL_SHEET: Record<string, SetupSheetKey> = {
 
 export const ADMIN_STEP_SHEET: Partial<Record<string, SetupSheetKey>> = {
   "client-created": "client-details",
-  "walkthrough-reviewed": "walkthrough",
+  "discovery-reviewed": "discovery",
   "lifecycle-active": "activation",
   "engagement-selected": "engagement",
   "approved-work": "engagement",
@@ -59,7 +59,7 @@ const SHEET_TITLES: Record<SetupSheetKey, { admin: string; customer: string }> =
   billing: { admin: "Billing", customer: "Billing setup" },
   "system-access": { admin: "System access", customer: "System access" },
   "portal-invite": { admin: "Portal invite", customer: "Portal invite" },
-  walkthrough: { admin: "Walkthrough / intake", customer: "Walkthrough" },
+  discovery: { admin: "Discovery call / intake", customer: "Discovery call" },
   "client-details": { admin: "Client details", customer: "Client details" },
   "work-requests": { admin: "Work requests", customer: "Work requests" },
   "portal-account": { admin: "Portal account", customer: "Portal access" },

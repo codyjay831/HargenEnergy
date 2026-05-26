@@ -9,7 +9,7 @@
       "schedule": "0 3 * * *"
     },
     {
-      "path": "/api/cron/walkthrough-reminders",
+      "path": "/api/cron/discovery-reminders",
       "schedule": "*/15 * * * *"
     }
   ]

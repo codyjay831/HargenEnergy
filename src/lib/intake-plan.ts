@@ -1,5 +1,5 @@
 /**
- * Display labels for walkthrough intakePlan metadata (qualification hint only — not scope).
+ * Display labels for discovery intakePlan metadata (qualification hint only — not scope).
  */
 
 const INTAKE_PLAN_LABELS: Record<string, string> = {

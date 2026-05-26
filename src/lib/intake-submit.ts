@@ -18,7 +18,7 @@ export type IntakePrismaClient = Pick<
   "client" | "supportRequest" | "supportRequestWorkTask" | "workTask"
 >;
 
-export type ResolvedWalkthroughTask = {
+export type ResolvedDiscoveryTask = {
   id: string;
   name: string;
 };
@@ -76,7 +76,7 @@ export function buildIntakeEmailPayload(
   data: RequestHelpInput & { normalizedEmail: string },
   clientId: string,
   requestId: string,
-  resolvedTasks: ResolvedWalkthroughTask[],
+  resolvedTasks: ResolvedDiscoveryTask[],
   subjectPrefix?: string,
 ): IntakeEmailPayload {
   const {
@@ -122,7 +122,7 @@ export async function persistPublicIntake(
   prisma: IntakePrismaClient,
   data: RequestHelpInput & {
     normalizedEmail: string;
-    resolvedTasks: ResolvedWalkthroughTask[];
+    resolvedTasks: ResolvedDiscoveryTask[];
   },
 ): Promise<{
   clientId: string;
@@ -149,7 +149,7 @@ export async function persistPublicIntake(
   const taskIds = resolvedTasks.map((task) => task.id);
 
   if (taskIds.length === 0) {
-    throw new Error("At least one walkthrough work task is required.");
+    throw new Error("At least one discovery work task is required.");
   }
 
   const mappedPlanType = mapIntakePlanType(plan);

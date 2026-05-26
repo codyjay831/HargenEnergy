@@ -28,16 +28,16 @@ import { getEngagementLabel } from "@/lib/engagement";
 import { ActivateClientButton } from "@/components/forms/ActivateClientButton";
 import { LogClientOpsForm } from "@/components/forms/LogClientOpsForm";
 import { calculateWeeklyUsage, type WeeklyUsage } from "@/lib/usage";
-import { OnboardingWrapper } from "@/components/onboarding/OnboardingWrapper";
+import { DiscoveryClientPanel } from "@/components/onboarding/DiscoveryClientPanel";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { formatIntakePlanLabel } from "@/lib/intake-plan";
 import { AdminSetupGuide } from "@/components/admin/AdminSetupGuide";
-import { WalkthroughCommandCenter } from "@/components/admin/WalkthroughCommandCenter";
+import { DiscoveryCommandCenter } from "@/components/admin/DiscoveryCommandCenter";
 import { ClientDetailTabs } from "@/components/admin/ClientDetailTabs";
 import { ArchiveClientPanel } from "@/components/admin/ArchiveClientPanel";
 import { DeleteClientPanel } from "@/components/admin/DeleteClientPanel";
-import { getWalkthroughSchedulingReadiness } from "@/lib/walkthrough-scheduling/scheduling-readiness";
-import { pickWalkthroughAppointmentForPipeline } from "@/lib/walkthrough-scheduling/pipeline";
+import { getDiscoverySchedulingReadiness } from "@/lib/discovery-scheduling/scheduling-readiness";
+import { pickDiscoveryAppointmentForPipeline } from "@/lib/discovery-scheduling/pipeline";
 import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
 import { getClientSystemAccessForAdmin } from "@/app/actions/system-access";
 import { resolveAdminClientTab } from "@/lib/admin-client-tabs";
@@ -124,7 +124,7 @@ export default async function ClientDetailPage({
   const isProspect = client.status === ClientStatus.LEAD;
   const usage = calculateWeeklyUsage(client.timeEntries, client.weeklyHours);
 
-  const latestWalkthrough = await prisma.supportRequest.findFirst({
+  const latestDiscovery = await prisma.supportRequest.findFirst({
     where: {
       clientId: client.id,
       kind: SupportRequestKind.PROSPECT_INTAKE,
@@ -139,40 +139,40 @@ export default async function ClientDetailPage({
           },
         },
       },
-      walkthroughSchedulingLink: true,
-      walkthroughAppointments: {
+      discoverySchedulingLink: true,
+      discoveryAppointments: {
         orderBy: { createdAt: "desc" },
         take: 10,
       },
     },
   });
 
-  const pipelineAppointment = latestWalkthrough
-    ? pickWalkthroughAppointmentForPipeline(latestWalkthrough.walkthroughAppointments)
+  const pipelineAppointment = latestDiscovery
+    ? pickDiscoveryAppointmentForPipeline(latestDiscovery.discoveryAppointments)
     : null;
   const latestAppointment = pipelineAppointment;
-  const schedulingLink = latestWalkthrough?.walkthroughSchedulingLink ?? null;
-  const schedulingReadiness = await getWalkthroughSchedulingReadiness();
+  const schedulingLink = latestDiscovery?.discoverySchedulingLink ?? null;
+  const schedulingReadiness = await getDiscoverySchedulingReadiness();
 
   const suggestedWorkTaskIds =
-    latestWalkthrough?.requestedWorkTasks.map((row) => row.workTaskId) ?? [];
+    latestDiscovery?.requestedWorkTasks.map((row) => row.workTaskId) ?? [];
 
-  const walkthroughRequestForDrawer = latestWalkthrough
+  const discoveryRequestForDrawer = latestDiscovery
     ? {
-        ...latestWalkthrough,
-        requestedTasks: latestWalkthrough.requestedWorkTasks.map((row) => ({
+        ...latestDiscovery,
+        requestedTasks: latestDiscovery.requestedWorkTasks.map((row) => ({
           name: row.workTask.name,
           description: row.workTask.description,
         })),
       }
     : null;
 
-  const walkthroughMetadata = latestWalkthrough?.metadata as { intakePlan?: string } | null;
-  const walkthroughPlanRequestBased =
-    walkthroughMetadata?.intakePlan === "request-based" ||
-    walkthroughMetadata?.intakePlan === "one-time";
+  const discoveryMetadata = latestDiscovery?.metadata as { intakePlan?: string } | null;
+  const discoveryPlanRequestBased =
+    discoveryMetadata?.intakePlan === "request-based" ||
+    discoveryMetadata?.intakePlan === "one-time";
   const approvedWorkTaskCount = client.approvedWorkTasks.length;
-  const planInterestLabel = formatIntakePlanLabel(walkthroughMetadata?.intakePlan);
+  const planInterestLabel = formatIntakePlanLabel(discoveryMetadata?.intakePlan);
   const setupReadinessResult = await getClientSetupReadiness(client.id);
   const decryptedSystemAccesses = await getClientSystemAccessForAdmin(client.id);
 
@@ -181,12 +181,9 @@ export default async function ClientDetailPage({
   }
 
   const setupReadiness = setupReadinessResult;
-  const showWalkthroughTab = isProspect || setupReadiness.hasWalkthroughIntake;
-  let initialTab = resolveAdminClientTab(
-    resolvedSearchParams.tab,
-    resolvedSearchParams.open,
-  );
-  if (initialTab === "walkthrough" && !showWalkthroughTab) {
+  const showDiscoveryTab = isProspect || setupReadiness.hasDiscoveryIntake;
+  let initialTab = resolveAdminClientTab(resolvedSearchParams.tab);
+  if (initialTab === "discovery" && !showDiscoveryTab) {
     initialTab = "overview";
   }
 
@@ -197,7 +194,7 @@ export default async function ClientDetailPage({
       approvedWorkTaskIds={client.approvedWorkTasks.map((a) => a.workTaskId)}
       suggestedWorkTaskIds={suggestedWorkTaskIds}
       categories={catalogCategories}
-      walkthroughPlanRequestBased={walkthroughPlanRequestBased}
+      discoveryPlanRequestBased={discoveryPlanRequestBased}
     />
   );
 
@@ -229,12 +226,12 @@ export default async function ClientDetailPage({
       </div>
 
       <div id="setup-guide" className="scroll-mt-8">
-        {isProspect && latestWalkthrough ? (
-          <WalkthroughCommandCenter
+        {isProspect && latestDiscovery ? (
+          <DiscoveryCommandCenter
             clientId={client.id}
             clientStatus={client.status}
-            supportRequestId={latestWalkthrough.id}
-            requestStatus={latestWalkthrough.status}
+            supportRequestId={latestDiscovery.id}
+            requestStatus={latestDiscovery.status}
             linkStatus={schedulingLink?.status ?? null}
             appointmentStatus={latestAppointment?.status ?? null}
             fitDecision={latestAppointment?.fitDecision ?? null}
@@ -243,7 +240,7 @@ export default async function ClientDetailPage({
             prospectEmail={client.email}
             contactName={client.contactName}
             companyName={client.companyName}
-            clientVisibleUpdate={latestWalkthrough.clientVisibleUpdate}
+            clientVisibleUpdate={latestDiscovery.clientVisibleUpdate}
           />
         ) : (
           <AdminSetupGuide
@@ -279,7 +276,7 @@ export default async function ClientDetailPage({
             approvedWorkTaskIds: client.approvedWorkTasks.map((a) => a.workTaskId),
             suggestedWorkTaskIds,
             categories: catalogCategories,
-            walkthroughPlanRequestBased,
+            discoveryPlanRequestBased,
           }}
           systemAccessRecords={decryptedSystemAccesses}
           adminRequestsHref={`/admin/requests?clientId=${client.id}`}
@@ -295,7 +292,7 @@ export default async function ClientDetailPage({
         <ClientDetailTabs
           clientId={client.id}
           initialTab={initialTab}
-          showWalkthroughTab={showWalkthroughTab}
+          showDiscoveryTab={showDiscoveryTab}
           overview={
             isProspect ? (
               <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -363,8 +360,8 @@ export default async function ClientDetailPage({
               </div>
             )
           }
-          walkthrough={
-            <OnboardingWrapper
+          discovery={
+            <DiscoveryClientPanel
               intakeClient={{
                 companyName: client.companyName,
                 contactName: client.contactName,
@@ -375,33 +372,33 @@ export default async function ClientDetailPage({
                 serviceArea: client.serviceArea,
                 currentTools: client.currentTools,
               }}
-              walkthroughMetadata={walkthroughMetadata}
-              latestWalkthroughRequest={
-                walkthroughRequestForDrawer
+              discoveryMetadata={discoveryMetadata}
+              latestDiscoveryRequest={
+                discoveryRequestForDrawer
                   ? {
-                      id: walkthroughRequestForDrawer.id,
-                      title: walkthroughRequestForDrawer.title,
-                      supportNeeded: walkthroughRequestForDrawer.supportNeeded,
-                      description: walkthroughRequestForDrawer.description,
-                      mostHelpful: walkthroughRequestForDrawer.mostHelpful,
-                      urgency: walkthroughRequestForDrawer.urgency,
-                      status: walkthroughRequestForDrawer.status,
-                      internalNotes: walkthroughRequestForDrawer.internalNotes,
-                      clientVisibleUpdate: walkthroughRequestForDrawer.clientVisibleUpdate,
-                      createdAt: walkthroughRequestForDrawer.createdAt,
-                      requestedTasks: walkthroughRequestForDrawer.requestedTasks,
+                      id: discoveryRequestForDrawer.id,
+                      title: discoveryRequestForDrawer.title,
+                      supportNeeded: discoveryRequestForDrawer.supportNeeded,
+                      description: discoveryRequestForDrawer.description,
+                      mostHelpful: discoveryRequestForDrawer.mostHelpful,
+                      urgency: discoveryRequestForDrawer.urgency,
+                      status: discoveryRequestForDrawer.status,
+                      internalNotes: discoveryRequestForDrawer.internalNotes,
+                      clientVisibleUpdate: discoveryRequestForDrawer.clientVisibleUpdate,
+                      createdAt: discoveryRequestForDrawer.createdAt,
+                      requestedTasks: discoveryRequestForDrawer.requestedTasks,
                     }
                   : {
-                      id: latestWalkthrough!.id,
-                      title: latestWalkthrough!.title,
-                      supportNeeded: latestWalkthrough!.supportNeeded,
-                      description: latestWalkthrough!.description,
-                      mostHelpful: latestWalkthrough!.mostHelpful,
-                      urgency: latestWalkthrough!.urgency,
-                      status: latestWalkthrough!.status,
-                      internalNotes: latestWalkthrough!.internalNotes,
-                      clientVisibleUpdate: latestWalkthrough!.clientVisibleUpdate,
-                      createdAt: latestWalkthrough!.createdAt,
+                      id: latestDiscovery!.id,
+                      title: latestDiscovery!.title,
+                      supportNeeded: latestDiscovery!.supportNeeded,
+                      description: latestDiscovery!.description,
+                      mostHelpful: latestDiscovery!.mostHelpful,
+                      urgency: latestDiscovery!.urgency,
+                      status: latestDiscovery!.status,
+                      internalNotes: latestDiscovery!.internalNotes,
+                      clientVisibleUpdate: latestDiscovery!.clientVisibleUpdate,
+                      createdAt: latestDiscovery!.createdAt,
                     }
               }
               schedulingReadiness={schedulingReadiness}
@@ -447,7 +444,7 @@ export default async function ClientDetailPage({
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <p className="text-sm text-muted-foreground">
-                      Mark the company active after walkthrough, contract, and payment. Then set
+                      Mark the company active after discovery, contract, and payment. Then set
                       up billing and send a portal invite from the Billing tab.
                     </p>
                     <ActivateClientButton clientId={client.id} />

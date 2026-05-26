@@ -1,36 +1,42 @@
 /**
  * Product Language Glossary
- * 
+ *
  * Single source of truth for all user-facing terminology.
  * Ensures consistent language across admin, public, portal, and email surfaces.
  */
 
 // Canonical lifecycle stage labels
 export const PRODUCT_LANGUAGE = {
-  // Pre-sale / qualification
-  walkthrough: {
-    singular: "Walkthrough request",
-    plural: "Walkthrough requests",
-    action: "Request a walkthrough",
-    detailTitle: "Walkthrough Request",
+  discoveryRequest: {
+    singular: "Discovery call request",
+    plural: "Discovery call requests",
+    action: "Request a discovery call",
+    detailTitle: "Discovery call request",
     statusLabel: "Qualification stage",
   },
-  
+
+  discoveryCall: {
+    singular: "Discovery call",
+    plural: "Discovery calls",
+    scheduleAction: "Schedule your discovery call",
+    scheduledLabel: "Discovery call scheduled",
+  },
+
   // Company states
   prospect: {
     singular: "Prospect",
     plural: "Prospects",
     listTitle: "Prospects",
-    listSubtitle: "Companies awaiting activation after walkthrough and contract.",
+    listSubtitle: "Companies awaiting activation after discovery call and contract.",
     badge: "Prospect",
   },
-  
+
   client: {
     singular: "Client",
     plural: "Clients",
     badge: "Active client",
   },
-  
+
   // Post-activation work
   workRequest: {
     singular: "Work request",
@@ -55,7 +61,7 @@ export const PRODUCT_LANGUAGE = {
     approvedAreasTitle: "Approved support areas",
     requestedAreasTitle: "What you requested",
     scopeDiffNotice:
-      "Your account manager may adjust scope after the walkthrough. Approved areas can differ from your original request.",
+      "Your account manager may adjust scope after the discovery call. Approved areas can differ from your original request.",
     requestBasedExplainer:
       "Send work as needed. Hargen reviews each request and confirms pricing before work continues.",
     noApprovedAreas: "No support areas configured yet.",
@@ -67,8 +73,8 @@ export const PRODUCT_LANGUAGE = {
       "Configure approved support areas in Engagement & approved work before sending a portal invite.",
   },
 
-  walkthroughRequest: {
-    title: "Your walkthrough request",
+  portalDiscoveryRequest: {
+    title: "Your discovery call request",
     submittedLabel: "Submitted",
     supportAreas: "Support areas you selected",
     bottleneck: "Biggest bottleneck",
@@ -83,20 +89,20 @@ export const PRODUCT_LANGUAGE = {
     scopeChangeSubmit: "Send scope change request",
     scopeChangeSuccess: "Scope change request sent. Your account manager will follow up.",
   },
-  
+
   // Outreach CRM
   outreachCompany: {
     singular: "Outreach company",
     plural: "Outreach companies",
     listTitle: "Outreach Companies",
-    listSubtitle: "Outbound research pipeline. Different from inbound walkthrough requests.",
+    listSubtitle: "Outbound research pipeline. Different from inbound discovery call requests.",
     pipelineLabel: "Companies in pipeline",
   },
 } as const;
 
 // Data model to UI label mappings
 export const KIND_LABELS = {
-  PROSPECT_INTAKE: PRODUCT_LANGUAGE.walkthrough.singular,
+  PROSPECT_INTAKE: PRODUCT_LANGUAGE.discoveryRequest.singular,
   CLIENT_OPS: PRODUCT_LANGUAGE.workRequest.singular,
 } as const;
 
@@ -115,40 +121,43 @@ export const NAV_LABELS = {
   portalSubmit: PRODUCT_LANGUAGE.workRequest.action,
   portalWork: "My work",
   portalRequests: "My Requests",
-  publicCTA: PRODUCT_LANGUAGE.walkthrough.action,
+  publicCTA: PRODUCT_LANGUAGE.discoveryRequest.action,
 } as const;
 
 // Email subject patterns
 export const EMAIL_SUBJECTS = {
-  walkthroughConfirmation: (companyName: string) => `Walkthrough request received - ${companyName}`,
-  walkthroughAdminAlert: (companyName: string) => `New walkthrough request: ${companyName}`,
+  discoveryConfirmation: (companyName: string) =>
+    `Discovery call request received - ${companyName}`,
+  discoveryAdminAlert: (companyName: string) => `New discovery call request: ${companyName}`,
   workRequestAdminAlert: (companyName: string) => `New work request: ${companyName}`,
-  walkthroughSchedulingLink: (companyName: string) => `Schedule your Hargen walkthrough — ${companyName}`,
-  walkthroughBookingConfirmation: (companyName: string) => `Walkthrough scheduled — ${companyName}`,
-  walkthroughReschedule: (companyName: string) => `Walkthrough rescheduled — ${companyName}`,
-  walkthroughReminder: (companyName: string) => `Reminder: Hargen walkthrough — ${companyName}`,
-  walkthroughCancel: (companyName: string) => `Walkthrough canceled — ${companyName}`,
-  walkthroughRecap: (companyName: string) => `Walkthrough recap — ${companyName}`,
-  walkthroughNeedsInfo: (companyName: string) =>
-    `More information needed — ${companyName} walkthrough request`,
+  discoverySchedulingLink: (companyName: string) =>
+    `Schedule your Hargen discovery call — ${companyName}`,
+  discoveryBookingConfirmation: (companyName: string) =>
+    `Discovery call scheduled — ${companyName}`,
+  discoveryReschedule: (companyName: string) => `Discovery call rescheduled — ${companyName}`,
+  discoveryReminder: (companyName: string) => `Reminder: Hargen discovery call — ${companyName}`,
+  discoveryCancel: (companyName: string) => `Discovery call canceled — ${companyName}`,
+  discoveryRecap: (companyName: string) => `Discovery call recap — ${companyName}`,
+  discoveryNeedsInfo: (companyName: string) =>
+    `More information needed — ${companyName} discovery call request`,
 } as const;
 
 // Form copy
 export const FORM_COPY = {
-  walkthroughSuccessScheduling: {
+  discoverySuccessScheduling: {
     redirecting: "Taking you to scheduling…",
   },
-  walkthroughSuccessManual: {
-    title: "Walkthrough request received",
-    body: "We received your request. Scheduling is not available online right now — we'll follow up by email, usually within one business day, with next steps. Portal access for ongoing client work comes after walkthrough, contract, and payment.",
+  discoverySuccessManual: {
+    title: "Discovery call request received",
+    body: "We received your request. Scheduling is not available online right now — we'll follow up by email, usually within one business day, with next steps. Portal access for ongoing client work comes after discovery call, contract, and payment.",
     successSteps: {
       received: {
         title: "Request received",
-        body: "Your walkthrough request is in our queue.",
+        body: "Your discovery call request is in our queue.",
       },
       review: {
         title: "We'll follow up",
-        body: "We'll reach out by email to schedule your walkthrough and discuss scope.",
+        body: "We'll reach out by email to schedule your discovery call and discuss scope.",
       },
       activation: {
         title: "Activation",
@@ -156,11 +165,11 @@ export const FORM_COPY = {
       },
     },
   },
-  walkthroughSuccess: {
-    title: "Walkthrough request received",
-    body: "We received your request. We'll follow up by email, usually within one business day. Portal access for ongoing client work comes after walkthrough, contract, and payment.",
+  discoverySuccess: {
+    title: "Discovery call request received",
+    body: "We received your request. We'll follow up by email, usually within one business day. Portal access for ongoing client work comes after discovery call, contract, and payment.",
   },
-  walkthrough: {
+  discoveryRequest: {
     stepIndicator: (step: number) => `Step ${step} of 2`,
     step1Title: "Tell us what's going on",
     step2Title: "Help us prepare",
@@ -173,7 +182,7 @@ export const FORM_COPY = {
     bottleneckPlaceholder: "Tell us where your jobs are getting stuck...",
     supportAreas: "Where do you need help?",
     supportAreasHelper:
-      "Select all that apply — we'll discuss scope on the walkthrough.",
+      "Select all that apply — we'll discuss scope on the discovery call.",
     role: "Role / title",
     website: "Company website",
     websiteHelper: "e.g. solarpros.com or https://solarpros.com",
@@ -187,17 +196,17 @@ export const FORM_COPY = {
     urgency: "Urgency",
     continue: "Continue",
     back: "Back",
-    submit: "Submit walkthrough request",
+    submit: "Submit discovery call request",
     sending: "Sending...",
     anotherRequestConfirm:
-      "Submit another walkthrough request for a different company?",
+      "Submit another discovery call request for a different company?",
     anotherRequest: "Send another request",
     legal:
-      "By submitting this form, you agree to be contacted by Hargen Energy LLC regarding your walkthrough request.",
+      "By submitting this form, you agree to be contacted by Hargen Energy LLC regarding your discovery call request.",
     successSteps: {
       received: {
         title: "Request received",
-        body: "Your walkthrough request is in our queue.",
+        body: "Your discovery call request is in our queue.",
       },
       review: {
         title: "Review & alignment",

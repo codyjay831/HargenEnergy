@@ -108,7 +108,7 @@ export const requestHelpMetadata = createMarketingMetadata({
   path: PAGE_INTENTS.requestHelp.path,
   keywords: [
     PAGE_INTENTS.requestHelp.primaryKeyword,
-    "solar walkthrough request",
+    "solar discovery request",
     "solar operations help",
   ],
 });

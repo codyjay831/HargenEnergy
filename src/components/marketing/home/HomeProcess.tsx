@@ -58,7 +58,7 @@ export function HomeProcess() {
             href="/request-help"
             className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "text-stone-700")}
           >
-            Start with a walkthrough →
+            Start with a discovery call →
           </Link>
         </div>
       </div>

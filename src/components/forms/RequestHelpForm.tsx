@@ -18,14 +18,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { submitRequestHelp, type WalkthroughSubmissionSummary } from "@/app/actions/requests";
+import { submitRequestHelp, type DiscoverySubmissionSummary } from "@/app/actions/requests";
 import { RequestHelpInput, requestHelpSchema, validateRequestHelpStep1 } from "@/lib/validations";
-import type { WalkthroughCatalogCategory } from "@/lib/walkthrough-catalog";
+import type { DiscoveryCatalogCategory } from "@/lib/discovery-catalog";
 import { cn } from "@/lib/utils";
 import { marketingAmberCta } from "@/components/marketing/marketing-styles";
 import { FORM_COPY } from "@/lib/product-language";
 
-const COPY = FORM_COPY.walkthrough;
+const COPY = FORM_COPY.discoveryRequest;
 
 type FieldErrors = Partial<Record<keyof RequestHelpInput | "requestedWorkTaskIds", string>>;
 
@@ -35,7 +35,7 @@ function FieldError({ message }: { message?: string }) {
 }
 
 interface RequestHelpFormProps {
-  catalog: WalkthroughCatalogCategory[];
+  catalog: DiscoveryCatalogCategory[];
 }
 
 export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
@@ -44,7 +44,7 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [submissionSummary, setSubmissionSummary] = useState<WalkthroughSubmissionSummary | null>(
+  const [submissionSummary, setSubmissionSummary] = useState<DiscoverySubmissionSummary | null>(
     null,
   );
   const [error, setError] = useState<string | null>(null);
@@ -203,10 +203,10 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
         <CardContent className="px-6 py-16 sm:px-10 text-center space-y-4">
           <Loader2 className="mx-auto h-10 w-10 animate-spin text-amber-600" />
           <p className="font-heading text-lg font-semibold text-stone-900">
-            {FORM_COPY.walkthroughSuccessScheduling.redirecting}
+            {FORM_COPY.discoverySuccessScheduling.redirecting}
           </p>
           <p className="text-sm text-stone-600 max-w-md mx-auto">
-            Your request was received. Choose a walkthrough time on the next screen.
+            Your request was received. Choose a discovery time on the next screen.
           </p>
         </CardContent>
       </Card>
@@ -214,14 +214,14 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
   }
 
   if (isSubmitted) {
-    const manualCopy = FORM_COPY.walkthroughSuccessManual;
+    const manualCopy = FORM_COPY.discoverySuccessManual;
     const changeMailto = submissionSummary
       ? `mailto:support@hargenenergy.com?subject=${encodeURIComponent(
-          `Walkthrough request update (${submissionSummary.requestId.slice(0, 8)})`,
+          `Discovery request update (${submissionSummary.requestId.slice(0, 8)})`,
         )}&body=${encodeURIComponent(
-          `Hi Hargen Energy,\n\nI'd like to update my walkthrough request.\n\nReference: ${submissionSummary.requestId}\n\nChanges needed:\n`,
+          `Hi Hargen Energy,\n\nI'd like to update my discovery request.\n\nReference: ${submissionSummary.requestId}\n\nChanges needed:\n`,
         )}`
-      : "mailto:support@hargenenergy.com?subject=Walkthrough%20request%20update";
+      : "mailto:support@hargenenergy.com?subject=Discovery%20request%20update";
 
     return (
       <Card className="rounded-xl border border-amber-200/80 bg-amber-50/40 shadow-sm">
@@ -358,14 +358,14 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
       <Card className="rounded-xl border border-stone-200 bg-stone-50 shadow-sm">
         <CardContent className="px-6 py-10 sm:px-10 text-center space-y-4">
           <h3 className="font-heading text-xl font-semibold text-stone-900">
-            Walkthrough requests are temporarily unavailable
+            Discovery requests are temporarily unavailable
           </h3>
           <p className="text-sm text-stone-600 leading-relaxed max-w-lg mx-auto">
             Our service list is being updated. Please email us directly and we&apos;ll schedule your
-            walkthrough.
+            discovery.
           </p>
           <a
-            href="mailto:hello@hargenenergy.com?subject=Walkthrough%20request"
+            href="mailto:hello@hargenenergy.com?subject=Discovery%20request"
             className={cn(buttonVariants(), marketingAmberCta, "inline-flex h-11 px-6")}
           >
             Email Hargen Energy

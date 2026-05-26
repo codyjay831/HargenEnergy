@@ -31,7 +31,7 @@ interface ClientEngagementManagerProps {
   approvedWorkTaskIds: string[];
   suggestedWorkTaskIds?: string[];
   categories: Category[];
-  walkthroughPlanRequestBased?: boolean;
+  discoveryPlanRequestBased?: boolean;
 }
 
 export function ClientEngagementManager({
@@ -40,13 +40,13 @@ export function ClientEngagementManager({
   approvedWorkTaskIds: initialApproved,
   suggestedWorkTaskIds = [],
   categories,
-  walkthroughPlanRequestBased,
+  discoveryPlanRequestBased,
 }: ClientEngagementManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isApplying, startApplyTransition] = useTransition();
   const [engagementType, setEngagementType] = useState<EngagementType>(
-    walkthroughPlanRequestBased && initialEngagement === EngagementType.SUPPORT_BLOCK
+    discoveryPlanRequestBased && initialEngagement === EngagementType.SUPPORT_BLOCK
       ? EngagementType.REQUEST_BASED
       : initialEngagement,
   );
@@ -131,12 +131,12 @@ export function ClientEngagementManager({
 
         toast.success(
           (result.appliedCount ?? 0) > 0
-            ? `Applied ${result.appliedCount} walkthrough selection${result.appliedCount === 1 ? "" : "s"}`
-            : "Walkthrough selections were already applied",
+            ? `Applied ${result.appliedCount} discovery selection${result.appliedCount === 1 ? "" : "s"}`
+            : "Discovery selections were already applied",
         );
         router.refresh();
       } catch {
-        toast.error("Failed to apply walkthrough selections");
+        toast.error("Failed to apply discovery selections");
       }
     });
   };
@@ -152,9 +152,9 @@ export function ClientEngagementManager({
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
-        {walkthroughPlanRequestBased && (
+        {discoveryPlanRequestBased && (
           <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-3">
-            Walkthrough indicated request-based work. Request-Based Work is pre-selected — confirm
+            Discovery indicated request-based work. Request-Based Work is pre-selected — confirm
             before saving.
           </p>
         )}
@@ -163,21 +163,21 @@ export function ClientEngagementManager({
           <div className="rounded-md border border-sky-200 bg-sky-50 p-3 space-y-3">
             {intakeFullyApplied && !hasUnsavedIntakeSuggestions ? (
               <p className="text-sm text-emerald-900">
-                Walkthrough selections are applied to approved work.
+                Discovery selections are applied to approved work.
               </p>
             ) : configuredManuallyWithoutIntake ? (
               <p className="text-sm text-amber-950">
-                Approved work was configured manually and does not yet include walkthrough
-                selections. Apply walkthrough below or continue editing scope by hand.
+                Approved work was configured manually and does not yet include discovery
+                selections. Apply discovery below or continue editing scope by hand.
               </p>
             ) : hasUnsavedIntakeSuggestions ? (
               <p className="text-sm text-sky-950">
-                Walkthrough selections are pre-checked below. Save engagement settings or apply
+                Discovery selections are pre-checked below. Save engagement settings or apply
                 them now.
               </p>
             ) : (
               <p className="text-sm text-sky-950">
-                Some walkthrough selections are not in approved work yet. Apply them or configure
+                Some discovery selections are not in approved work yet. Apply them or configure
                 scope manually below.
               </p>
             )}
@@ -195,7 +195,7 @@ export function ClientEngagementManager({
                     Applying...
                   </>
                 ) : (
-                  "Apply walkthrough to approved work"
+                  "Apply discovery to approved work"
                 )}
               </Button>
             )}
@@ -248,7 +248,7 @@ export function ClientEngagementManager({
                               {task.name}
                             </Label>
                             {fromIntake && (
-                              <p className="text-xs text-sky-700">From walkthrough request</p>
+                              <p className="text-xs text-sky-700">From discovery request</p>
                             )}
                           </div>
                         </div>

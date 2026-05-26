@@ -6,17 +6,17 @@ import {
 } from "@/lib/admin-client-tabs";
 
 describe("admin-client-tabs", () => {
-  it("resolves legacy open=walkthrough to walkthrough tab", () => {
-    expect(resolveAdminClientTab(undefined, "walkthrough")).toBe("walkthrough");
+  it("resolves discovery tab from tab param", () => {
+    expect(resolveAdminClientTab("discovery")).toBe("discovery");
   });
 
   it("prefers explicit tab param when valid", () => {
-    expect(resolveAdminClientTab("billing", undefined)).toBe("billing");
+    expect(resolveAdminClientTab("billing")).toBe("billing");
   });
 
   it("defaults to overview", () => {
-    expect(resolveAdminClientTab(undefined, undefined)).toBe("overview");
-    expect(resolveAdminClientTab("invalid", undefined)).toBe("overview");
+    expect(resolveAdminClientTab(undefined)).toBe("overview");
+    expect(resolveAdminClientTab("invalid")).toBe("overview");
   });
 
   it("builds hrefs without query for overview", () => {

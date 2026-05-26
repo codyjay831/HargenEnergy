@@ -3,8 +3,8 @@ import { RequestHelpForm } from "@/components/forms/RequestHelpForm";
 import { cn } from "@/lib/utils";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { requestHelpMetadata } from "@/lib/marketing/metadata";
-import { getPublicWalkthroughCatalog } from "@/lib/walkthrough-catalog";
-import { getWalkthroughSchedulingReadiness } from "@/lib/walkthrough-scheduling/scheduling-readiness";
+import { getPublicDiscoveryCatalog } from "@/lib/discovery-catalog";
+import { getDiscoverySchedulingReadiness } from "@/lib/discovery-scheduling/scheduling-readiness";
 import {
   marketingShell,
   marketingSectionY,
@@ -24,8 +24,8 @@ const checklist = [
 
 export default async function RequestHelpPage() {
   const [catalog, schedulingReadiness] = await Promise.all([
-    getPublicWalkthroughCatalog(),
-    getWalkthroughSchedulingReadiness(),
+    getPublicDiscoveryCatalog(),
+    getDiscoverySchedulingReadiness(),
   ]);
   const schedulingEnabled = schedulingReadiness.ready;
 
@@ -35,11 +35,11 @@ export default async function RequestHelpPage() {
         <div className={cn(marketingShell)}>
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_280px] lg:gap-14">
             <div>
-              <h1 className={marketingH1}>{PRODUCT_LANGUAGE.walkthrough.action}</h1>
+              <h1 className={marketingH1}>{PRODUCT_LANGUAGE.discoveryRequest.action}</h1>
               <p className={cn(marketingLead, "mt-4 max-w-xl")}>
-                Tell us where you are stuck. We start with a walkthrough and activation conversation, not a support ticket.
+                Tell us where you are stuck. We start with a discovery call and activation conversation, not a support ticket.
                 {schedulingEnabled
-                  ? " Submit your request, then choose a time for your walkthrough."
+                  ? " Submit your request, then choose a time for your discovery call."
                   : " Most companies hear back within one business day."}
               </p>
               <p className="mt-2 text-sm text-stone-500">Takes about 2 minutes.</p>
@@ -74,7 +74,7 @@ export default async function RequestHelpPage() {
 
           <p className="mx-auto mt-10 max-w-3xl text-center text-sm text-stone-600 leading-relaxed">
             {schedulingEnabled
-              ? "After you submit, you can pick a walkthrough time right away. We read your request and come prepared for the conversation."
+              ? "After you submit, you can pick a discovery call time right away. We read your request and come prepared for the conversation."
               : "We read your request, check capacity, and reply by email or phone. Start small if you want — scale hours when your pipeline changes."}
           </p>
 

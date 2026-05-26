@@ -3,7 +3,7 @@ import "server-only";
 import { getGoogleCalendarClient } from "@/lib/google-calendar/client";
 import type { GoogleCalendarEventResult } from "@/lib/google-calendar/types";
 
-type CreateWalkthroughEventInput = {
+type CreateDiscoveryEventInput = {
   connectionId: string;
   calendarId: string;
   summary: string;
@@ -28,11 +28,11 @@ function extractMeetUrl(event: {
   return meetEntry?.uri ?? event.hangoutLink ?? null;
 }
 
-export async function createWalkthroughCalendarEvent(
-  input: CreateWalkthroughEventInput,
+export async function createDiscoveryCalendarEvent(
+  input: CreateDiscoveryEventInput,
 ): Promise<GoogleCalendarEventResult> {
   const calendar = await getGoogleCalendarClient(input.connectionId);
-  const requestId = `walkthrough-${Date.now()}`;
+  const requestId = `discovery-${Date.now()}`;
 
   const descriptionParts = [input.description];
   if (input.phone?.trim()) {
@@ -111,7 +111,7 @@ export async function createWalkthroughCalendarEvent(
   };
 }
 
-export async function updateWalkthroughCalendarEvent(input: {
+export async function updateDiscoveryCalendarEvent(input: {
   connectionId: string;
   calendarId: string;
   eventId: string;
@@ -137,7 +137,7 @@ export async function updateWalkthroughCalendarEvent(input: {
   });
 }
 
-export async function cancelWalkthroughCalendarEvent(input: {
+export async function cancelDiscoveryCalendarEvent(input: {
   connectionId: string;
   calendarId: string;
   eventId: string;
