@@ -42,6 +42,7 @@ interface PortalRequestFormProps {
   categories: Category[];
   canSubmit: boolean;
   blockMessage?: string;
+  blockReasonCode?: string;
 }
 
 export function PortalRequestForm({
@@ -49,6 +50,7 @@ export function PortalRequestForm({
   categories,
   canSubmit,
   blockMessage,
+  blockReasonCode,
 }: PortalRequestFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -134,6 +136,10 @@ export function PortalRequestForm({
   };
 
   if (!canSubmit) {
+    const isSupportBlock = engagementType === EngagementType.SUPPORT_BLOCK;
+    const paymentBlocked = isSupportBlock && blockReasonCode === "payment_not_made";
+    const scopeBlocked = isSupportBlock && blockReasonCode === "scope_not_configured";
+
     return (
       <div className="p-6 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-sm">
         <p className="font-semibold">{PRODUCT_LANGUAGE.supportSetup.blockedSubmitTitle}</p>
@@ -141,15 +147,21 @@ export function PortalRequestForm({
           {blockMessage ??
             "Your account is still being configured. Hargen will notify you when you can send work."}
         </p>
-        <Link
-          href="/portal/account#support-setup"
-          className="mt-3 inline-block text-sm font-medium text-amber-900 underline underline-offset-2"
-        >
-          {PRODUCT_LANGUAGE.supportSetup.viewSetupLink}
-        </Link>
-        <p className="mt-4 text-xs text-amber-800/90">
-          {PRODUCT_LANGUAGE.supportSetup.changeScopePrompt}
-        </p>
+        {(paymentBlocked || isSupportBlock) && (
+          <Link
+            href="/portal/account#support-setup"
+            className="mt-3 inline-block text-sm font-medium text-amber-900 underline underline-offset-2"
+          >
+            {paymentBlocked
+              ? "Set up payment"
+              : PRODUCT_LANGUAGE.supportSetup.viewSetupLink}
+          </Link>
+        )}
+        {scopeBlocked && (
+          <p className="mt-4 text-xs text-amber-800/90">
+            {PRODUCT_LANGUAGE.supportSetup.changeScopePrompt}
+          </p>
+        )}
       </div>
     );
   }

@@ -24,6 +24,7 @@ export default async function PortalAccessPage() {
         <h1 className="text-2xl font-bold tracking-tight">System access</h1>
         <p className="text-muted-foreground">
           Share AHJ, utility, CRM, and workspace access through vault links or user invites.
+          Recommended, not required.
         </p>
       </div>
 
@@ -32,7 +33,20 @@ export default async function PortalAccessPage() {
           <CardTitle>Access checklist</CardTitle>
         </CardHeader>
         <CardContent>
-          <PortalSystemAccessChecklist items={records} />
+          <PortalSystemAccessChecklist
+            items={records.map((record) => ({
+              id: record.id,
+              systemType: record.systemType,
+              label: record.label,
+              loginUrl: record.loginUrl,
+              username: record.username,
+              accessMethod: record.accessMethod,
+              vaultLink: null,
+              status: record.status,
+              notes: record.notes,
+              createdViaPortal: record.createdViaPortal,
+            }))}
+          />
         </CardContent>
       </Card>
     </div>

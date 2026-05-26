@@ -21,6 +21,8 @@ import {
   enrichSetupSteps,
   type SetupSheetKey,
 } from "@/lib/setup-sheet-keys";
+import { getPortalWorkSubmitEligibility } from "@/lib/portal-submit-eligibility";
+import { countPortalLoggedInUsers } from "@/lib/portal-user-login";
 
 export type SetupStepOwner = "admin" | "customer" | "system" | "stripe";
 export type SetupStepStatus =
@@ -114,6 +116,7 @@ export type DeriveClientSetupReadinessInput = {
   activeApprovedWorkTaskCount: number;
   activeCatalogTaskCount: number;
   clientPortalUserCount: number;
+  clientPortalLoggedInCount: number;
   clientOpsRequestCount: number;
   hasDiscoveryIntake: boolean;
   prospectInDiscoveryPhase: boolean;
@@ -263,6 +266,7 @@ function getScopeReadiness(input: {
 function buildBlockingMessages(params: {
   canInvitePortal: boolean;
   canSubmitPortalWork: boolean;
+  submitBlockMessage?: string;
   scope: ScopeReadiness;
   lifecycleReady: boolean;
   billing: ClientBillingReadiness;
@@ -273,10 +277,10 @@ function buildBlockingMessages(params: {
     messages.push("Activate the client before portal invite or portal work submission.");
   }
   if (!params.scope.ready && params.scope.required) {
-    messages.push("Configure approved support work before inviting portal users.");
+    messages.push("Configure approved support work before customers can submit work.");
   }
-  if (!params.canSubmitPortalWork) {
-    messages.push("Portal work submission is blocked until setup requirements are met.");
+  if (!params.canSubmitPortalWork && params.submitBlockMessage) {
+    messages.push(params.submitBlockMessage);
   }
   if (!params.billing.ready && params.billing.required) {
     messages.push("Note: Billing setup is still incomplete for this Support Block account.");
@@ -312,9 +316,29 @@ export function deriveClientSetupReadiness(
   });
   const systemAccess = describeSystemAccess(input.systemAccessStatuses);
 
-  const canInvitePortal = lifecycleReady && scope.ready;
-  const canSubmitPortalWork = lifecycleReady && scope.ready;
-  const portalAccessReady = input.clientPortalUserCount > 0;
+  const submitEligibility = getPortalWorkSubmitEligibility({
+    status: input.status,
+    engagementType: input.engagementType,
+    billingMode: input.billingMode,
+    billingOverrideReason: input.billingOverrideReason,
+    billingOverrideExpiresAt: input.billingOverrideExpiresAt,
+    billingOverrideCreatedAt: input.billingOverrideCreatedAt,
+    billingOverrideCreatedById: input.billingOverrideCreatedById,
+    stripeCustomerId: input.stripeCustomerId,
+    stripeSubscriptionId: input.stripeSubscriptionId,
+    subscriptionStatus: input.subscriptionStatus,
+    subscriptionCurrentPeriodEnd: input.subscriptionCurrentPeriodEnd,
+    approvedWorkTaskCount: input.activeApprovedWorkTaskCount,
+    activeCatalogTaskCount: input.activeCatalogTaskCount,
+  });
+
+  const canInvitePortal = lifecycleReady;
+  const canSubmitPortalWork = submitEligibility.canSubmit;
+  const submitBlockMessage = submitEligibility.canSubmit
+    ? undefined
+    : submitEligibility.message;
+  const portalAccessReady = input.clientPortalLoggedInCount > 0;
+  const portalInviteSent = input.clientPortalUserCount > 0;
   const firstWorkSubmitted = input.clientOpsRequestCount > 0;
   const supportAreasVisible =
     input.engagementType === EngagementType.REQUEST_BASED
@@ -324,6 +348,7 @@ export function deriveClientSetupReadiness(
   const blockingMessages = buildBlockingMessages({
     canInvitePortal,
     canSubmitPortalWork,
+    submitBlockMessage,
     scope,
     lifecycleReady,
     billing,
@@ -490,10 +515,12 @@ export function deriveClientSetupReadiness(
       id: "portal-invite",
       title: "Portal invite readiness",
       description: canInvitePortal
-        ? "Portal invite can be sent."
-        : "Portal invite is blocked until lifecycle and scope requirements are complete.",
+        ? portalInviteSent
+          ? "Portal invite has been sent."
+          : "Portal invite can be sent."
+        : "Activate the client before sending a portal invite.",
       owner: "admin",
-      status: canInvitePortal ? "complete" : "blocked",
+      status: !canInvitePortal ? "blocked" : portalInviteSent ? "complete" : "incomplete",
       blockers: ["blocks_invite"],
       required: true,
       actionLabel: "Send portal invite",
@@ -505,8 +532,10 @@ export function deriveClientSetupReadiness(
       id: "portal-access",
       title: "Customer portal access",
       description: portalAccessReady
-        ? `${input.clientPortalUserCount} portal user(s) available.`
-        : "No portal user is linked yet.",
+        ? "Customer has logged into the portal."
+        : portalInviteSent
+          ? "Invite sent. Waiting for the customer to log in."
+          : "No portal invite sent yet.",
       owner: "customer",
       status: portalAccessReady ? "complete" : "incomplete",
       blockers: ["informational"],
@@ -764,7 +793,7 @@ export async function getClientSetupReadiness(
       approvedWorkTasks: { select: { workTaskId: true } },
       users: {
         where: { role: Role.CLIENT },
-        select: { id: true },
+        select: { id: true, lastLoginAt: true },
       },
       systemAccesses: {
         select: { status: true },
@@ -834,6 +863,7 @@ export async function getClientSetupReadiness(
     activeApprovedWorkTaskCount,
     activeCatalogTaskCount,
     clientPortalUserCount: client.users.length,
+    clientPortalLoggedInCount: countPortalLoggedInUsers(client.users),
     clientOpsRequestCount,
     hasDiscoveryIntake: hasDiscovery > 0,
     prospectInDiscoveryPhase,

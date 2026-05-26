@@ -33,6 +33,7 @@ import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { formatIntakePlanLabel } from "@/lib/intake-plan";
 import { AdminSetupGuide } from "@/components/admin/AdminSetupGuide";
 import { DiscoveryCommandCenter } from "@/components/admin/DiscoveryCommandCenter";
+import { AdminNextUpCard, countPendingSystemAccess } from "@/components/admin/AdminNextUpCard";
 import { ClientDetailTabs } from "@/components/admin/ClientDetailTabs";
 import { ArchiveClientPanel } from "@/components/admin/ArchiveClientPanel";
 import { DeleteClientPanel } from "@/components/admin/DeleteClientPanel";
@@ -182,6 +183,17 @@ export default async function ClientDetailPage({
 
   const setupReadiness = setupReadinessResult;
   const showDiscoveryTab = isProspect || setupReadiness.hasDiscoveryIntake;
+  const portalLoggedInCount = await prisma.user.count({
+    where: {
+      clientId: client.id,
+      role: Role.CLIENT,
+      lastLoginAt: { not: null },
+    },
+  });
+  const activeCatalogTaskCount = catalogCategories.reduce(
+    (sum, c) => sum + c.tasks.length,
+    0,
+  );
   let initialTab = resolveAdminClientTab(resolvedSearchParams.tab);
   if (initialTab === "discovery" && !showDiscoveryTab) {
     initialTab = "overview";
@@ -243,9 +255,31 @@ export default async function ClientDetailPage({
             clientVisibleUpdate={latestDiscovery.clientVisibleUpdate}
           />
         ) : (
-          <AdminSetupGuide
-            readiness={setupReadiness}
-            client={{
+          <>
+            <AdminNextUpCard
+              clientId={client.id}
+              clientStatus={client.status}
+              engagementType={client.engagementType}
+              billingMode={client.billingMode}
+              billingOverrideReason={client.billingOverrideReason}
+              billingOverrideExpiresAt={client.billingOverrideExpiresAt}
+              billingOverrideCreatedAt={client.billingOverrideCreatedAt}
+              billingOverrideCreatedById={client.billingOverrideCreatedById}
+              stripeCustomerId={client.stripeCustomerId}
+              stripeSubscriptionId={client.stripeSubscriptionId}
+              subscriptionStatus={client.subscriptionStatus}
+              subscriptionCurrentPeriodEnd={client.subscriptionCurrentPeriodEnd}
+              activeApprovedWorkTaskCount={setupReadiness.scope.activeApprovedWorkTaskCount}
+              activeCatalogTaskCount={activeCatalogTaskCount}
+              portalUserCount={client.users.length}
+              portalLoggedInCount={portalLoggedInCount}
+              systemAccessPendingCount={countPendingSystemAccess(
+                client.systemAccesses.map((r) => r.status),
+              )}
+            />
+            <AdminSetupGuide
+              readiness={setupReadiness}
+              client={{
             id: client.id,
             companyName: client.companyName,
             contactName: client.contactName,
@@ -281,6 +315,7 @@ export default async function ClientDetailPage({
           systemAccessRecords={decryptedSystemAccesses}
           adminRequestsHref={`/admin/requests?clientId=${client.id}`}
         />
+          </>
         )}
       </div>
 
@@ -787,8 +822,6 @@ function renderPortalAccess(
         <ClientPortalAccessManager
           clientId={client.id}
           clientStatus={client.status}
-          engagementType={client.engagementType}
-          approvedWorkTaskCount={client.approvedWorkTasks.length}
           defaultEmail={client.email}
           defaultName={client.contactName}
           users={client.users}

@@ -11,7 +11,8 @@ import {
   PlusCircle,
   UserCircle,
   Inbox,
-  ArrowRight
+  ArrowRight,
+  KeyRound,
 } from "lucide-react";
 import Link from "next/link";
 import { format, startOfWeek } from "date-fns";
@@ -19,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { EngagementType } from "@/generated/prisma/client";
+import { EngagementType, SystemAccessStatus } from "@/generated/prisma/client";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { isRequestBasedPricingComplete } from "@/lib/engagement";
 import { getClientPortalSupportSetup } from "@/lib/portal-support";
@@ -95,6 +96,26 @@ export default async function PortalDashboard() {
     ? client.requests.filter((r) => !isRequestBasedPricingComplete(r))
     : [];
 
+  const supportSetupOk = !("error" in supportSetup);
+  const blockReasonCode =
+    supportSetupOk && !supportSetup.canSubmit ? supportSetup.blockReasonCode : undefined;
+  const paymentBlocked = isSupportBlock && blockReasonCode === "payment_not_made";
+  const primaryHref = paymentBlocked
+    ? "/portal/account#support-setup"
+    : "/portal/requests/new";
+  const primaryLabel = paymentBlocked
+    ? "Set up payment"
+    : PRODUCT_LANGUAGE.workRequest.action;
+  const primaryDisabled = setupBlocked && !paymentBlocked;
+
+  const pendingAccessCount = await prisma.clientSystemAccess.count({
+    where: {
+      clientId,
+      status: SystemAccessStatus.NOT_PROVIDED,
+      createdViaPortal: false,
+    },
+  });
+
   const stats = isSupportBlock
     ? [
         { title: "Open work", value: openRequestsCount.toString(), icon: ClipboardList, color: "text-blue-600", bg: "bg-blue-50" },
@@ -119,13 +140,40 @@ export default async function PortalDashboard() {
               : PRODUCT_LANGUAGE.engagement.requestBased}
           </p>
         </div>
-        <Link 
-          href="/portal/requests/new" 
-          className={cn(buttonVariants({ variant: "default" }), "flex items-center gap-2")}
-        >
-          <PlusCircle className="h-4 w-4" />
-          {PRODUCT_LANGUAGE.workRequest.action}
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {primaryDisabled ? (
+            <span
+              className={cn(
+                buttonVariants({ variant: "default" }),
+                "flex items-center gap-2 opacity-50 pointer-events-none",
+              )}
+              aria-disabled
+            >
+              <PlusCircle className="h-4 w-4" />
+              {PRODUCT_LANGUAGE.workRequest.action}
+            </span>
+          ) : (
+            <Link
+              href={primaryHref}
+              className={cn(buttonVariants({ variant: "default" }), "flex items-center gap-2")}
+            >
+              <PlusCircle className="h-4 w-4" />
+              {primaryLabel}
+            </Link>
+          )}
+          <Link
+            href="/portal/access"
+            className={cn(buttonVariants({ variant: "outline" }), "flex items-center gap-2")}
+          >
+            <KeyRound className="h-4 w-4" />
+            Share access
+            {pendingAccessCount > 0 && (
+              <Badge variant="secondary" className="ml-1">
+                {pendingAccessCount}
+              </Badge>
+            )}
+          </Link>
+        </div>
       </div>
 
       {isRequestBased && (
@@ -135,19 +183,28 @@ export default async function PortalDashboard() {
         </p>
       )}
 
-      {setupBlocked && !("error" in supportSetup) && (
+      {setupBlocked && supportSetupOk && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 text-sm -mt-4">
           <p className="font-semibold">{PRODUCT_LANGUAGE.supportSetup.blockedSubmitTitle}</p>
           <p className="mt-2">
             {supportSetup.blockMessage ??
               "Your account is still being configured. Hargen will notify you when you can send work."}
           </p>
-          <Link
-            href="/portal/account#support-setup"
-            className="mt-3 inline-block text-sm font-medium text-amber-900 underline underline-offset-2"
-          >
-            {PRODUCT_LANGUAGE.supportSetup.viewSetupLink}
-          </Link>
+          {(paymentBlocked || isSupportBlock) && (
+            <Link
+              href="/portal/account#support-setup"
+              className="mt-3 inline-block text-sm font-medium text-amber-900 underline underline-offset-2"
+            >
+              {paymentBlocked
+                ? "Set up payment"
+                : PRODUCT_LANGUAGE.supportSetup.viewSetupLink}
+            </Link>
+          )}
+          {!isRequestBased && blockReasonCode === "scope_not_configured" && (
+            <p className="mt-4 text-xs text-amber-800/90">
+              {PRODUCT_LANGUAGE.supportSetup.changeScopePrompt}
+            </p>
+          )}
         </div>
       )}
 
@@ -324,11 +381,19 @@ export default async function PortalDashboard() {
               <EmptyState
                 icon={Inbox}
                 title="No requests yet"
-                description="Submit your first work request to get started with your Solar Ops Desk support."
-                action={{
-                  label: "Submit Work Request",
-                  href: "/portal/requests/new",
-                }}
+                description={
+                  primaryDisabled
+                    ? "Your account is still being set up. You can send work once activation is complete."
+                    : "Submit your first work request to get started with your Solar Ops Desk support."
+                }
+                action={
+                  primaryDisabled
+                    ? undefined
+                    : {
+                        label: primaryLabel,
+                        href: primaryHref,
+                      }
+                }
               />
             ) : (
               <div className="space-y-4">
@@ -361,22 +426,60 @@ export default async function PortalDashboard() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 gap-3">
-              <Link 
-                href="/portal/requests/new" 
+              {primaryDisabled ? (
+                <div className="flex items-center justify-between p-4 border rounded-lg opacity-50">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded text-primary">
+                      <PlusCircle className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold">{PRODUCT_LANGUAGE.workRequest.action}</p>
+                      <p className="text-xs text-muted-foreground">Available once setup is complete.</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <Link
+                  href={primaryHref}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                      <PlusCircle className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold">{primaryLabel}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {paymentBlocked
+                          ? "Complete billing to send your first request."
+                          : "Tell us where you're stuck."}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </Link>
+              )}
+
+              <Link
+                href="/portal/access"
                 className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors group"
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-primary/10 rounded text-primary group-hover:bg-primary group-hover:text-white transition-colors">
-                    <PlusCircle className="h-5 w-5" />
+                  <div className="p-2 bg-slate-100 rounded text-slate-600 group-hover:bg-slate-900 group-hover:text-white transition-colors">
+                    <KeyRound className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-sm font-bold">Submit New Request</p>
-                    <p className="text-xs text-muted-foreground">Tell us where you&apos;re stuck.</p>
+                    <p className="text-sm font-bold">Share access</p>
+                    <p className="text-xs text-muted-foreground">
+                      Optional — share AHJ, utility, and CRM logins.
+                      {pendingAccessCount > 0
+                        ? ` ${pendingAccessCount} pending.`
+                        : ""}
+                    </p>
                   </div>
                 </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </Link>
-              
               <Link 
                 href="/portal/account" 
                 className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors group"

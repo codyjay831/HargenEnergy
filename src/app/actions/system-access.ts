@@ -41,6 +41,16 @@ const clientHandoffSchema = z.object({
   notes: z.string().trim().max(2000).optional().nullable(),
 });
 
+const clientCreateSchema = z.object({
+  systemType: systemTypeSchema,
+  label: z.string().trim().min(1).max(200),
+  loginUrl: z.string().trim().max(2000).optional().nullable(),
+  username: z.string().trim().max(200).optional().nullable(),
+  accessMethod: accessMethodSchema,
+  vaultLink: z.string().trim().max(2000).optional().nullable(),
+  notes: z.string().trim().max(2000).optional().nullable(),
+});
+
 export async function createClientSystemAccess(
   data: z.infer<typeof adminAccessSchema>,
 ) {
@@ -57,6 +67,7 @@ export async function createClientSystemAccess(
       vaultLink: encryptFieldValue(parsed.data.vaultLink || null),
       adminSecureNote: encryptFieldValue(parsed.data.adminSecureNote || null),
       status: parsed.data.status ?? SystemAccessStatus.NOT_PROVIDED,
+      createdViaPortal: false,
     },
   });
 
@@ -173,6 +184,50 @@ export async function submitClientSystemAccessHandoff(
   revalidatePath("/portal/access");
   revalidateAdminClientPage(existing.clientId);
   return { success: true };
+}
+
+export async function createClientSystemAccessFromPortal(
+  data: z.infer<typeof clientCreateSchema>,
+) {
+  const session = await requireClientUser();
+  const clientId = session.user.clientId;
+  if (!clientId) {
+    return { error: "Unauthorized." };
+  }
+
+  const parsed = clientCreateSchema.safeParse(data);
+  if (!parsed.success) {
+    return { error: "Invalid system access details." };
+  }
+
+  const hasVault =
+    parsed.data.accessMethod === SystemAccessMethod.VAULT_LINK &&
+    !!parsed.data.vaultLink;
+  const hasInvite =
+    parsed.data.accessMethod === SystemAccessMethod.CLIENT_WILL_INVITE;
+  const hasUsername = !!parsed.data.username;
+
+  const record = await prisma.clientSystemAccess.create({
+    data: {
+      clientId,
+      systemType: parsed.data.systemType,
+      label: parsed.data.label,
+      loginUrl: parsed.data.loginUrl || null,
+      username: parsed.data.username || null,
+      accessMethod: parsed.data.accessMethod,
+      vaultLink: encryptFieldValue(parsed.data.vaultLink || null),
+      notes: parsed.data.notes || null,
+      createdViaPortal: true,
+      status:
+        hasVault || hasUsername || hasInvite
+          ? SystemAccessStatus.PROVIDED
+          : SystemAccessStatus.NOT_PROVIDED,
+    },
+  });
+
+  revalidatePath("/portal/access");
+  revalidateAdminClientPage(clientId);
+  return { success: true, id: record.id };
 }
 
 export async function getClientSystemAccessForAdmin(clientId: string) {

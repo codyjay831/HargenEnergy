@@ -337,6 +337,22 @@ export function getClientBillingReadiness(
 
 export type BillingBadgeVariant = "default" | "secondary" | "destructive" | "outline";
 
+/** Support Block submit unlock: subscription paid or healthy non-Stripe billing override. */
+export function isPaymentMadeForSubmit(input: BillingReadinessInput): boolean {
+  if (input.engagementType === EngagementType.REQUEST_BASED) {
+    return true;
+  }
+
+  const readiness = getClientBillingReadiness(input);
+
+  if (readiness.billingMode !== BillingMode.STRIPE) {
+    return readiness.healthy && !readiness.overrideExpired;
+  }
+
+  const status = readiness.subscriptionStatus?.trim().toLowerCase() ?? null;
+  return status !== null && HEALTHY_SUBSCRIPTION_STATUSES.has(status);
+}
+
 export function getBillingBadgeVariant(
   readiness: ClientBillingReadiness,
 ): BillingBadgeVariant {

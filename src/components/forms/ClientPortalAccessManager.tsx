@@ -8,8 +8,6 @@ import {
   inviteClientPortalUser,
   resendClientPortalInvite,
 } from "@/app/actions/client-users";
-import { EngagementType } from "@/generated/prisma/client";
-import { checkPortalInviteReadinessByCount } from "@/lib/engagement";
 import { Loader2, Mail, UserPlus } from "lucide-react";
 
 interface PortalUser {
@@ -21,8 +19,6 @@ interface PortalUser {
 interface ClientPortalAccessManagerProps {
   clientId: string;
   clientStatus: "LEAD" | "ACTIVE" | "PAUSED" | "CANCELLED";
-  engagementType: EngagementType;
-  approvedWorkTaskCount: number;
   defaultEmail: string;
   defaultName: string;
   users: PortalUser[];
@@ -31,18 +27,11 @@ interface ClientPortalAccessManagerProps {
 export function ClientPortalAccessManager({
   clientId,
   clientStatus,
-  engagementType,
-  approvedWorkTaskCount,
   defaultEmail,
   defaultName,
   users,
 }: ClientPortalAccessManagerProps) {
-  const canInviteByStatus = clientStatus === "ACTIVE";
-  const scopeReadiness = checkPortalInviteReadinessByCount(
-    engagementType,
-    approvedWorkTaskCount,
-  );
-  const canInvite = canInviteByStatus && scopeReadiness.ready;
+  const canInvite = clientStatus === "ACTIVE";
 
   const [email, setEmail] = useState(defaultEmail);
   const [name, setName] = useState(defaultName);
@@ -97,14 +86,9 @@ export function ClientPortalAccessManager({
 
   return (
     <div className="space-y-4">
-      {!canInviteByStatus && (
+      {!canInvite && (
         <p className="text-sm text-muted-foreground">
           Activate the client before sending a portal invite.
-        </p>
-      )}
-      {canInviteByStatus && !scopeReadiness.ready && (
-        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-3">
-          {scopeReadiness.error}
         </p>
       )}
       {users.length > 0 && (

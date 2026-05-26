@@ -11,13 +11,13 @@ import {
 } from "@/generated/prisma/client";
 import {
   assertWorkTaskAllowedForClient,
-  canSubmitPortalWork,
   resolveActiveWorkTask,
 } from "@/lib/engagement";
-import { assertActiveClientForPortalSubmit } from "@/lib/request-lifecycle";
 import {
-  getClientPortalSupportSetupForSession,
-} from "@/lib/portal-support";
+  canRequestScopeChange,
+  getPortalWorkSubmitEligibility,
+} from "@/lib/portal-submit-eligibility";
+import { getClientPortalSupportSetupForSession } from "@/lib/portal-support";
 import { revalidatePath } from "next/cache";
 import {
   sendInternalClientCommentAlert,
@@ -53,6 +53,7 @@ export async function getPortalSubmitOptions(clientId: string) {
     categories: setup.categories,
     canSubmit: setup.canSubmit,
     blockMessage: setup.blockMessage,
+    blockReasonCode: setup.blockReasonCode,
   };
 }
 
@@ -73,6 +74,19 @@ export async function requestScopeChange(data: {
     return { error: PORTAL_RATE_LIMIT_ERROR };
   }
 
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { status: true, companyName: true, contactName: true, email: true, phone: true, planType: true },
+  });
+
+  if (!client) {
+    return { error: "Client not found." };
+  }
+
+  if (!canRequestScopeChange(client)) {
+    return { error: "Your account is being activated by Hargen." };
+  }
+
   let resolvedTaskNames: string[] = [];
   if (parsed.data.requestedWorkTaskIds && parsed.data.requestedWorkTaskIds.length > 0) {
     const taskValidation = await validateRequestedDiscoveryTaskIds(
@@ -82,15 +96,6 @@ export async function requestScopeChange(data: {
       return { error: taskValidation.error };
     }
     resolvedTaskNames = taskValidation.tasks.map((task) => task.name);
-  }
-
-  const client = await prisma.client.findUnique({
-    where: { id: clientId },
-    select: { companyName: true, contactName: true, email: true, phone: true, planType: true },
-  });
-
-  if (!client) {
-    return { error: "Client not found." };
   }
 
   const supportNeeded =
@@ -215,14 +220,36 @@ export async function submitPortalRequest(data: {
       return { error: "Client record not found." };
     }
 
-    const activeError = assertActiveClientForPortalSubmit(client.status);
-    if (activeError) {
-      return activeError;
-    }
+    const activeCatalogTaskCount = await prisma.workTask.count({
+      where: { isActive: true },
+    });
 
-    const submitCheck = canSubmitPortalWork(client);
-    if (!submitCheck.canSubmit) {
-      return { error: submitCheck.blockMessage ?? "Cannot submit work yet." };
+    const approvedIds = client.approvedWorkTasks.map((a) => a.workTaskId);
+    const activeApprovedWorkTaskCount =
+      approvedIds.length === 0
+        ? 0
+        : await prisma.workTask.count({
+            where: { isActive: true, id: { in: approvedIds } },
+          });
+
+    const submitEligibility = getPortalWorkSubmitEligibility({
+      status: client.status,
+      engagementType: client.engagementType,
+      billingMode: client.billingMode,
+      billingOverrideReason: client.billingOverrideReason,
+      billingOverrideExpiresAt: client.billingOverrideExpiresAt,
+      billingOverrideCreatedAt: client.billingOverrideCreatedAt,
+      billingOverrideCreatedById: client.billingOverrideCreatedById,
+      stripeCustomerId: client.stripeCustomerId,
+      stripeSubscriptionId: client.stripeSubscriptionId,
+      subscriptionStatus: client.subscriptionStatus,
+      subscriptionCurrentPeriodEnd: client.subscriptionCurrentPeriodEnd,
+      approvedWorkTaskCount: activeApprovedWorkTaskCount,
+      activeCatalogTaskCount,
+    });
+
+    if (!submitEligibility.canSubmit) {
+      return { error: submitEligibility.message };
     }
 
     if (!workTaskId) {

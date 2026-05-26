@@ -52,6 +52,7 @@ export default async function NewPortalRequest() {
             categories={options.categories}
             canSubmit={options.canSubmit}
             blockMessage={options.blockMessage}
+            blockReasonCode={options.blockReasonCode}
           />
         </CardContent>
       </Card>

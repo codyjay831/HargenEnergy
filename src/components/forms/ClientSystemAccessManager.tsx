@@ -50,6 +50,13 @@ const TYPE_LABELS: Record<SystemAccessType, string> = {
   OTHER: "Other",
 };
 
+const ACCESS_PRESETS: Array<{ type: SystemAccessType; label: string }> = [
+  { type: SystemAccessType.AHJ, label: "AHJ portal" },
+  { type: SystemAccessType.UTILITY, label: "Utility portal" },
+  { type: SystemAccessType.CRM, label: "CRM" },
+  { type: SystemAccessType.EMAIL, label: "Email / workspace" },
+];
+
 export function ClientSystemAccessManager({
   clientId,
   records,
@@ -113,8 +120,49 @@ export function ClientSystemAccessManager({
     }
   };
 
+  const handlePreset = async (preset: { type: SystemAccessType; label: string }) => {
+    setIsLoading(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const result = await createClientSystemAccess({
+        clientId,
+        label: preset.label,
+        systemType: preset.type,
+        loginUrl: null,
+        accessMethod: SystemAccessMethod.VAULT_LINK,
+      });
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setMessage(`${preset.label} requested.`);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      <div className="space-y-2">
+        <p className="text-sm text-muted-foreground">
+          System access is optional. Request logins from the customer or add items manually.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {ACCESS_PRESETS.map((preset) => (
+            <Button
+              key={preset.label}
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isLoading}
+              onClick={() => handlePreset(preset)}
+            >
+              + {preset.label}
+            </Button>
+          ))}
+        </div>
+      </div>
       <div className="space-y-3">
         {records.map((record) => (
           <div key={record.id} className="rounded-md border p-4 space-y-3">

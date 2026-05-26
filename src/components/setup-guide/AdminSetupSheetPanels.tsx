@@ -153,13 +153,11 @@ export function AdminSetupSheetPanels({
           <p className="text-sm text-muted-foreground">
             {client.users.length > 0
               ? `${client.users.length} portal user(s) linked.`
-              : "Send a portal invite after activation and scope are ready."}
+              : "Send a portal invite after the client is activated."}
           </p>
           <ClientPortalAccessManager
             clientId={client.id}
             clientStatus={client.status}
-            engagementType={client.engagementType}
-            approvedWorkTaskCount={client.approvedWorkTaskCount}
             defaultEmail={client.email}
             defaultName={client.contactName}
             users={client.users}

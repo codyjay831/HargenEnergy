@@ -522,6 +522,7 @@ model ClientSystemAccess {
   vaultLink        String?
   adminSecureNote  String?
   status           SystemAccessStatus  @default(NOT_PROVIDED)
+  createdViaPortal Boolean             @default(false)
   lastVerifiedAt   DateTime?
   notes            String?
   createdAt        DateTime            @default(now())

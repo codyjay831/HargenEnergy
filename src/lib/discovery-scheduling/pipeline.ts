@@ -111,16 +111,16 @@ export function deriveDiscoveryPipelineStage(
 }
 
 export const DISCOVERY_PIPELINE_RAIL = [
-  { id: "request", label: "Request", stages: ["new_request"] as DiscoveryPipelineStage[] },
   {
-    id: "qualify",
-    label: "Qualify",
-    stages: ["awaiting_info", "qualified"] as DiscoveryPipelineStage[],
-  },
-  {
-    id: "schedule",
-    label: "Schedule",
-    stages: ["link_sent", "booking_canceled"] as DiscoveryPipelineStage[],
+    id: "request",
+    label: "Request",
+    stages: [
+      "new_request",
+      "awaiting_info",
+      "qualified",
+      "link_sent",
+      "booking_canceled",
+    ] as DiscoveryPipelineStage[],
   },
   {
     id: "discovery",
@@ -131,7 +131,7 @@ export const DISCOVERY_PIPELINE_RAIL = [
   {
     id: "decision",
     label: "Decision",
-    stages: ["proposal_setup", "not_a_fit"] as DiscoveryPipelineStage[],
+    stages: ["proposal_setup", "not_a_fit", "active_client"] as DiscoveryPipelineStage[],
   },
 ] as const;
 
@@ -153,7 +153,7 @@ export function getDiscoveryPipelineStageLabel(
     case "qualified":
       return "Ready to schedule";
     case "link_sent":
-      return "Link sent";
+      return "Scheduling opened";
     case "booking_canceled":
       return "Canceled";
     case "scheduled":
@@ -232,9 +232,9 @@ export function getDiscoveryStageConfig(
       };
     case "link_sent":
       return {
-        heading: "Awaiting booking",
+        heading: "Scheduling opened",
         description:
-          "The prospect can pick a time on the self-serve scheduling page (usually right after they submit the request form). Resend or regenerate the link if they need a fresh one.",
+          "The prospect can book a discovery time on the self-serve page. Review their intake while you wait for them to pick a slot.",
         primaryLabel: "Copy scheduling link",
         secondaryLabels: ["Resend link", "Regenerate link", "Revoke link"],
       };
@@ -248,7 +248,7 @@ export function getDiscoveryStageConfig(
       };
     case "scheduled":
       return {
-        heading: "Discovery scheduled",
+        heading: "Discovery booked",
         description: "Discovery call is on the calendar. Prepare and run the discovery.",
         primaryLabel: "Open discovery workspace",
         secondaryLabels: ["Reschedule", "Cancel", "Mark no-show"],

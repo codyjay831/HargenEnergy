@@ -3,10 +3,9 @@ import {
   EngagementType,
   type PlanType,
 } from "@/generated/prisma/client";
-import {
-  canSubmitPortalWork,
-  getEngagementLabel,
-} from "@/lib/engagement";
+import { getEngagementLabel } from "@/lib/engagement";
+import { getPortalWorkSubmitEligibility } from "@/lib/portal-submit-eligibility";
+import type { PortalSubmitBlockReason } from "@/lib/portal-submit-eligibility";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { assertClientScope } from "@/lib/auth-guards";
@@ -47,6 +46,7 @@ export type ClientPortalSupportSetup = {
   categories: PortalSubmitCategory[];
   supportAreas: PortalSupportArea[];
   canSubmit: boolean;
+  blockReasonCode?: PortalSubmitBlockReason;
   blockMessage?: string;
 };
 
@@ -91,9 +91,35 @@ export async function getClientPortalSupportSetup(
     return { error: "Client not found." };
   }
 
-  const submitCheck = canSubmitPortalWork(client);
   const isRequestBased = client.engagementType === EngagementType.REQUEST_BASED;
   const isSupportBlock = client.engagementType === EngagementType.SUPPORT_BLOCK;
+  const activeCatalogTaskCount = await prisma.workTask.count({
+    where: { isActive: true },
+  });
+
+  const approvedIds = client.approvedWorkTasks.map((a) => a.workTaskId);
+  const activeApprovedWorkTaskCount =
+    approvedIds.length === 0
+      ? 0
+      : await prisma.workTask.count({
+          where: { isActive: true, id: { in: approvedIds } },
+        });
+
+  const submitEligibility = getPortalWorkSubmitEligibility({
+    status: client.status,
+    engagementType: client.engagementType,
+    billingMode: client.billingMode,
+    billingOverrideReason: client.billingOverrideReason,
+    billingOverrideExpiresAt: client.billingOverrideExpiresAt,
+    billingOverrideCreatedAt: client.billingOverrideCreatedAt,
+    billingOverrideCreatedById: client.billingOverrideCreatedById,
+    stripeCustomerId: client.stripeCustomerId,
+    stripeSubscriptionId: client.stripeSubscriptionId,
+    subscriptionStatus: client.subscriptionStatus,
+    subscriptionCurrentPeriodEnd: client.subscriptionCurrentPeriodEnd,
+    approvedWorkTaskCount: activeApprovedWorkTaskCount,
+    activeCatalogTaskCount,
+  });
 
   const base = {
     engagementType: client.engagementType,
@@ -110,6 +136,11 @@ export async function getClientPortalSupportSetup(
     subscriptionStatus: client.subscriptionStatus,
     stripeCustomerId: client.stripeCustomerId,
     stripeSubscriptionId: client.stripeSubscriptionId,
+    canSubmit: submitEligibility.canSubmit,
+    blockReasonCode: submitEligibility.canSubmit
+      ? undefined
+      : submitEligibility.reasonCode,
+    blockMessage: submitEligibility.canSubmit ? undefined : submitEligibility.message,
   };
 
   if (isRequestBased) {
@@ -126,27 +157,19 @@ export async function getClientPortalSupportSetup(
     });
 
     const categories = toPortalCategories(rawCategories);
-    const hasTasks = categories.length > 0;
 
     return {
       ...base,
       categories,
       supportAreas: [],
-      canSubmit: hasTasks,
-      blockMessage: hasTasks
-        ? undefined
-        : "No work types are available right now. Contact Hargen.",
     };
   }
 
-  const approvedIds = client.approvedWorkTasks.map((a) => a.workTaskId);
   if (approvedIds.length === 0) {
     return {
       ...base,
       categories: [],
       supportAreas: [],
-      canSubmit: false,
-      blockMessage: submitCheck.blockMessage,
     };
   }
 
@@ -168,8 +191,6 @@ export async function getClientPortalSupportSetup(
     ...base,
     categories,
     supportAreas: deriveSupportAreas(categories),
-    canSubmit: submitCheck.canSubmit && categories.length > 0,
-    blockMessage: submitCheck.blockMessage,
   };
 }
 
