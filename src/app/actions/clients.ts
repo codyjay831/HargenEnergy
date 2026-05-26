@@ -8,8 +8,10 @@ import {
   ClientStatus,
   EngagementType,
   RequestStatus,
+  Role,
   SupportRequestKind,
   SupportRequestSource,
+  StaffRole,
   Urgency,
 } from "@/generated/prisma/client";
 import { requireStaff } from "@/lib/auth-guards";
@@ -28,6 +30,8 @@ import {
   revalidateAdminClientPage,
   revalidatePortalClientSurfaces,
 } from "@/lib/revalidate-paths";
+import { resolveStaffRole } from "@/lib/permissions";
+import type { Prisma } from "@/generated/prisma/client";
 
 export async function updateClientBillingMode(data: {
   clientId: string;
@@ -392,5 +396,157 @@ export async function logClientOpsRequest(data: {
   } catch (error) {
     console.error("Error logging client ops request:", error);
     return { error: "Failed to log client ops request." };
+  }
+}
+
+async function assertOwnerStaff(userId: string): Promise<{ error: string } | null> {
+  const actor = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { staffRole: true },
+  });
+  if (!actor || resolveStaffRole(actor.staffRole) !== StaffRole.OWNER) {
+    return { error: "Forbidden. Owner access required." };
+  }
+  return null;
+}
+
+async function deleteClientData(
+  tx: Prisma.TransactionClient,
+  clientId: string,
+): Promise<void> {
+  const requests = await tx.supportRequest.findMany({
+    where: { clientId },
+    select: { id: true },
+  });
+  const requestIds = requests.map((request) => request.id);
+
+  if (requestIds.length > 0) {
+    await tx.requestComment.deleteMany({
+      where: { supportRequestId: { in: requestIds } },
+    });
+    await tx.supportRequestWorkTask.deleteMany({
+      where: { requestId: { in: requestIds } },
+    });
+  }
+
+  await tx.disbursementRequest.deleteMany({ where: { clientId } });
+  await tx.walkthroughAppointment.deleteMany({ where: { clientId } });
+  await tx.walkthroughSchedulingLink.deleteMany({ where: { clientId } });
+  await tx.attachment.deleteMany({ where: { clientId } });
+  await tx.timeEntry.deleteMany({ where: { clientId } });
+  await tx.recurringTask.deleteMany({ where: { clientId } });
+  await tx.supportRequest.deleteMany({ where: { clientId } });
+  await tx.user.deleteMany({ where: { clientId, role: Role.CLIENT } });
+  await tx.client.delete({ where: { id: clientId } });
+}
+
+export async function archiveClient(clientId: string) {
+  const session = await requireStaff("clients.manage");
+
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { id: true, companyName: true, status: true },
+  });
+  if (!client) {
+    return { error: "Client not found." };
+  }
+
+  if (
+    client.status !== ClientStatus.ACTIVE &&
+    client.status !== ClientStatus.PAUSED
+  ) {
+    return {
+      error: "Only active or paused clients can be archived.",
+    };
+  }
+
+  const now = new Date();
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.client.update({
+        where: { id: clientId },
+        data: { status: ClientStatus.CANCELLED },
+      });
+      await tx.user.updateMany({
+        where: { clientId, role: Role.CLIENT, deactivatedAt: null },
+        data: { deactivatedAt: now },
+      });
+    });
+
+    revalidateAdminClientPage(clientId);
+    revalidatePortalClientSurfaces();
+    revalidatePath("/admin/billing");
+
+    await writeAuditLog({
+      actorUserId: session.user.id,
+      action: "client.archive",
+      entityType: "Client",
+      entityId: clientId,
+      metadata: { companyName: client.companyName },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error archiving client:", error);
+    return { error: "Failed to archive client." };
+  }
+}
+
+export async function deleteClientPermanently(data: {
+  clientId: string;
+  confirmCompanyName: string;
+}) {
+  const session = await requireStaff("clients.manage");
+  const ownerError = await assertOwnerStaff(session.user.id);
+  if (ownerError) return ownerError;
+
+  const clientId = data.clientId.trim();
+  const confirmCompanyName = data.confirmCompanyName.trim();
+
+  if (!clientId || !confirmCompanyName) {
+    return { error: "Company name confirmation is required." };
+  }
+
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { id: true, companyName: true, status: true },
+  });
+  if (!client) {
+    return { error: "Client not found." };
+  }
+
+  if (client.status !== ClientStatus.LEAD) {
+    return {
+      error:
+        "Only prospect (LEAD) companies can be permanently deleted. Archive active clients instead.",
+    };
+  }
+
+  if (client.companyName !== confirmCompanyName) {
+    return { error: "Company name does not match." };
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await deleteClientData(tx, clientId);
+    });
+
+    revalidatePath("/admin/clients");
+    revalidatePath("/admin/requests");
+    revalidatePortalClientSurfaces();
+
+    await writeAuditLog({
+      actorUserId: session.user.id,
+      action: "client.delete_permanent",
+      entityType: "Client",
+      entityId: clientId,
+      metadata: { companyName: client.companyName },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting client:", error);
+    return { error: "Failed to delete client." };
   }
 }

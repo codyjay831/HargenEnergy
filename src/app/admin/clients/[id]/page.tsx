@@ -34,10 +34,14 @@ import { formatIntakePlanLabel } from "@/lib/intake-plan";
 import { AdminSetupGuide } from "@/components/admin/AdminSetupGuide";
 import { WalkthroughCommandCenter } from "@/components/admin/WalkthroughCommandCenter";
 import { ClientDetailTabs } from "@/components/admin/ClientDetailTabs";
+import { ArchiveClientPanel } from "@/components/admin/ArchiveClientPanel";
+import { DeleteClientPanel } from "@/components/admin/DeleteClientPanel";
 import { getWalkthroughSchedulingReadiness } from "@/lib/walkthrough-scheduling/scheduling-readiness";
 import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
 import { getClientSystemAccessForAdmin } from "@/app/actions/system-access";
 import { resolveAdminClientTab } from "@/lib/admin-client-tabs";
+import { auth } from "@/auth";
+import { resolveStaffRole } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +70,11 @@ export default async function ClientDetailPage({
   if (!id) {
     notFound();
   }
+
+  const session = await auth();
+  const isOwner =
+    session?.user?.role === "ADMIN" &&
+    resolveStaffRole(session.user.staffRole ?? null) === "OWNER";
 
   const client = await prisma.client.findUnique({
     where: { id },
@@ -444,6 +453,20 @@ export default async function ClientDetailPage({
           }
         />
       </Suspense>
+
+      <div className="max-w-3xl space-y-6">
+        <ArchiveClientPanel
+          clientId={client.id}
+          companyName={client.companyName}
+          status={client.status}
+        />
+        <DeleteClientPanel
+          clientId={client.id}
+          companyName={client.companyName}
+          status={client.status}
+          canDelete={isOwner}
+        />
+      </div>
     </div>
   );
 }

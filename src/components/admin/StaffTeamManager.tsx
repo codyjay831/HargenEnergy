@@ -7,6 +7,7 @@ import {
   deactivateStaffUser,
   inviteStaffUser,
   listStaffUsers,
+  removeDeactivatedStaffUser,
   resendStaffInvite,
 } from "@/app/actions/staff-users";
 import { StaffRole } from "@/generated/prisma/client";
@@ -80,6 +81,22 @@ export function StaffTeamManager(props: {
       const result = await resendStaffInvite(userId);
       if ("error" in result && result.error) setError(result.error);
       else setMessage("Invite resent.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRemove(userId: string) {
+    setSaving(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const result = await removeDeactivatedStaffUser(userId);
+      if ("error" in result && result.error) setError(result.error);
+      else {
+        setMessage("Staff member removed. Their email is now free for reuse.");
+        await refreshRows();
+      }
     } finally {
       setSaving(false);
     }
@@ -228,6 +245,16 @@ export function StaffTeamManager(props: {
                           Deactivate
                         </Button>
                       </>
+                    ) : props.canManage && isDeactivated ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRemove(row.id)}
+                        disabled={saving}
+                      >
+                        Remove
+                      </Button>
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>
                     )}

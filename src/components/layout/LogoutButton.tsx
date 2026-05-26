@@ -1,16 +1,16 @@
-"use client";
-
 import { handleSignOut } from "@/app/actions/auth";
-import { LogOut } from "lucide-react";
+import { LogoutSubmitButton } from "@/components/layout/LogoutSubmitButton";
+import { cn } from "@/lib/utils";
 
-export function LogoutButton() {
+type LogoutButtonProps = {
+  compact?: boolean;
+  className?: string;
+};
+
+export function LogoutButton({ compact = false, className }: LogoutButtonProps) {
   return (
-    <button
-      onClick={() => handleSignOut()}
-      className="flex w-full items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-red-600 hover:bg-red-50 transition-colors"
-    >
-      <LogOut className="h-4 w-4" />
-      Logout
-    </button>
+    <form action={handleSignOut} className={cn("w-full", className)}>
+      <LogoutSubmitButton compact={compact} />
+    </form>
   );
 }

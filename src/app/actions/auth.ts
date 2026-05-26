@@ -69,5 +69,5 @@ export async function authenticate(
 }
 
 export async function handleSignOut() {
-  await signOut({ redirectTo: "/" });
+  await signOut({ redirectTo: "/login?status=signed-out" });
 }

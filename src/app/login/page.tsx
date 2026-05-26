@@ -12,6 +12,7 @@ const STATUS_MESSAGES: Record<string, string> = {
     "Admin account created. Sign in with your new credentials.",
   "password-updated":
     "Your password has been updated. Sign in with your new password.",
+  "signed-out": "You have been signed out.",
 };
 
 export default async function LoginPage({

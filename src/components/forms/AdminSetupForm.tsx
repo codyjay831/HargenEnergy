@@ -6,6 +6,7 @@ import {
   type AdminSetupState,
 } from "@/app/actions/admin-setup";
 import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AlertCircle } from "lucide-react";
@@ -24,10 +25,9 @@ export function AdminSetupForm() {
     <form action={formAction} className="space-y-4" autoComplete="off">
       <div className="space-y-2">
         <Label htmlFor="setupToken">Setup token</Label>
-        <Input
+        <PasswordInput
           id="setupToken"
           name="setupToken"
-          type="password"
           autoComplete="off"
           required
         />
@@ -63,10 +63,9 @@ export function AdminSetupForm() {
 
       <div className="space-y-2">
         <Label htmlFor="password">Password</Label>
-        <Input
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="new-password"
           required
           minLength={12}
@@ -81,10 +80,9 @@ export function AdminSetupForm() {
 
       <div className="space-y-2">
         <Label htmlFor="confirmPassword">Confirm password</Label>
-        <Input
+        <PasswordInput
           id="confirmPassword"
           name="confirmPassword"
-          type="password"
           autoComplete="new-password"
           required
           minLength={12}

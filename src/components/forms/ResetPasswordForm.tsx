@@ -6,7 +6,7 @@ import {
   type ResetPasswordState,
 } from "@/app/actions/password-reset";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { AlertCircle } from "lucide-react";
 
@@ -26,10 +26,9 @@ export function ResetPasswordForm({ token }: { token: string }) {
 
       <div className="space-y-2">
         <Label htmlFor="password">New password</Label>
-        <Input
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="new-password"
           required
           minLength={12}
@@ -44,10 +43,9 @@ export function ResetPasswordForm({ token }: { token: string }) {
 
       <div className="space-y-2">
         <Label htmlFor="confirmPassword">Confirm new password</Label>
-        <Input
+        <PasswordInput
           id="confirmPassword"
           name="confirmPassword"
-          type="password"
           autoComplete="new-password"
           required
           minLength={12}

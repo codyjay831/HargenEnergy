@@ -15,6 +15,10 @@ import {
 import { sendStaffInviteEmail } from "@/lib/email";
 import { writeAuditLog } from "@/lib/audit-log";
 import { resolveStaffRole } from "@/lib/permissions";
+import {
+  ARCHIVED_STAFF_EMAIL_DOMAIN,
+  archivedStaffEmail,
+} from "@/lib/staff-email-archive";
 
 const inviteStaffSchema = z.object({
   email: z
@@ -49,7 +53,10 @@ async function getActiveOwnerCount(): Promise<number> {
 export async function listStaffUsers() {
   await requireStaff();
   const users = await prisma.user.findMany({
-    where: { role: Role.ADMIN },
+    where: {
+      role: Role.ADMIN,
+      email: { not: { endsWith: ARCHIVED_STAFF_EMAIL_DOMAIN } },
+    },
     select: {
       id: true,
       name: true,
@@ -239,6 +246,39 @@ export async function deactivateStaffUser(userId: string) {
     action: "staff_user.deactivate",
     entityType: "User",
     entityId: userId,
+  });
+
+  revalidatePath("/admin/team");
+  return { success: true };
+}
+
+export async function removeDeactivatedStaffUser(userId: string) {
+  const session = await requireStaff("staff.manage");
+  await assertOwner(session.user.id);
+
+  const target = await prisma.user.findFirst({
+    where: { id: userId, role: Role.ADMIN },
+    select: { id: true, email: true, deactivatedAt: true },
+  });
+  if (!target) return { error: "Staff user not found." };
+  if (!target.deactivatedAt) {
+    return { error: "Only deactivated staff can be removed." };
+  }
+  if (target.email.endsWith(ARCHIVED_STAFF_EMAIL_DOMAIN)) {
+    return { error: "This staff member is already removed." };
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { email: archivedStaffEmail(target.id) },
+  });
+
+  await writeAuditLog({
+    actorUserId: session.user.id,
+    action: "staff_user.remove",
+    entityType: "User",
+    entityId: userId,
+    metadata: { previousEmail: target.email },
   });
 
   revalidatePath("/admin/team");
