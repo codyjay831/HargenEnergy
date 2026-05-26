@@ -12,6 +12,7 @@ import {
   isVercelBlobUrl,
 } from "@/lib/storage/blob-ref";
 import { prisma } from "@/lib/prisma";
+import { revalidateAdminClientPage } from "@/lib/revalidate-paths";
 
 const brandingSchema = z
   .object({
@@ -82,7 +83,7 @@ export async function updateClientBranding(data: {
     },
   });
 
-  revalidatePath(`/admin/clients/${clientId}`);
+  revalidateAdminClientPage(clientId);
   revalidatePath("/portal");
   return { success: true };
 }
@@ -109,7 +110,7 @@ export async function pullClientLogoFromWebsite(clientId: string) {
     data: { logoUrl },
   });
 
-  revalidatePath(`/admin/clients/${clientId}`);
+  revalidateAdminClientPage(clientId);
   revalidatePath("/portal");
   return { success: true, logoUrl };
 }

@@ -353,7 +353,7 @@ export default async function AdminDashboard() {
                 {recentWalkthroughs.map((request) => (
                   <Link
                     key={request.id}
-                    href={`/admin/clients/${request.clientId}?open=walkthrough`}
+                    href={`/admin/clients/${request.clientId}?tab=walkthrough&open=walkthrough`}
                     className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors"
                   >
                     <div className="flex-1 min-w-0">

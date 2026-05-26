@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -31,13 +32,16 @@ import { OnboardingWrapper } from "@/components/onboarding/OnboardingWrapper";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { formatIntakePlanLabel } from "@/lib/intake-plan";
 import { AdminSetupGuide } from "@/components/admin/AdminSetupGuide";
+import { ClientDetailTabs } from "@/components/admin/ClientDetailTabs";
 import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
 import { getClientSystemAccessForAdmin } from "@/app/actions/system-access";
+import { resolveAdminClientTab } from "@/lib/admin-client-tabs";
 
 export const dynamic = "force-dynamic";
 
 interface ClientDetailPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string; open?: string }>;
 }
 
 type ClientWithRelations = Client & {
@@ -49,8 +53,12 @@ type ClientWithRelations = Client & {
   approvedWorkTasks?: { workTaskId: string }[];
 };
 
-export default async function ClientDetailPage({ params }: ClientDetailPageProps) {
+export default async function ClientDetailPage({
+  params,
+  searchParams,
+}: ClientDetailPageProps) {
   const resolvedParams = await params;
+  const resolvedSearchParams = await searchParams;
   const id = typeof resolvedParams?.id === "string" ? resolvedParams.id : undefined;
 
   if (!id) {
@@ -149,6 +157,25 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
   }
 
   const setupReadiness = setupReadinessResult;
+  const showWalkthroughTab = isProspect || setupReadiness.hasWalkthroughIntake;
+  let initialTab = resolveAdminClientTab(
+    resolvedSearchParams.tab,
+    resolvedSearchParams.open,
+  );
+  if (initialTab === "walkthrough" && !showWalkthroughTab) {
+    initialTab = "overview";
+  }
+
+  const engagementPanel = (
+    <ClientEngagementManager
+      clientId={client.id}
+      engagementType={client.engagementType}
+      approvedWorkTaskIds={client.approvedWorkTasks.map((a) => a.workTaskId)}
+      suggestedWorkTaskIds={suggestedWorkTaskIds}
+      categories={catalogCategories}
+      walkthroughPlanRequestBased={walkthroughPlanRequestBased}
+    />
+  );
 
   return (
     <div className="space-y-8">
@@ -218,165 +245,146 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Status-Aware Layout */}
-        {isProspect ? (
-          <>
-            {/* Prospect View: Onboarding First */}
-            <div className="lg:col-span-2 space-y-8">
-              <OnboardingWrapper
-                client={{
-                  id: client.id,
-                  companyName: client.companyName,
-                  contactName: client.contactName,
-                  email: client.email,
-                  status: client.status,
-                  planType: client.planType,
-                  engagementType: client.engagementType,
-                  billingMode: client.billingMode,
-                  billingOverrideReason: client.billingOverrideReason,
-                  billingOverrideExpiresAt: client.billingOverrideExpiresAt,
-                  billingOverrideCreatedAt: client.billingOverrideCreatedAt,
-                  billingOverrideCreatedById: client.billingOverrideCreatedById,
-                  approvedWorkTaskCount,
-                  subscriptionStatus: client.subscriptionStatus,
-                  stripeCustomerId: client.stripeCustomerId,
-                  stripeSubscriptionId: client.stripeSubscriptionId,
-                  users: client.users,
-                }}
-                intakeClient={{
-                  companyName: client.companyName,
-                  contactName: client.contactName,
-                  email: client.email,
-                  phone: client.phone,
-                  role: client.role,
-                  website: client.website,
-                  serviceArea: client.serviceArea,
-                  currentTools: client.currentTools,
-                }}
-                walkthroughMetadata={walkthroughMetadata}
-                latestWalkthroughRequest={walkthroughRequestForDrawer}
-              />
-
-              <Card id="client-details" className="scroll-mt-8">
-                <CardHeader>
-                  <CardTitle>Company Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">{renderCompanyDetails(client)}</CardContent>
-              </Card>
-
-              {client.notes && (
+      <Suspense
+        fallback={
+          <div className="h-10 max-w-2xl animate-pulse rounded-lg bg-muted" aria-hidden />
+        }
+      >
+        <ClientDetailTabs
+          clientId={client.id}
+          initialTab={initialTab}
+          showWalkthroughTab={showWalkthroughTab}
+          overview={
+            isProspect ? (
+              <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+                <div className="lg:col-span-2 space-y-8">
+                  {renderCompanyDetailsCard(client)}
+                  {client.notes && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Internal Notes</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-slate-700 whitespace-pre-wrap">{client.notes}</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
                 <Card>
                   <CardHeader>
-                    <CardTitle>Internal Notes</CardTitle>
+                    <CardTitle>Quick Info</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{client.notes}</p>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                        Status
+                      </p>
+                      <Badge variant="secondary">{PRODUCT_LANGUAGE.prospect.badge}</Badge>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                        Plan Interest
+                      </p>
+                      <p className="text-sm">{planInterestLabel}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                        Created
+                      </p>
+                      <p className="text-sm">{format(new Date(client.createdAt), "MMM d, yyyy")}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+                <div className="lg:col-span-2 space-y-8">
+                  {renderCompanyDetailsCard(client)}
+                  {renderRecentRequests(client)}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Internal Notes</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-slate-600 italic">
+                        {client.notes || "No internal notes for this client."}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+                <div className="space-y-8">
+                  {client.engagementType === EngagementType.SUPPORT_BLOCK &&
+                    renderUsageCard(client, usage)}
+                  {renderTimeLogging(client)}
+                  {renderClientOpsLogging(client)}
+                </div>
+              </div>
+            )
+          }
+          walkthrough={
+            <OnboardingWrapper
+              client={{
+                id: client.id,
+                companyName: client.companyName,
+                contactName: client.contactName,
+                email: client.email,
+                status: client.status,
+                planType: client.planType,
+                engagementType: client.engagementType,
+                billingMode: client.billingMode,
+                billingOverrideReason: client.billingOverrideReason,
+                billingOverrideExpiresAt: client.billingOverrideExpiresAt,
+                billingOverrideCreatedAt: client.billingOverrideCreatedAt,
+                billingOverrideCreatedById: client.billingOverrideCreatedById,
+                approvedWorkTaskCount,
+                subscriptionStatus: client.subscriptionStatus,
+                stripeCustomerId: client.stripeCustomerId,
+                stripeSubscriptionId: client.stripeSubscriptionId,
+                users: client.users,
+              }}
+              intakeClient={{
+                companyName: client.companyName,
+                contactName: client.contactName,
+                email: client.email,
+                phone: client.phone,
+                role: client.role,
+                website: client.website,
+                serviceArea: client.serviceArea,
+                currentTools: client.currentTools,
+              }}
+              walkthroughMetadata={walkthroughMetadata}
+              latestWalkthroughRequest={walkthroughRequestForDrawer}
+            />
+          }
+          setup={
+            <div className="space-y-8 max-w-3xl">
+              {engagementPanel}
+              {renderSystemAccess(client.id, decryptedSystemAccesses)}
+              {!isProspect && renderBranding(client)}
+              {isProspect && (
+                <Card className="border-amber-200 bg-amber-50/40">
+                  <CardHeader>
+                    <CardTitle>Activation</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Mark the company active after walkthrough, contract, and payment. Then set
+                      up billing and send a portal invite from the Billing tab.
+                    </p>
+                    <ActivateClientButton clientId={client.id} />
                   </CardContent>
                 </Card>
               )}
             </div>
-
-            <div className="space-y-8">
-              {/* Prospect sidebar: minimal */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Quick Info</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Status</p>
-                    <Badge variant="secondary">{PRODUCT_LANGUAGE.prospect.badge}</Badge>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Plan Interest</p>
-                    <p className="text-sm">{planInterestLabel}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Created</p>
-                    <p className="text-sm">{format(new Date(client.createdAt), "MMM d, yyyy")}</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <div id="engagement" className="scroll-mt-8">
-                <ClientEngagementManager
-                  clientId={client.id}
-                  engagementType={client.engagementType}
-                  approvedWorkTaskIds={client.approvedWorkTasks.map((a) => a.workTaskId)}
-                  suggestedWorkTaskIds={suggestedWorkTaskIds}
-                  categories={catalogCategories}
-                  walkthroughPlanRequestBased={walkthroughPlanRequestBased}
-                />
-              </div>
-
-              <div id="system-access" className="scroll-mt-8">
-                {renderSystemAccess(client.id, decryptedSystemAccesses)}
-              </div>
-
-              <Card id="activation" className="scroll-mt-8 border-amber-200 bg-amber-50/40">
-                <CardHeader>
-                  <CardTitle>Activation</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Mark the company active after walkthrough, contract, and payment. Then set up billing and send a portal invite.
-                  </p>
-                  <ActivateClientButton clientId={client.id} />
-                </CardContent>
-              </Card>
+          }
+          billing={
+            <div className="space-y-8 max-w-3xl">
+              {renderBilling(client)}
+              {renderPortalAccess(client)}
             </div>
-          </>
-        ) : (
-          <>
-            {/* Active Client View: Delivery Tools */}
-            <div className="lg:col-span-2 space-y-8">
-              <div id="client-details" className="scroll-mt-8">
-                {renderCompanyDetailsCard(client)}
-              </div>
-              <div id="work-requests" className="scroll-mt-8">
-                {renderRecentRequests(client)}
-              </div>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Internal Notes</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-slate-600 italic">
-                    {client.notes || "No internal notes for this client."}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="space-y-8">
-              <div id="engagement" className="scroll-mt-8">
-                <ClientEngagementManager
-                  clientId={client.id}
-                  engagementType={client.engagementType}
-                  approvedWorkTaskIds={client.approvedWorkTasks.map((a) => a.workTaskId)}
-                  suggestedWorkTaskIds={suggestedWorkTaskIds}
-                  categories={catalogCategories}
-                  walkthroughPlanRequestBased={walkthroughPlanRequestBased}
-                />
-              </div>
-              {client.engagementType === EngagementType.SUPPORT_BLOCK && renderUsageCard(client, usage)}
-              {renderTimeLogging(client)}
-              {renderClientOpsLogging(client)}
-              <div id="system-access" className="scroll-mt-8">
-                {renderSystemAccess(client.id, decryptedSystemAccesses)}
-              </div>
-              {renderBranding(client)}
-              <div id="billing" className="scroll-mt-8">
-                {renderBilling(client)}
-              </div>
-              <div id="portal-access" className="scroll-mt-8">
-                {renderPortalAccess(client)}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
+          }
+        />
+      </Suspense>
     </div>
   );
 }

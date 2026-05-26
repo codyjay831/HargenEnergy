@@ -16,9 +16,9 @@ export function adminRequestUrl(requestId: string): string {
   return `${baseUrl()}/admin/requests/${encodeURIComponent(requestId)}`;
 }
 
-// Admin walkthrough (PROSPECT_INTAKE) deep-link to prospect page with drawer
+// Admin walkthrough (PROSPECT_INTAKE) deep-link to prospect walkthrough tab
 export function adminIntakeRequestUrl(clientId: string): string {
-  return `${baseUrl()}/admin/clients/${encodeURIComponent(clientId)}?open=walkthrough`;
+  return `${baseUrl()}/admin/clients/${encodeURIComponent(clientId)}?tab=walkthrough&open=walkthrough`;
 }
 
 // Alias for clarity - same as adminRequestUrl
@@ -28,7 +28,7 @@ export function adminWorkRequestUrl(requestId: string): string {
 
 // Alias for clarity - same as adminIntakeRequestUrl
 export function adminWalkthroughUrl(clientId: string): string {
-  return `${baseUrl()}/admin/clients/${encodeURIComponent(clientId)}?open=walkthrough`;
+  return `${baseUrl()}/admin/clients/${encodeURIComponent(clientId)}?tab=walkthrough&open=walkthrough`;
 }
 
 // Portal request detail

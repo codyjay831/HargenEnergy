@@ -11,6 +11,7 @@ import { requireClientUser, requireStaff } from "@/lib/auth-guards";
 import { assertPortalInviteAllowed } from "@/lib/request-lifecycle";
 import { checkPortalInviteReadiness } from "@/lib/engagement";
 import { prisma } from "@/lib/prisma";
+import { revalidateAdminClientPage, revalidatePortalClientSurfaces } from "@/lib/revalidate-paths";
 import {
   buildPasswordResetUrl,
   createPasswordResetTokenForUser,
@@ -149,8 +150,8 @@ async function inviteClientPortalUserInternal(
     };
   }
 
-  revalidatePath(`/admin/clients/${clientId}`);
-  revalidatePath("/portal/team");
+  revalidateAdminClientPage(clientId);
+  revalidatePortalClientSurfaces();
   await writeAuditLog({
     actorUserId: actor.id,
     action: "client_user.invite",
@@ -213,7 +214,7 @@ export async function resendClientPortalInvite(clientId: string, userId: string)
     return { error: "Invite email could not be sent." };
   }
 
-  revalidatePath(`/admin/clients/${clientId}`);
+  revalidateAdminClientPage(clientId);
   await writeAuditLog({
     actorUserId: session.user.id,
     action: "client_user.resend_invite",

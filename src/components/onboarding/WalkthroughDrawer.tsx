@@ -57,14 +57,15 @@ export function WalkthroughDrawer({ client, request, metadata }: WalkthroughDraw
   const searchParams = useSearchParams();
   const [isApplying, startApplyTransition] = useTransition();
 
-  const open = searchParams?.get("open") === "walkthrough" && request !== null;
+  const legacyOpen = searchParams?.get("open") === "walkthrough";
+  const open = request !== null && legacyOpen;
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       const params = new URLSearchParams(searchParams?.toString() || "");
       params.delete("open");
-      const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
-      router.replace(newUrl);
+      const query = params.toString();
+      router.replace(query ? `?${query}` : window.location.pathname);
     }
   };
 

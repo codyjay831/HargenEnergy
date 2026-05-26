@@ -20,6 +20,7 @@ import {
 import { auth } from "@/auth";
 import { isRequestStatusValue, isOverflowStatusValue } from "@/lib/ui-enums";
 import { checkRateLimit, getRateLimitIdentifier } from "@/lib/rate-limit";
+import { revalidateAdminClientPage } from "@/lib/revalidate-paths";
 import {
   isRequestBasedPricingComplete,
   REQUEST_BASED_PRICING_REQUIRED_ERROR,
@@ -107,8 +108,7 @@ export async function submitRequestHelp(data: RequestHelpInput) {
     });
 
     revalidatePath("/admin");
-    revalidatePath("/admin/clients");
-    revalidatePath(`/admin/clients/${clientId}`);
+    revalidateAdminClientPage(clientId);
 
     const summary: WalkthroughSubmissionSummary = {
       requestId,

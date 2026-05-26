@@ -167,7 +167,7 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
                     </TableCell>
                     <TableCell className="text-right">
                       <Link
-                        href={`/admin/clients/${client.id}${hasUnreviewedWalkthrough ? "?open=walkthrough" : ""}`}
+                        href={`/admin/clients/${client.id}${hasUnreviewedWalkthrough ? "?tab=walkthrough&open=walkthrough" : ""}`}
                         className="text-primary hover:underline text-sm font-medium"
                       >
                         Manage

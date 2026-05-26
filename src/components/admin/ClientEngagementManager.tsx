@@ -71,6 +71,16 @@ export function ClientEngagementManager({
   const pendingFromIntake = suggestedWorkTaskIds.filter(
     (id) => !initialApprovedSet.has(id),
   );
+  const intakeAppliedCount = suggestedWorkTaskIds.filter((id) =>
+    initialApprovedSet.has(id),
+  ).length;
+  const intakeFullyApplied =
+    suggestedWorkTaskIds.length > 0 &&
+    suggestedWorkTaskIds.every((id) => initialApprovedSet.has(id));
+  const configuredManuallyWithoutIntake =
+    suggestedWorkTaskIds.length > 0 &&
+    intakeAppliedCount === 0 &&
+    initialApproved.length > 0;
   const hasUnsavedIntakeSuggestions = pendingFromIntake.some((id) => approved.has(id));
 
   const toggleApproved = (taskId: string, checked: boolean) => {
@@ -151,27 +161,44 @@ export function ClientEngagementManager({
 
         {suggestedWorkTaskIds.length > 0 && (
           <div className="rounded-md border border-sky-200 bg-sky-50 p-3 space-y-3">
-            <p className="text-sm text-sky-950">
-              {hasUnsavedIntakeSuggestions
-                ? "Walkthrough selections are pre-checked below. Save engagement settings or apply them now."
-                : "Walkthrough selections are applied to approved work."}
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleApplyIntake}
-              disabled={isApplying || isPending}
-            >
-              {isApplying ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Applying...
-                </>
-              ) : (
-                "Apply walkthrough to approved work"
-              )}
-            </Button>
+            {intakeFullyApplied && !hasUnsavedIntakeSuggestions ? (
+              <p className="text-sm text-emerald-900">
+                Walkthrough selections are applied to approved work.
+              </p>
+            ) : configuredManuallyWithoutIntake ? (
+              <p className="text-sm text-amber-950">
+                Approved work was configured manually and does not yet include walkthrough
+                selections. Apply walkthrough below or continue editing scope by hand.
+              </p>
+            ) : hasUnsavedIntakeSuggestions ? (
+              <p className="text-sm text-sky-950">
+                Walkthrough selections are pre-checked below. Save engagement settings or apply
+                them now.
+              </p>
+            ) : (
+              <p className="text-sm text-sky-950">
+                Some walkthrough selections are not in approved work yet. Apply them or configure
+                scope manually below.
+              </p>
+            )}
+            {!intakeFullyApplied && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleApplyIntake}
+                disabled={isApplying || isPending}
+              >
+                {isApplying ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Applying...
+                  </>
+                ) : (
+                  "Apply walkthrough to approved work"
+                )}
+              </Button>
+            )}
           </div>
         )}
 

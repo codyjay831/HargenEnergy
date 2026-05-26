@@ -14,6 +14,7 @@ import {
   encryptFieldValue,
 } from "@/lib/crypto/field-encryption";
 import { prisma } from "@/lib/prisma";
+import { revalidateAdminClientPage } from "@/lib/revalidate-paths";
 
 const systemTypeSchema = z.nativeEnum(SystemAccessType);
 const accessMethodSchema = z.nativeEnum(SystemAccessMethod);
@@ -59,7 +60,7 @@ export async function createClientSystemAccess(
     },
   });
 
-  revalidatePath(`/admin/clients/${parsed.data.clientId}`);
+  revalidateAdminClientPage(parsed.data.clientId);
   revalidatePath("/portal/access");
   return { success: true, id: record.id };
 }
@@ -95,7 +96,7 @@ export async function updateClientSystemAccess(
     },
   });
 
-  revalidatePath(`/admin/clients/${existing.clientId}`);
+  revalidateAdminClientPage(existing.clientId);
   revalidatePath("/portal/access");
   return { success: true };
 }
@@ -118,7 +119,7 @@ export async function verifyClientSystemAccess(accessId: string) {
     },
   });
 
-  revalidatePath(`/admin/clients/${existing.clientId}`);
+  revalidateAdminClientPage(existing.clientId);
   revalidatePath("/portal/access");
   return { success: true };
 }
@@ -170,7 +171,7 @@ export async function submitClientSystemAccessHandoff(
   });
 
   revalidatePath("/portal/access");
-  revalidatePath(`/admin/clients/${existing.clientId}`);
+  revalidateAdminClientPage(existing.clientId);
   return { success: true };
 }
 

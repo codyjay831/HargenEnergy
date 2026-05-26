@@ -8,6 +8,7 @@ import { assertRequestBasedBillableWorkAllowed } from "@/lib/engagement";
 import { revalidatePath } from "next/cache";
 import { isBillableTypeValue } from "@/lib/ui-enums";
 import { writeAuditLog } from "@/lib/audit-log";
+import { revalidateAdminClientPage } from "@/lib/revalidate-paths";
 
 export async function createTimeEntry(data: {
   clientId: string;
@@ -89,7 +90,7 @@ export async function createTimeEntry(data: {
     });
 
     revalidatePath("/admin/time");
-    revalidatePath(`/admin/clients/${data.clientId}`);
+    revalidateAdminClientPage(data.clientId);
     if (data.supportRequestId) {
       revalidatePath(`/admin/requests/${data.supportRequestId}`);
     }
@@ -114,7 +115,7 @@ export async function deleteTimeEntry(id: string) {
     });
 
     revalidatePath("/admin/time");
-    revalidatePath(`/admin/clients/${timeEntry.clientId}`);
+    revalidateAdminClientPage(timeEntry.clientId);
     if (timeEntry.supportRequestId) {
       revalidatePath(`/admin/requests/${timeEntry.supportRequestId}`);
     }
@@ -151,7 +152,7 @@ export async function confirmTimeEntry(id: string) {
     });
 
     revalidatePath("/admin/time");
-    revalidatePath(`/admin/clients/${timeEntry.clientId}`);
+    revalidateAdminClientPage(timeEntry.clientId);
     if (timeEntry.supportRequestId) {
       revalidatePath(`/admin/requests/${timeEntry.supportRequestId}`);
     }
@@ -231,7 +232,7 @@ export async function updateTimeEntry(id: string, data: {
     });
 
     revalidatePath("/admin/time");
-    revalidatePath(`/admin/clients/${timeEntry.clientId}`);
+    revalidateAdminClientPage(timeEntry.clientId);
     if (timeEntry.supportRequestId) {
       revalidatePath(`/admin/requests/${timeEntry.supportRequestId}`);
     }

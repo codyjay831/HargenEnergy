@@ -36,6 +36,7 @@ export function OnboardingSteps({
 
   const handleOpenWalkthrough = () => {
     const url = new URL(window.location.href);
+    url.searchParams.set("tab", "walkthrough");
     url.searchParams.set("open", "walkthrough");
     router.push(url.pathname + url.search);
   };

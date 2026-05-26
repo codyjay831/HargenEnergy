@@ -24,6 +24,10 @@ import { updateClientEngagementSchema } from "@/lib/validations";
 import { applyIntakeWorkTasksToClient } from "@/lib/intake-engagement";
 import { sendInternalRequestAlert } from "@/lib/email";
 import { writeAuditLog } from "@/lib/audit-log";
+import {
+  revalidateAdminClientPage,
+  revalidatePortalClientSurfaces,
+} from "@/lib/revalidate-paths";
 
 export async function updateClientBillingMode(data: {
   clientId: string;
@@ -67,9 +71,8 @@ export async function updateClientBillingMode(data: {
             },
     });
 
-    revalidatePath("/admin/clients");
+    revalidateAdminClientPage(data.clientId);
     revalidatePath("/admin/billing");
-    revalidatePath(`/admin/clients/${data.clientId}`);
     revalidatePath("/portal");
     revalidatePath("/portal/account");
 
@@ -111,11 +114,8 @@ export async function applyIntakeToApprovedWork(clientId: string, requestId?: st
     return { error: result.error };
   }
 
-  revalidatePath("/admin/clients");
-  revalidatePath(`/admin/clients/${clientId}`);
-  revalidatePath("/portal");
-  revalidatePath("/portal/account");
-  revalidatePath("/portal/requests/new");
+  revalidateAdminClientPage(clientId);
+  revalidatePortalClientSurfaces();
 
   return {
     success: true,
@@ -155,10 +155,8 @@ export async function activateClient(clientId: string) {
       });
     }
 
-    revalidatePath("/admin/clients");
-    revalidatePath(`/admin/clients/${clientId}`);
-    revalidatePath("/portal");
-    revalidatePath("/portal/account");
+    revalidateAdminClientPage(clientId);
+    revalidatePortalClientSurfaces();
     return { success: true, client: updated };
   } catch (error) {
     console.error("Error activating client:", error);
@@ -230,11 +228,8 @@ export async function updateClientEngagement(data: {
       });
     });
 
-    revalidatePath("/admin/clients");
-    revalidatePath(`/admin/clients/${clientId}`);
-    revalidatePath("/portal/requests/new");
-    revalidatePath("/portal/account");
-    revalidatePath("/portal");
+    revalidateAdminClientPage(clientId);
+    revalidatePortalClientSurfaces();
 
     return {
       success: true,
@@ -390,7 +385,7 @@ export async function logClientOpsRequest(data: {
     }
 
     revalidatePath("/admin/requests");
-    revalidatePath(`/admin/clients/${clientId}`);
+    revalidateAdminClientPage(clientId);
     revalidatePath(`/admin/requests/${supportRequest.id}`);
 
     return { success: true, requestId: supportRequest.id };
