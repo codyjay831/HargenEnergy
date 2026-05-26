@@ -17,6 +17,8 @@ export async function insertCatalogV2(tx: Prisma.TransactionClient) {
             basePriority: index,
             suggestedHandoffTier: task.suggestedHandoffTier,
             suggestedPricingMode: task.suggestedPricingMode,
+            showOnWalkthrough: task.showOnWalkthrough ?? false,
+            walkthroughOrder: task.walkthroughOrder ?? 0,
           })),
         },
       },

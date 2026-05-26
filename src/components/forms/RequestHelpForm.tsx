@@ -18,26 +18,25 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { submitRequestHelp } from "@/app/actions/requests";
 import { RequestHelpInput, requestHelpSchema, validateRequestHelpStep1 } from "@/lib/validations";
+import type { WalkthroughCatalogCategory } from "@/lib/walkthrough-catalog";
 import { cn } from "@/lib/utils";
 import { marketingAmberCta } from "@/components/marketing/marketing-styles";
 import { FORM_COPY } from "@/lib/product-language";
-import {
-  groupIntakeSupportOptions,
-  getIntakeSupportLabel,
-} from "@/lib/intake-support-options";
-
-const supportGroups = groupIntakeSupportOptions();
 
 const COPY = FORM_COPY.walkthrough;
 
-type FieldErrors = Partial<Record<keyof RequestHelpInput | "supportNeeded", string>>;
+type FieldErrors = Partial<Record<keyof RequestHelpInput | "requestedWorkTaskIds", string>>;
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
   return <p className="text-sm text-red-600 mt-1">{message}</p>;
 }
 
-export function RequestHelpForm() {
+interface RequestHelpFormProps {
+  catalog: WalkthroughCatalogCategory[];
+}
+
+export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
   const [step, setStep] = useState<1 | 2>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -59,14 +58,14 @@ export function RequestHelpForm() {
     setSelectedSupport((prev) =>
       checked ? [...prev, id] : prev.filter((item) => item !== id),
     );
-    setFieldErrors((prev) => ({ ...prev, supportNeeded: undefined }));
+    setFieldErrors((prev) => ({ ...prev, requestedWorkTaskIds: undefined }));
   };
 
   const handleContinue = () => {
     setError(null);
     const result = validateRequestHelpStep1({
       ...step1Values,
-      supportNeeded: selectedSupport.map((id) => getIntakeSupportLabel(id)),
+      requestedWorkTaskIds: selectedSupport,
     });
 
     if (!result.success) {
@@ -77,14 +76,16 @@ export function RequestHelpForm() {
         }
       }
       if (selectedSupport.length === 0) {
-        errors.supportNeeded = "Please select at least one support option.";
+        errors.requestedWorkTaskIds = "Please select at least one support option.";
       }
       setFieldErrors(errors);
       return;
     }
 
     if (selectedSupport.length === 0) {
-      setFieldErrors({ supportNeeded: "Please select at least one support option." });
+      setFieldErrors({
+        requestedWorkTaskIds: "Please select at least one support option.",
+      });
       return;
     }
 
@@ -104,7 +105,7 @@ export function RequestHelpForm() {
       role: (formData.get("role") as string) || undefined,
       website: (formData.get("website") as string) || undefined,
       serviceArea: (formData.get("serviceArea") as string) || undefined,
-      supportNeeded: selectedSupport.map((id) => getIntakeSupportLabel(id)),
+      requestedWorkTaskIds: selectedSupport,
       bottleneck: step1Values.bottleneck,
       plan,
       urgency,
@@ -122,7 +123,14 @@ export function RequestHelpForm() {
         }
       }
       setFieldErrors(errors);
-      const step1Keys = ["companyName", "name", "email", "phone", "bottleneck", "supportNeeded"];
+      const step1Keys = [
+        "companyName",
+        "name",
+        "email",
+        "phone",
+        "bottleneck",
+        "requestedWorkTaskIds",
+      ];
       if (step1Keys.some((k) => k in errors)) {
         setStep(1);
       }
@@ -234,6 +242,28 @@ export function RequestHelpForm() {
               {COPY.anotherRequest}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (catalog.length === 0) {
+    return (
+      <Card className="rounded-xl border border-stone-200 bg-stone-50 shadow-sm">
+        <CardContent className="px-6 py-10 sm:px-10 text-center space-y-4">
+          <h3 className="font-heading text-xl font-semibold text-stone-900">
+            Walkthrough requests are temporarily unavailable
+          </h3>
+          <p className="text-sm text-stone-600 leading-relaxed max-w-lg mx-auto">
+            Our service list is being updated. Please email us directly and we&apos;ll schedule your
+            walkthrough.
+          </p>
+          <a
+            href="mailto:hello@hargenenergy.com?subject=Walkthrough%20request"
+            className={cn(buttonVariants(), marketingAmberCta, "inline-flex h-11 px-6")}
+          >
+            Email Hargen Energy
+          </a>
         </CardContent>
       </Card>
     );
@@ -352,29 +382,37 @@ export function RequestHelpForm() {
               <p className="text-sm text-muted-foreground mt-1">{COPY.supportAreasHelper}</p>
             </div>
             <div className="space-y-5">
-              {supportGroups.map((group) => (
-                <div key={group.group}>
+              {catalog.map((group) => (
+                <div key={group.id}>
                   <p className="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-2">
-                    {group.label}
+                    {group.name}
                   </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {group.options.map((option) => (
-                      <div key={option.id} className="flex items-center space-x-2">
+                  <div className="grid grid-cols-1 gap-3">
+                    {group.tasks.map((task) => (
+                      <div key={task.id} className="flex items-start gap-3 rounded-md border border-stone-200/80 p-3">
                         <Checkbox
-                          id={option.id}
-                          checked={selectedSupport.includes(option.id)}
-                          onCheckedChange={(checked) => handleCheckboxChange(option.id, !!checked)}
+                          id={task.id}
+                          checked={selectedSupport.includes(task.id)}
+                          onCheckedChange={(checked) => handleCheckboxChange(task.id, !!checked)}
+                          className="mt-0.5"
                         />
-                        <label htmlFor={option.id} className="text-sm font-medium leading-none">
-                          {option.label}
-                        </label>
+                        <div className="space-y-1">
+                          <label htmlFor={task.id} className="text-sm font-medium leading-snug">
+                            {task.name}
+                          </label>
+                          {task.description ? (
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              {task.description}
+                            </p>
+                          ) : null}
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
               ))}
             </div>
-            <FieldError message={fieldErrors.supportNeeded} />
+            <FieldError message={fieldErrors.requestedWorkTaskIds} />
           </div>
 
           <Button

@@ -31,9 +31,7 @@ function SnapshotLabel({
 export function IntakeLeadSnapshot({ client, request, metadata }: IntakeLeadSnapshotProps) {
   const fields = buildIntakeSnapshotFields({ client, request, metadata });
 
-  const supportField = fields.find((f) => f.label === "Support areas");
   const multilineLabels = new Set(["Bottleneck", "First priority this week", "Current tools"]);
-  const badgeField = supportField;
   const textFields = fields.filter(
     (f) => f.label !== "Support areas" && !multilineLabels.has(f.label),
   );
@@ -41,18 +39,32 @@ export function IntakeLeadSnapshot({ client, request, metadata }: IntakeLeadSnap
 
   return (
     <div className="space-y-6">
-      {badgeField && (
+      {(request.requestedTasks?.length ?? 0) > 0 ? (
+        <div>
+          <SnapshotLabel>Support areas</SnapshotLabel>
+          <div className="mt-2 space-y-2">
+            {request.requestedTasks!.map((task) => (
+              <div key={task.name} className="rounded-md border bg-muted/30 px-3 py-2">
+                <p className="text-sm font-medium text-slate-900">{task.name}</p>
+                {task.description ? (
+                  <p className="mt-1 text-sm text-muted-foreground">{task.description}</p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : request.supportNeeded ? (
         <div>
           <SnapshotLabel>Support areas</SnapshotLabel>
           <div className="mt-1 flex flex-wrap gap-2">
-            {badgeField.value.split(", ").map((item, i) => (
+            {request.supportNeeded.split(", ").map((item, i) => (
               <Badge key={i} variant="secondary">
                 {item}
               </Badge>
             ))}
           </div>
         </div>
-      )}
+      ) : null}
 
       {multilineFields.map((field) => (
         <div key={field.label}>

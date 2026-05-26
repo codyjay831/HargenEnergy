@@ -112,8 +112,28 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
     orderBy: { createdAt: "desc" },
     include: {
       timeEntries: { orderBy: { date: "desc" }, take: 10 },
+      requestedWorkTasks: {
+        include: {
+          workTask: {
+            select: { id: true, name: true, description: true },
+          },
+        },
+      },
     },
   });
+
+  const suggestedWorkTaskIds =
+    latestWalkthrough?.requestedWorkTasks.map((row) => row.workTaskId) ?? [];
+
+  const walkthroughRequestForDrawer = latestWalkthrough
+    ? {
+        ...latestWalkthrough,
+        requestedTasks: latestWalkthrough.requestedWorkTasks.map((row) => ({
+          name: row.workTask.name,
+          description: row.workTask.description,
+        })),
+      }
+    : null;
 
   const walkthroughMetadata = latestWalkthrough?.metadata as { intakePlan?: string } | null;
   const walkthroughPlanRequestBased =
@@ -199,7 +219,7 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
                 }}
                 walkthroughPlanRequestBased={walkthroughPlanRequestBased}
                 walkthroughMetadata={walkthroughMetadata}
-                latestWalkthroughRequest={latestWalkthrough}
+                latestWalkthroughRequest={walkthroughRequestForDrawer}
               />
 
               <Card id="client-details" className="scroll-mt-8">
@@ -248,6 +268,7 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
                   clientId={client.id}
                   engagementType={client.engagementType}
                   approvedWorkTaskIds={client.approvedWorkTasks.map((a) => a.workTaskId)}
+                  suggestedWorkTaskIds={suggestedWorkTaskIds}
                   categories={catalogCategories}
                   walkthroughPlanRequestBased={walkthroughPlanRequestBased}
                 />
@@ -298,6 +319,7 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
                   clientId={client.id}
                   engagementType={client.engagementType}
                   approvedWorkTaskIds={client.approvedWorkTasks.map((a) => a.workTaskId)}
+                  suggestedWorkTaskIds={suggestedWorkTaskIds}
                   categories={catalogCategories}
                   walkthroughPlanRequestBased={walkthroughPlanRequestBased}
                 />

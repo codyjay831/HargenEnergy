@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { updateClientEngagement } from "@/app/actions/clients";
+import { applyIntakeToApprovedWork, updateClientEngagement } from "@/app/actions/clients";
 import { EngagementType } from "@/generated/prisma/client";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { Loader2 } from "lucide-react";
@@ -29,6 +29,7 @@ interface ClientEngagementManagerProps {
   clientId: string;
   engagementType: EngagementType;
   approvedWorkTaskIds: string[];
+  suggestedWorkTaskIds?: string[];
   categories: Category[];
   walkthroughPlanRequestBased?: boolean;
 }
@@ -37,17 +38,40 @@ export function ClientEngagementManager({
   clientId,
   engagementType: initialEngagement,
   approvedWorkTaskIds: initialApproved,
+  suggestedWorkTaskIds = [],
   categories,
   walkthroughPlanRequestBased,
 }: ClientEngagementManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [isApplying, startApplyTransition] = useTransition();
   const [engagementType, setEngagementType] = useState<EngagementType>(
     walkthroughPlanRequestBased && initialEngagement === EngagementType.SUPPORT_BLOCK
       ? EngagementType.REQUEST_BASED
       : initialEngagement,
   );
-  const [approved, setApproved] = useState<Set<string>>(new Set(initialApproved));
+
+  const initialApprovedSet = useMemo(
+    () => new Set(initialApproved),
+    [initialApproved],
+  );
+  const suggestedSet = useMemo(
+    () => new Set(suggestedWorkTaskIds),
+    [suggestedWorkTaskIds],
+  );
+
+  const [approved, setApproved] = useState<Set<string>>(() => {
+    const next = new Set(initialApproved);
+    for (const id of suggestedWorkTaskIds) {
+      next.add(id);
+    }
+    return next;
+  });
+
+  const pendingFromIntake = suggestedWorkTaskIds.filter(
+    (id) => !initialApprovedSet.has(id),
+  );
+  const hasUnsavedIntakeSuggestions = pendingFromIntake.some((id) => approved.has(id));
 
   const toggleApproved = (taskId: string, checked: boolean) => {
     setApproved((prev) => {
@@ -86,6 +110,27 @@ export function ClientEngagementManager({
     });
   };
 
+  const handleApplyIntake = () => {
+    startApplyTransition(async () => {
+      try {
+        const result = await applyIntakeToApprovedWork(clientId);
+        if ("error" in result && result.error) {
+          toast.error(result.error);
+          return;
+        }
+
+        toast.success(
+          (result.appliedCount ?? 0) > 0
+            ? `Applied ${result.appliedCount} walkthrough selection${result.appliedCount === 1 ? "" : "s"}`
+            : "Walkthrough selections were already applied",
+        );
+        router.refresh();
+      } catch {
+        toast.error("Failed to apply walkthrough selections");
+      }
+    });
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -102,6 +147,32 @@ export function ClientEngagementManager({
             Walkthrough indicated request-based work. Request-Based Work is pre-selected — confirm
             before saving.
           </p>
+        )}
+
+        {suggestedWorkTaskIds.length > 0 && (
+          <div className="rounded-md border border-sky-200 bg-sky-50 p-3 space-y-3">
+            <p className="text-sm text-sky-950">
+              {hasUnsavedIntakeSuggestions
+                ? "Walkthrough selections are pre-checked below. Save engagement settings or apply them now."
+                : "Walkthrough selections are applied to approved work."}
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleApplyIntake}
+              disabled={isApplying || isPending}
+            >
+              {isApplying ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Applying...
+                </>
+              ) : (
+                "Apply walkthrough to approved work"
+              )}
+            </Button>
+          </div>
         )}
 
         <div className="space-y-2">
@@ -135,18 +206,27 @@ export function ClientEngagementManager({
                 <div key={cat.id} className="space-y-2">
                   <p className="text-sm font-semibold">{cat.name}</p>
                   <div className="space-y-2 pl-2">
-                    {cat.tasks.map((task) => (
-                      <div key={task.id} className="flex items-center gap-2">
-                        <Checkbox
-                          id={`approve-${task.id}`}
-                          checked={approved.has(task.id)}
-                          onCheckedChange={(c) => toggleApproved(task.id, !!c)}
-                        />
-                        <Label htmlFor={`approve-${task.id}`} className="font-normal text-sm">
-                          {task.name}
-                        </Label>
-                      </div>
-                    ))}
+                    {cat.tasks.map((task) => {
+                      const fromIntake = suggestedSet.has(task.id) && !initialApprovedSet.has(task.id);
+                      return (
+                        <div key={task.id} className="flex items-start gap-2">
+                          <Checkbox
+                            id={`approve-${task.id}`}
+                            checked={approved.has(task.id)}
+                            onCheckedChange={(c) => toggleApproved(task.id, !!c)}
+                            className="mt-0.5"
+                          />
+                          <div className="space-y-1">
+                            <Label htmlFor={`approve-${task.id}`} className="font-normal text-sm">
+                              {task.name}
+                            </Label>
+                            {fromIntake && (
+                              <p className="text-xs text-sky-700">From walkthrough request</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))
@@ -159,7 +239,7 @@ export function ClientEngagementManager({
           </p>
         )}
 
-        <Button onClick={handleSave} disabled={isPending} className="w-full">
+        <Button onClick={handleSave} disabled={isPending || isApplying} className="w-full">
           {isPending ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

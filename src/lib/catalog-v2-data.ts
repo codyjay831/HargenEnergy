@@ -6,6 +6,8 @@ export type CatalogV2Task = {
   maxMinutes?: number;
   suggestedHandoffTier?: HandoffTier;
   suggestedPricingMode?: PricingMode;
+  showOnWalkthrough?: boolean;
+  walkthroughOrder?: number;
 };
 
 export type CatalogV2Category = {
@@ -24,6 +26,8 @@ export const CATALOG_V2: CatalogV2Category[] = [
         maxMinutes: 30,
         suggestedHandoffTier: HandoffTier.MESSY,
         suggestedPricingMode: PricingMode.HOURLY,
+        showOnWalkthrough: true,
+        walkthroughOrder: 11,
       },
       {
         name: "Permit Submission",
@@ -36,6 +40,8 @@ export const CATALOG_V2: CatalogV2Category[] = [
         maxMinutes: 30,
         suggestedHandoffTier: HandoffTier.MESSY,
         suggestedPricingMode: PricingMode.HOURLY,
+        showOnWalkthrough: true,
+        walkthroughOrder: 1,
       },
       {
         name: "Permit Corrections / Resubmittal",
@@ -48,6 +54,8 @@ export const CATALOG_V2: CatalogV2Category[] = [
         maxMinutes: 30,
         suggestedHandoffTier: HandoffTier.MESSY,
         suggestedPricingMode: PricingMode.HOURLY,
+        showOnWalkthrough: true,
+        walkthroughOrder: 12,
       },
     ],
   },
@@ -60,12 +68,16 @@ export const CATALOG_V2: CatalogV2Category[] = [
         maxMinutes: 45,
         suggestedHandoffTier: HandoffTier.CLEAN,
         suggestedPricingMode: PricingMode.FLAT,
+        showOnWalkthrough: true,
+        walkthroughOrder: 2,
       },
       {
         name: "Utility Follow-Up",
         maxMinutes: 30,
         suggestedHandoffTier: HandoffTier.MESSY,
         suggestedPricingMode: PricingMode.HOURLY,
+        showOnWalkthrough: true,
+        walkthroughOrder: 3,
       },
       {
         name: "Utility Deficiency / Resubmittal",
@@ -96,30 +108,40 @@ export const CATALOG_V2: CatalogV2Category[] = [
         maxMinutes: 45,
         suggestedHandoffTier: HandoffTier.MESSY,
         suggestedPricingMode: PricingMode.HOURLY,
+        showOnWalkthrough: true,
+        walkthroughOrder: 4,
       },
       {
         name: "Document Filing",
         maxMinutes: 30,
         suggestedHandoffTier: HandoffTier.CLEAN,
         suggestedPricingMode: PricingMode.FLAT,
+        showOnWalkthrough: true,
+        walkthroughOrder: 5,
       },
       {
         name: "Missing Info List",
         maxMinutes: 30,
         suggestedHandoffTier: HandoffTier.MESSY,
         suggestedPricingMode: PricingMode.HOURLY,
+        showOnWalkthrough: true,
+        walkthroughOrder: 6,
       },
       {
         name: "Weekly Pipeline Review",
         maxMinutes: 60,
         suggestedHandoffTier: HandoffTier.MESSY,
         suggestedPricingMode: PricingMode.HOURLY,
+        showOnWalkthrough: true,
+        walkthroughOrder: 7,
       },
       {
         name: "Customer / Lead Entry",
         maxMinutes: 20,
         suggestedHandoffTier: HandoffTier.CLEAN,
         suggestedPricingMode: PricingMode.FLAT,
+        showOnWalkthrough: true,
+        walkthroughOrder: 8,
       },
     ],
   },
@@ -132,12 +154,16 @@ export const CATALOG_V2: CatalogV2Category[] = [
         maxMinutes: 20,
         suggestedHandoffTier: HandoffTier.CLEAN,
         suggestedPricingMode: PricingMode.FLAT,
+        showOnWalkthrough: true,
+        walkthroughOrder: 9,
       },
       {
         name: "Missing Info Request",
         maxMinutes: 20,
         suggestedHandoffTier: HandoffTier.MESSY,
         suggestedPricingMode: PricingMode.HOURLY,
+        showOnWalkthrough: true,
+        walkthroughOrder: 10,
       },
       {
         name: "Appointment Confirmation",
@@ -156,6 +182,8 @@ export const CATALOG_V2: CatalogV2Category[] = [
         maxMinutes: 20,
         suggestedHandoffTier: HandoffTier.CLEAN,
         suggestedPricingMode: PricingMode.FLAT,
+        showOnWalkthrough: true,
+        walkthroughOrder: 13,
       },
       {
         name: "Failed Inspection Review",

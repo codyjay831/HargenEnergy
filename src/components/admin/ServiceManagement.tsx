@@ -57,6 +57,8 @@ interface Task {
   isActive: boolean;
   maxMinutes: number | null;
   description?: string | null;
+  showOnWalkthrough?: boolean;
+  walkthroughOrder?: number;
   requiredFields?: CustomField[] | unknown;
 }
 
@@ -70,9 +72,13 @@ interface Category {
 
 interface ServiceManagementProps {
   initialCategories: Category[];
+  walkthroughTaskCount?: number;
 }
 
-export function ServiceManagement({ initialCategories }: ServiceManagementProps) {
+export function ServiceManagement({
+  initialCategories,
+  walkthroughTaskCount = 0,
+}: ServiceManagementProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   
@@ -87,6 +93,8 @@ export function ServiceManagement({ initialCategories }: ServiceManagementProps)
     name: "", 
     description: "", 
     maxMinutes: "",
+    showOnWalkthrough: false,
+    walkthroughOrder: "0",
     requiredFields: [] as CustomField[]
   });
   const [isImporting, setIsImporting] = useState(false);
@@ -250,13 +258,22 @@ export function ServiceManagement({ initialCategories }: ServiceManagementProps)
           name: taskForm.name,
           description: taskForm.description,
           maxMinutes: isNaN(maxMinutes as number) ? undefined : maxMinutes,
+          showOnWalkthrough: taskForm.showOnWalkthrough,
+          walkthroughOrder: Number.parseInt(taskForm.walkthroughOrder, 10) || 0,
           requiredFields: taskForm.requiredFields,
         });
         
         router.refresh();
         setEditingTask(null);
         setAddingTaskToCategory(null);
-        setTaskForm({ name: "", description: "", maxMinutes: "", requiredFields: [] });
+        setTaskForm({
+          name: "",
+          description: "",
+          maxMinutes: "",
+          showOnWalkthrough: false,
+          walkthroughOrder: "0",
+          requiredFields: [],
+        });
         toast.success(`Task ${editingTask ? "updated" : "added"} successfully`);
       } catch (error: unknown) {
         console.error("Save task error:", error);
@@ -337,6 +354,12 @@ export function ServiceManagement({ initialCategories }: ServiceManagementProps)
 
   return (
     <div className="space-y-8">
+      {walkthroughTaskCount === 0 && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          No tasks are visible on the public walkthrough form. Enable &quot;Show on walkthrough
+          request&quot; on at least one active task.
+        </div>
+      )}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-lg font-semibold">Work type catalog</h2>
@@ -423,7 +446,14 @@ export function ServiceManagement({ initialCategories }: ServiceManagementProps)
                   size="sm" 
                   className="h-8"
                   onClick={() => {
-                    setTaskForm({ name: "", description: "", maxMinutes: "", requiredFields: [] });
+                    setTaskForm({
+                      name: "",
+                      description: "",
+                      maxMinutes: "",
+                      showOnWalkthrough: false,
+                      walkthroughOrder: "0",
+                      requiredFields: [],
+                    });
                     setAddingTaskToCategory(category.id);
                   }}
                 >
@@ -447,6 +477,7 @@ export function ServiceManagement({ initialCategories }: ServiceManagementProps)
                     <TableHead className="w-[50px]">Active</TableHead>
                     <TableHead>Task Name</TableHead>
                     <TableHead>Time Cap</TableHead>
+                    <TableHead>Walkthrough</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -466,6 +497,13 @@ export function ServiceManagement({ initialCategories }: ServiceManagementProps)
                       <TableCell>
                         {task.maxMinutes ? `${task.maxMinutes}m` : "—"}
                       </TableCell>
+                      <TableCell>
+                        {task.showOnWalkthrough ? (
+                          <Badge variant="secondary">Public</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         <Button 
                           variant="ghost" 
@@ -478,6 +516,8 @@ export function ServiceManagement({ initialCategories }: ServiceManagementProps)
                               name: task.name, 
                               description: task.description || "", 
                               maxMinutes: task.maxMinutes?.toString() || "",
+                              showOnWalkthrough: task.showOnWalkthrough ?? false,
+                              walkthroughOrder: String(task.walkthroughOrder ?? 0),
                               requiredFields: fields
                             });
                             setEditingTask({ task, categoryId: category.id });
@@ -592,6 +632,38 @@ export function ServiceManagement({ initialCategories }: ServiceManagementProps)
                 onChange={(e) => setTaskForm({ ...taskForm, maxMinutes: e.target.value })}
                 placeholder="e.g. 60"
               />
+            </div>
+
+            <div className="grid gap-3 rounded-md border p-3">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="showOnWalkthrough"
+                  checked={taskForm.showOnWalkthrough}
+                  onCheckedChange={(checked) =>
+                    setTaskForm({ ...taskForm, showOnWalkthrough: !!checked })
+                  }
+                />
+                <Label htmlFor="showOnWalkthrough" className="font-normal">
+                  Show on walkthrough request
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Customers see this exact task name and description on the public walkthrough form.
+              </p>
+              {taskForm.showOnWalkthrough && (
+                <div className="grid gap-2">
+                  <Label htmlFor="walkthroughOrder">Walkthrough order</Label>
+                  <Input
+                    id="walkthroughOrder"
+                    type="number"
+                    value={taskForm.walkthroughOrder}
+                    onChange={(e) =>
+                      setTaskForm({ ...taskForm, walkthroughOrder: e.target.value })
+                    }
+                    placeholder="0"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="space-y-4 pt-4 border-t">

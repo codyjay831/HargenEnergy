@@ -21,6 +21,7 @@ import {
 } from "@/lib/engagement";
 import { isUrgencyValue, isEngagementTypeValue } from "@/lib/ui-enums";
 import { updateClientEngagementSchema } from "@/lib/validations";
+import { applyIntakeWorkTasksToClient } from "@/lib/intake-engagement";
 import { sendInternalRequestAlert } from "@/lib/email";
 import { writeAuditLog } from "@/lib/audit-log";
 
@@ -98,10 +99,39 @@ export async function updateClientBillingMode(data: {
   }
 }
 
+export async function applyIntakeToApprovedWork(clientId: string, requestId?: string) {
+  await requireStaff();
+
+  const result = await applyIntakeWorkTasksToClient(prisma, clientId, {
+    requestId,
+    setRequestBasedFromIntake: true,
+  });
+
+  if (!result.ok) {
+    return { error: result.error };
+  }
+
+  revalidatePath("/admin/clients");
+  revalidatePath(`/admin/clients/${clientId}`);
+  revalidatePath("/portal");
+  revalidatePath("/portal/account");
+  revalidatePath("/portal/requests/new");
+
+  return {
+    success: true,
+    appliedCount: result.appliedCount,
+    skippedCount: result.skippedCount,
+    totalFromIntake: result.totalFromIntake,
+  };
+}
+
 export async function activateClient(clientId: string) {
   await requireStaff();
 
-  const client = await prisma.client.findUnique({ where: { id: clientId } });
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    include: { approvedWorkTasks: { select: { workTaskId: true } } },
+  });
   if (!client) {
     return { error: "Client not found." };
   }
@@ -119,8 +149,16 @@ export async function activateClient(clientId: string) {
       },
     });
 
+    if (client.approvedWorkTasks.length === 0) {
+      await applyIntakeWorkTasksToClient(prisma, clientId, {
+        setRequestBasedFromIntake: true,
+      });
+    }
+
     revalidatePath("/admin/clients");
     revalidatePath(`/admin/clients/${clientId}`);
+    revalidatePath("/portal");
+    revalidatePath("/portal/account");
     return { success: true, client: updated };
   } catch (error) {
     console.error("Error activating client:", error);

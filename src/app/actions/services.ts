@@ -71,6 +71,7 @@ export async function toggleServiceCategory(id: string, isActive: boolean) {
 
   revalidatePath("/admin/services");
   revalidatePath("/portal/requests/new");
+  revalidatePath("/request-help");
 }
 
 export interface CustomField {
@@ -87,6 +88,8 @@ export async function upsertWorkTask(data: {
   name: string;
   description?: string;
   isActive?: boolean;
+  showOnWalkthrough?: boolean;
+  walkthroughOrder?: number;
   maxMinutes?: number;
   requiredDocs?: string[];
   requiredFields?: CustomField[];
@@ -101,6 +104,8 @@ export async function upsertWorkTask(data: {
         name: data.name,
         description: data.description,
         isActive: data.isActive,
+        showOnWalkthrough: data.showOnWalkthrough,
+        walkthroughOrder: data.walkthroughOrder,
         maxMinutes: data.maxMinutes,
         requiredDocs: (data.requiredDocs ?? undefined) as
           | Prisma.InputJsonValue
@@ -115,6 +120,8 @@ export async function upsertWorkTask(data: {
         name: data.name,
         description: data.description,
         isActive: data.isActive ?? true,
+        showOnWalkthrough: data.showOnWalkthrough ?? false,
+        walkthroughOrder: data.walkthroughOrder ?? 0,
         maxMinutes: data.maxMinutes,
         requiredDocs: (data.requiredDocs ?? undefined) as
           | Prisma.InputJsonValue
@@ -128,6 +135,7 @@ export async function upsertWorkTask(data: {
 
     revalidatePath("/admin/services");
     revalidatePath("/portal/requests/new");
+    revalidatePath("/request-help");
     return task;
   } catch (error) {
     console.error("Error in upsertWorkTask:", error);
@@ -145,6 +153,7 @@ export async function toggleWorkTask(id: string, isActive: boolean) {
 
   revalidatePath("/admin/services");
   revalidatePath("/portal/requests/new");
+  revalidatePath("/request-help");
 }
 
 async function purgeInactiveCatalog(tx: Prisma.TransactionClient) {
@@ -175,6 +184,7 @@ export async function purgeInactiveCatalogAction(confirmation: string) {
 
   revalidatePath("/admin/services");
   revalidatePath("/portal/requests/new");
+  revalidatePath("/request-help");
   revalidatePath("/admin/clients");
   return { message: "Retired catalog rows removed" };
 }
@@ -187,6 +197,7 @@ export async function seedInitialServices() {
 
   revalidatePath("/admin/services");
   revalidatePath("/portal/requests/new");
+  revalidatePath("/request-help");
   return { message: "Seeded catalog v2 successfully" };
 }
 
@@ -206,6 +217,7 @@ export async function replaceCatalogWithV2(confirmation: string) {
 
   revalidatePath("/admin/services");
   revalidatePath("/portal/requests/new");
+  revalidatePath("/request-help");
   revalidatePath("/admin/clients");
   return { message: "Catalog replaced with v2; retired rows removed" };
 }

@@ -7,19 +7,21 @@ import { ServiceManagement } from "@/components/admin/ServiceManagement";
 import { RecurringTaskManagement } from "@/components/admin/RecurringTaskManagement";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings2, Calendar } from "lucide-react";
+import { countPublicWalkthroughTasks } from "@/lib/walkthrough-catalog";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminServicesPage() {
   await ensureCatalogSeeded();
 
-  const [categories, recurringTasks, clients] = await Promise.all([
+  const [categories, recurringTasks, clients, walkthroughTaskCount] = await Promise.all([
     getServiceCategories(),
     getRecurringTasks(),
     prisma.client.findMany({
       where: { status: "ACTIVE", engagementType: EngagementType.SUPPORT_BLOCK },
       select: { id: true, companyName: true },
     }),
+    countPublicWalkthroughTasks(),
   ]);
 
   const allTasks = categories.flatMap(c => c.tasks.map(t => ({ id: t.id, name: `${c.name}: ${t.name}` })));
@@ -49,7 +51,10 @@ export default async function AdminServicesPage() {
         </TabsList>
 
         <TabsContent value="catalog">
-          <ServiceManagement initialCategories={categories} />
+          <ServiceManagement
+            initialCategories={categories}
+            walkthroughTaskCount={walkthroughTaskCount}
+          />
         </TabsContent>
 
         <TabsContent value="recurring">

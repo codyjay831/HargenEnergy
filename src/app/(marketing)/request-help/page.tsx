@@ -3,6 +3,7 @@ import { RequestHelpForm } from "@/components/forms/RequestHelpForm";
 import { cn } from "@/lib/utils";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { requestHelpMetadata } from "@/lib/marketing/metadata";
+import { getPublicWalkthroughCatalog } from "@/lib/walkthrough-catalog";
 import {
   marketingShell,
   marketingSectionY,
@@ -20,7 +21,9 @@ const checklist = [
   "Proposal backlog is slowing sales",
 ];
 
-export default function RequestHelpPage() {
+export default async function RequestHelpPage() {
+  const catalog = await getPublicWalkthroughCatalog();
+
   return (
     <div className="border-b border-stone-200/80">
       <section className={cn(marketingSectionY)}>
@@ -58,7 +61,7 @@ export default function RequestHelpPage() {
               "mx-auto mt-10 max-w-3xl p-6 shadow-[0_4px_24px_rgba(15,23,42,0.06)] md:p-10"
             )}
           >
-            <RequestHelpForm />
+            <RequestHelpForm catalog={catalog} />
           </div>
 
           <p className="mx-auto mt-10 max-w-3xl text-center text-sm text-stone-600 leading-relaxed">

@@ -12,7 +12,7 @@ const baseInput: RequestHelpInput & { normalizedEmail: string } = {
   phone: "555-123-4567",
   website: "https://solarpros.com",
   serviceArea: "Bay Area",
-  supportNeeded: ["Quote building / proposal support"],
+  requestedWorkTaskIds: ["task-permit-follow-up"],
   bottleneck: "Permits are stuck",
   plan: "not-sure",
   urgency: "this-week",
@@ -20,10 +20,18 @@ const baseInput: RequestHelpInput & { normalizedEmail: string } = {
   takeOffPlate: "Utility follow-ups",
 };
 
+const resolvedTasks = [{ id: "task-permit-follow-up", name: "Permit Follow-Up" }];
+
 function createMockPrisma() {
   const store = {
     clients: [] as Array<{ id: string; email: string; status: ClientStatus }>,
-    requests: [] as Array<{ id: string; clientId: string; metadata: unknown }>,
+    requests: [] as Array<{
+      id: string;
+      clientId: string;
+      metadata: unknown;
+      supportNeeded?: string;
+      requestedWorkTasks?: Array<{ workTaskId: string }>;
+    }>,
     clientIdCounter: 1,
     requestIdCounter: 1,
   };
@@ -56,10 +64,15 @@ function createMockPrisma() {
       supportRequest: {
         create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
           const id = `req-${store.requestIdCounter++}`;
+          const requestedWorkTasks = (
+            data.requestedWorkTasks as { create: Array<{ workTaskId: string }> } | undefined
+          )?.create;
           store.requests.push({
             id,
             clientId: data.clientId as string,
             metadata: data.metadata,
+            supportNeeded: data.supportNeeded as string | undefined,
+            requestedWorkTasks,
           });
           return { id };
         }),
@@ -80,13 +93,20 @@ describe("persistPublicIntake", () => {
   it("creates LEAD client and PROSPECT_INTAKE request for new email", async () => {
     const { prisma, store } = createMockPrisma();
 
-    const result = await persistPublicIntake(asIntakePrisma(prisma), baseInput);
+    const result = await persistPublicIntake(asIntakePrisma(prisma), {
+      ...baseInput,
+      resolvedTasks,
+    });
 
     expect(result.clientId).toBe("client-1");
     expect(result.requestId).toBe("req-1");
     expect(store.clients).toHaveLength(1);
     expect(store.clients[0]?.status).toBe(ClientStatus.LEAD);
     expect(store.requests).toHaveLength(1);
+    expect(store.requests[0]?.supportNeeded).toBe("Permit Follow-Up");
+    expect(store.requests[0]?.requestedWorkTasks).toEqual([
+      { workTaskId: "task-permit-follow-up" },
+    ]);
     expect(result.emailPayload.kind).toBe(SupportRequestKind.PROSPECT_INTAKE);
   });
 
@@ -105,6 +125,7 @@ describe("persistPublicIntake", () => {
     const result = await persistPublicIntake(asIntakePrisma(prisma), {
       ...baseInput,
       companyName: "Solar Pros Updated",
+      resolvedTasks,
     });
 
     expect(prisma.client.update).toHaveBeenCalled();
@@ -121,7 +142,10 @@ describe("persistPublicIntake", () => {
       status: ClientStatus.ACTIVE,
     });
 
-    const result = await persistPublicIntake(asIntakePrisma(prisma), baseInput);
+    const result = await persistPublicIntake(asIntakePrisma(prisma), {
+      ...baseInput,
+      resolvedTasks,
+    });
 
     expect(prisma.client.create).not.toHaveBeenCalled();
     expect(prisma.client.update).not.toHaveBeenCalled();
@@ -136,7 +160,11 @@ describe("persistPublicIntake", () => {
   it("maps light plan to PlanType on create", async () => {
     const { prisma } = createMockPrisma();
 
-    await persistPublicIntake(asIntakePrisma(prisma), { ...baseInput, plan: "light" });
+    await persistPublicIntake(asIntakePrisma(prisma), {
+      ...baseInput,
+      plan: "light",
+      resolvedTasks,
+    });
 
     expect(prisma.client.create).toHaveBeenCalledWith(
       expect.objectContaining({

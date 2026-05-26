@@ -13,7 +13,15 @@ import { formatIntakePlanLabel } from "@/lib/intake-plan";
 import { formatUrgencyLabel } from "@/lib/ui-enums";
 import type { RequestHelpInput } from "@/lib/validations";
 
-export type IntakePrismaClient = Pick<PrismaClient, "client" | "supportRequest">;
+export type IntakePrismaClient = Pick<
+  PrismaClient,
+  "client" | "supportRequest" | "supportRequestWorkTask" | "workTask"
+>;
+
+export type ResolvedWalkthroughTask = {
+  id: string;
+  name: string;
+};
 
 export type IntakeEmailPayload = {
   companyName: string;
@@ -68,6 +76,7 @@ export function buildIntakeEmailPayload(
   data: RequestHelpInput & { normalizedEmail: string },
   clientId: string,
   requestId: string,
+  resolvedTasks: ResolvedWalkthroughTask[],
   subjectPrefix?: string,
 ): IntakeEmailPayload {
   const {
@@ -80,11 +89,12 @@ export function buildIntakeEmailPayload(
     serviceArea,
     tools,
     takeOffPlate,
-    supportNeeded,
     plan,
     urgency,
     bottleneck,
   } = data;
+
+  const taskNames = resolvedTasks.map((task) => task.name);
 
   return {
     companyName,
@@ -96,7 +106,7 @@ export function buildIntakeEmailPayload(
     serviceArea,
     tools,
     takeOffPlate,
-    supportNeeded: supportNeeded.join(", "),
+    supportNeeded: taskNames.join(", "),
     plan: formatIntakePlanLabel(plan),
     urgency: formatUrgencyLabel(urgency),
     description: bottleneck,
@@ -110,7 +120,10 @@ export function buildIntakeEmailPayload(
 
 export async function persistPublicIntake(
   prisma: IntakePrismaClient,
-  data: RequestHelpInput & { normalizedEmail: string },
+  data: RequestHelpInput & {
+    normalizedEmail: string;
+    resolvedTasks: ResolvedWalkthroughTask[];
+  },
 ): Promise<{
   clientId: string;
   requestId: string;
@@ -125,12 +138,19 @@ export async function persistPublicIntake(
     serviceArea,
     role,
     tools,
-    supportNeeded,
     bottleneck,
     plan,
     urgency,
     takeOffPlate,
+    resolvedTasks,
   } = data;
+
+  const taskNames = resolvedTasks.map((task) => task.name);
+  const taskIds = resolvedTasks.map((task) => task.id);
+
+  if (taskIds.length === 0) {
+    throw new Error("At least one walkthrough work task is required.");
+  }
 
   const mappedPlanType = mapIntakePlanType(plan);
   const existingClient = await prisma.client.findUnique({
@@ -175,10 +195,10 @@ export async function persistPublicIntake(
   const supportRequest = await prisma.supportRequest.create({
     data: {
       clientId: client.id,
-      title: buildIntakeTitle(supportNeeded),
+      title: buildIntakeTitle(taskNames),
       kind: SupportRequestKind.PROSPECT_INTAKE,
       source: SupportRequestSource.PUBLIC_FORM,
-      supportNeeded: supportNeeded.join(", "),
+      supportNeeded: taskNames.join(", "),
       description: bottleneck,
       mostHelpful: takeOffPlate,
       metadata: isReIntake
@@ -186,6 +206,9 @@ export async function persistPublicIntake(
         : { intakePlan: plan },
       urgency: mapIntakeUrgency(urgency),
       status: RequestStatus.NEW,
+      requestedWorkTasks: {
+        create: taskIds.map((workTaskId) => ({ workTaskId })),
+      },
     },
   });
 
@@ -196,6 +219,7 @@ export async function persistPublicIntake(
       data,
       client.id,
       supportRequest.id,
+      resolvedTasks,
       isReIntake ? "[Re-intake]" : undefined,
     ),
   };

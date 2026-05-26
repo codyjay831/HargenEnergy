@@ -25,6 +25,7 @@ import {
   REQUEST_BASED_PRICING_REQUIRED_ERROR,
 } from "@/lib/engagement";
 import { persistPublicIntake } from "@/lib/intake-submit";
+import { validateRequestedWalkthroughTaskIds } from "@/lib/walkthrough-catalog";
 import { writeAuditLog } from "@/lib/audit-log";
 
 export async function submitRequestHelp(data: RequestHelpInput) {
@@ -54,10 +55,21 @@ export async function submitRequestHelp(data: RequestHelpInput) {
 
   const normalizedEmail = email.trim().toLowerCase();
 
+  const taskValidation = await validateRequestedWalkthroughTaskIds(
+    validatedFields.data.requestedWorkTaskIds,
+  );
+  if (!taskValidation.ok) {
+    return {
+      error: taskValidation.error,
+      details: { requestedWorkTaskIds: [taskValidation.error] },
+    };
+  }
+
   try {
     const { clientId, emailPayload } = await persistPublicIntake(prisma, {
       ...validatedFields.data,
       normalizedEmail,
+      resolvedTasks: taskValidation.tasks,
     });
 
     void Promise.all([

@@ -1,10 +1,12 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { useTransition } from "react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, Mail, Phone } from "lucide-react";
+import { Clock, Loader2, Mail, Phone } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -19,6 +21,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import type { IntakeSnapshotClient, IntakeSnapshotMetadata } from "@/lib/intake-snapshot";
 import { RequestStatusValue } from "@/lib/ui-enums";
+import { applyIntakeToApprovedWork } from "@/app/actions/clients";
+import { toast } from "sonner";
 
 interface WalkthroughDrawerProps {
   client: IntakeSnapshotClient;
@@ -36,6 +40,7 @@ interface WalkthroughDrawerProps {
     clientVisibleUpdate: string | null;
     estimatedMinutes: number | null;
     createdAt: Date;
+    requestedTasks?: Array<{ name: string; description?: string | null }>;
     timeEntries: Array<{
       id: string;
       description: string;
@@ -50,6 +55,7 @@ interface WalkthroughDrawerProps {
 export function WalkthroughDrawer({ client, request, metadata }: WalkthroughDrawerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [isApplying, startApplyTransition] = useTransition();
 
   const open = searchParams?.get("open") === "walkthrough" && request !== null;
 
@@ -60,6 +66,29 @@ export function WalkthroughDrawer({ client, request, metadata }: WalkthroughDraw
       const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
       router.replace(newUrl);
     }
+  };
+
+  const handleApplyIntake = () => {
+    if (!request) return;
+
+    startApplyTransition(async () => {
+      try {
+        const result = await applyIntakeToApprovedWork(request.clientId, request.id);
+        if ("error" in result && result.error) {
+          toast.error(result.error);
+          return;
+        }
+
+        toast.success(
+          (result.appliedCount ?? 0) > 0
+            ? `Applied ${result.appliedCount} walkthrough selection${result.appliedCount === 1 ? "" : "s"} to approved work`
+            : "Walkthrough selections were already applied",
+        );
+        router.refresh();
+      } catch {
+        toast.error("Failed to apply walkthrough selections");
+      }
+    });
   };
 
   if (!request) {
@@ -112,6 +141,29 @@ export function WalkthroughDrawer({ client, request, metadata }: WalkthroughDraw
         </SheetHeader>
 
         <div className="space-y-6 mt-6">
+          {(request.requestedTasks?.length ?? 0) > 0 && (
+            <Card className="border-sky-200 bg-sky-50/40">
+              <CardHeader>
+                <CardTitle className="text-base">Apply to approved work</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Copy the customer&apos;s walkthrough selections into Engagement & approved work.
+                </p>
+                <Button onClick={handleApplyIntake} disabled={isApplying}>
+                  {isApplying ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Applying...
+                    </>
+                  ) : (
+                    "Apply to approved work"
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Lead Context</CardTitle>
@@ -124,6 +176,7 @@ export function WalkthroughDrawer({ client, request, metadata }: WalkthroughDraw
                   description: request.description,
                   mostHelpful: request.mostHelpful,
                   urgency: request.urgency,
+                  requestedTasks: request.requestedTasks,
                 }}
                 metadata={metadata}
               />

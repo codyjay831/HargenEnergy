@@ -18,6 +18,7 @@ export type IntakeSnapshotRequest = {
   description: string;
   mostHelpful?: string | null;
   urgency: string;
+  requestedTasks?: Array<{ name: string; description?: string | null }>;
 };
 
 export type IntakeSnapshotMetadata = {
@@ -57,7 +58,12 @@ export function buildIntakeSnapshotFields(data: {
   if (client.serviceArea) {
     fields.push({ label: "Service area", value: client.serviceArea });
   }
-  if (request.supportNeeded) {
+  if (request.requestedTasks && request.requestedTasks.length > 0) {
+    fields.push({
+      label: "Support areas",
+      value: request.requestedTasks.map((task) => task.name).join(", "),
+    });
+  } else if (request.supportNeeded) {
     fields.push({ label: "Support areas", value: request.supportNeeded });
   }
   if (request.description) {

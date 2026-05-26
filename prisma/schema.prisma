@@ -307,6 +307,7 @@ model SupportRequest {
   handoffTier         HandoffTier?
   pricingMode         PricingMode?
   flatPriceCents      Int?
+  requestedWorkTasks  SupportRequestWorkTask[]
   timeEntries         TimeEntry[]
   attachments         Attachment[]
   comments            RequestComment[]
@@ -316,6 +317,17 @@ model SupportRequest {
 
   @@index([kind, status])
   @@index([clientId, kind])
+  @@index([workTaskId])
+}
+
+model SupportRequestWorkTask {
+  requestId  String
+  workTaskId String
+  request    SupportRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  workTask   WorkTask       @relation(fields: [workTaskId], references: [id], onDelete: Restrict)
+  createdAt  DateTime       @default(now())
+
+  @@id([requestId, workTaskId])
   @@index([workTaskId])
 }
 
@@ -438,6 +450,8 @@ model WorkTask {
   name            String
   description     String?
   isActive        Boolean          @default(true)
+  showOnWalkthrough Boolean        @default(false)
+  walkthroughOrder  Int            @default(0)
   maxMinutes      Int?
   requiredFields  Json?            // Array of strings or objects
   requiredDocs    Json?            // Array of strings or objects
@@ -445,6 +459,7 @@ model WorkTask {
   suggestedHandoffTier   HandoffTier?
   suggestedPricingMode   PricingMode?
   requests               SupportRequest[]
+  intakeRequests         SupportRequestWorkTask[]
   recurringTasks         RecurringTask[]
   approvedForClients     ClientApprovedWorkTask[]
   createdAt              DateTime         @default(now())

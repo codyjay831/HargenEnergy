@@ -55,8 +55,8 @@ export const requestHelpSchema = z.object({
   serviceArea: trimmedString
     .max(500, "Service area must be at most 500 characters.")
     .optional(),
-  supportNeeded: z
-    .array(z.string().max(120, "Each support option is too long."))
+  requestedWorkTaskIds: z
+    .array(z.string().min(1).max(128))
     .min(1, "Please select at least one support option")
     .max(24, "Too many support options selected."),
   bottleneck: trimmedString
@@ -82,7 +82,7 @@ export const requestHelpStep1Schema = requestHelpSchema.pick({
   email: true,
   phone: true,
   bottleneck: true,
-  supportNeeded: true,
+  requestedWorkTaskIds: true,
 });
 
 export function validateRequestHelpStep1(data: {
@@ -91,7 +91,7 @@ export function validateRequestHelpStep1(data: {
   email: string;
   phone?: string;
   bottleneck: string;
-  supportNeeded: string[];
+  requestedWorkTaskIds: string[];
 }) {
   return requestHelpStep1Schema.safeParse(data);
 }
