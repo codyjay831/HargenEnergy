@@ -17,11 +17,17 @@ export const metadata: Metadata = {
 
 interface WalkthroughSchedulePageProps {
   params: Promise<{ token: string }>;
+  searchParams: Promise<{ from?: string }>;
 }
 
-export default async function WalkthroughSchedulePage({ params }: WalkthroughSchedulePageProps) {
+export default async function WalkthroughSchedulePage({
+  params,
+  searchParams,
+}: WalkthroughSchedulePageProps) {
   const resolvedParams = await params;
+  const resolvedSearch = await searchParams;
   const token = typeof resolvedParams?.token === "string" ? resolvedParams.token : "";
+  const fromRequest = resolvedSearch?.from === "request";
 
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -37,7 +43,7 @@ export default async function WalkthroughSchedulePage({ params }: WalkthroughSch
         </div>
 
         {token ? (
-          <WalkthroughPublicScheduler token={token} />
+          <WalkthroughPublicScheduler token={token} fromRequest={fromRequest} />
         ) : (
           <Card>
             <CardHeader>

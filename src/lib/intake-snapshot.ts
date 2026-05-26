@@ -97,6 +97,7 @@ export function renderIntakeAlertHtml(data: {
   request: IntakeSnapshotRequest;
   metadata?: IntakeSnapshotMetadata | null;
   adminUrl: string;
+  schedulingUrl?: string | null;
 }): string {
   const fields = buildIntakeSnapshotFields(data);
   const fieldBlocks = fields
@@ -114,11 +115,17 @@ export function renderIntakeAlertHtml(data: {
     .join("");
 
   const safeUrl = escapeHtml(data.adminUrl);
+  const schedulingNote = data.schedulingUrl?.trim()
+    ? `<p style="background: #ecfdf5; padding: 12px; border-radius: 4px; border-left: 4px solid #10b981; margin-top: 16px;">
+        <strong>Self-serve scheduling:</strong> A scheduling link was created automatically. The prospect can pick a time without you sending a link manually.
+      </p>`
+    : "";
 
   return `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
       <h2 style="color: #0f172a;">New Walkthrough Request</h2>
       ${fieldBlocks}
+      ${schedulingNote}
       <p style="margin-top: 20px;">
         <a href="${safeUrl}" style="background: #0f172a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">View in Admin</a>
       </p>

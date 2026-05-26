@@ -2,7 +2,6 @@
 
 import {
   RequestStatus,
-  WalkthroughAppointmentStatus,
   WalkthroughFitDecision,
   WalkthroughSchedulingLinkStatus,
 } from "@/generated/prisma/client";
@@ -16,14 +15,9 @@ import {
   sendWalkthroughSchedulingLinkEmail,
 } from "@/lib/email";
 import { canTransitionQualificationStatus } from "@/lib/sales/lifecycle";
-import { getWalkthroughSchedulingReadiness } from "@/lib/walkthrough-scheduling/scheduling-readiness";
-import { encryptFieldValue, decryptFieldValue } from "@/lib/crypto/field-encryption";
-import {
-  buildSchedulingLinkExpiry,
-  buildWalkthroughSchedulingUrl,
-  createSchedulingRawToken,
-  hashSchedulingToken,
-} from "@/lib/walkthrough-scheduling/tokens";
+import { ensureWalkthroughSchedulingLink } from "@/lib/walkthrough-scheduling/ensure-scheduling-link";
+import { decryptFieldValue } from "@/lib/crypto/field-encryption";
+import { buildWalkthroughSchedulingUrl } from "@/lib/walkthrough-scheduling/tokens";
 import { ensureWalkthroughAvailabilitySettings } from "@/lib/walkthrough-scheduling/availability-settings";
 import type { WeekdayWindows } from "@/lib/walkthrough-scheduling/types";
 import { revalidatePath } from "next/cache";
@@ -153,107 +147,28 @@ async function createOrRefreshSchedulingLink(
   regenerate: boolean,
 ) {
   const session = await requireStaff();
-  const readiness = await getWalkthroughSchedulingReadiness();
-  if (!readiness.ready) {
-    return { error: readiness.blockers[0] ?? "Scheduling is not ready." };
-  }
-
-  const request = await getIntakeRequest(supportRequestId);
-  if (!request) return { error: "Walkthrough request not found." };
-  if (request.status === RequestStatus.NEW) {
-    return { error: "Review and qualify this request before sending a scheduling link." };
-  }
-
-  if (regenerate) {
-    await prisma.walkthroughSchedulingLink.updateMany({
-      where: {
-        supportRequestId: request.id,
-        status: WalkthroughSchedulingLinkStatus.ACTIVE,
-      },
-      data: {
-        status: WalkthroughSchedulingLinkStatus.REVOKED,
-        revokedAt: new Date(),
-      },
-    });
-  }
-
-  const existing = await prisma.walkthroughSchedulingLink.findUnique({
-    where: { supportRequestId: request.id },
-    include: { appointment: true },
-  });
-
-  if (existing && existing.status === WalkthroughSchedulingLinkStatus.ACTIVE && !regenerate) {
-    return { error: "An active scheduling link already exists. Resend or regenerate it." };
-  }
-
-  if (
-    regenerate &&
-    existing?.status === WalkthroughSchedulingLinkStatus.USED &&
-    existing.appointment &&
-    existing.appointment.status !== WalkthroughAppointmentStatus.CANCELED
-  ) {
-    return {
-      error:
-        "Cannot regenerate this link while a walkthrough is still scheduled. Cancel the appointment first.",
-    };
-  }
-
-  const rawToken = createSchedulingRawToken();
-  const linkData = {
-    tokenHash: hashSchedulingToken(rawToken),
-    encryptedToken: encryptFieldValue(rawToken),
-    status: WalkthroughSchedulingLinkStatus.ACTIVE,
-    expiresAt: buildSchedulingLinkExpiry(),
-    revokedAt: null,
+  const result = await ensureWalkthroughSchedulingLink({
+    supportRequestId,
+    regenerate,
+    sendSchedulingEmail: true,
     createdByUserId: session.user.id,
-  };
-
-  const link =
-    regenerate &&
-    existing &&
-    existing.status !== WalkthroughSchedulingLinkStatus.ACTIVE
-      ? await prisma.walkthroughSchedulingLink.update({
-          where: { id: existing.id },
-          data: linkData,
-        })
-      : await prisma.walkthroughSchedulingLink.create({
-          data: {
-            ...linkData,
-            clientId: request.clientId,
-            supportRequestId: request.id,
-          },
-        });
-
-  const schedulingUrl = buildWalkthroughSchedulingUrl(rawToken);
-  const emailResult = await sendWalkthroughSchedulingLinkEmail({
-    to: request.client.email,
-    contactName: request.client.contactName,
-    companyName: request.client.companyName,
-    schedulingUrl,
+    audit: {
+      actorUserId: session.user.id,
+      action: regenerate
+        ? "walkthrough.scheduling_link.regenerated"
+        : "walkthrough.scheduling_link.sent",
+    },
   });
 
-  await prisma.walkthroughSchedulingLink.update({
-    where: { id: link.id },
-    data: { sentAt: new Date() },
-  });
-
-  await writeAuditLog({
-    actorUserId: session.user.id,
-    action: regenerate
-      ? "walkthrough.scheduling_link.regenerated"
-      : "walkthrough.scheduling_link.sent",
-    entityType: "WalkthroughSchedulingLink",
-    entityId: link.id,
-    metadata: { clientId: request.clientId },
-  });
-
-  revalidateAdminClientPage(request.clientId);
-
-  if ("error" in emailResult && emailResult.error) {
-    return { success: true, warning: emailResult.error, schedulingUrl };
+  if ("error" in result) {
+    return { error: result.error };
   }
 
-  return { success: true, schedulingUrl };
+  if (result.warning) {
+    return { success: true, warning: result.warning, schedulingUrl: result.schedulingUrl };
+  }
+
+  return { success: true, schedulingUrl: result.schedulingUrl };
 }
 
 export async function sendWalkthroughSchedulingLink(supportRequestId: string) {

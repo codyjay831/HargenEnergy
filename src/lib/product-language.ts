@@ -135,6 +135,27 @@ export const EMAIL_SUBJECTS = {
 
 // Form copy
 export const FORM_COPY = {
+  walkthroughSuccessScheduling: {
+    redirecting: "Taking you to scheduling…",
+  },
+  walkthroughSuccessManual: {
+    title: "Walkthrough request received",
+    body: "We received your request. Scheduling is not available online right now — we'll follow up by email, usually within one business day, with next steps. Portal access for ongoing client work comes after walkthrough, contract, and payment.",
+    successSteps: {
+      received: {
+        title: "Request received",
+        body: "Your walkthrough request is in our queue.",
+      },
+      review: {
+        title: "We'll follow up",
+        body: "We'll reach out by email to schedule your walkthrough and discuss scope.",
+      },
+      activation: {
+        title: "Activation",
+        body: "After contract and payment setup, you'll get portal access and we start the work.",
+      },
+    },
+  },
   walkthroughSuccess: {
     title: "Walkthrough request received",
     body: "We received your request. We'll follow up by email, usually within one business day. Portal access for ongoing client work comes after walkthrough, contract, and payment.",

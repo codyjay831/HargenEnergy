@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   GoogleCalendarSyncStatus,
+  RequestStatus,
   WalkthroughAppointmentStatus,
   WalkthroughReminderChannel,
   WalkthroughReminderStatus,
@@ -229,6 +230,14 @@ export async function bookWalkthroughSlotAtomic(
       await tx.walkthroughSchedulingLink.update({
         where: { id: input.schedulingLinkId },
         data: { status: WalkthroughSchedulingLinkStatus.USED },
+      });
+
+      await tx.supportRequest.updateMany({
+        where: {
+          id: input.supportRequestId,
+          status: RequestStatus.NEW,
+        },
+        data: { status: RequestStatus.REVIEWED, needsInfo: false },
       });
 
       const reminderRows = buildReminderRows(created.id, input.slotStartUtc, now, {

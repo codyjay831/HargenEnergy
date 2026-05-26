@@ -170,7 +170,10 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
                         recapSentAt: latestAppointment?.recapSentAt ?? null,
                       })
                     : null;
-                const hasUnreviewedWalkthrough = latestRequest?.status === "NEW";
+                const hasUnreviewedWalkthrough =
+                  latestRequest?.status === "NEW" &&
+                  !latestAppointment &&
+                  latestRequest.walkthroughSchedulingLink?.status !== "ACTIVE";
                 return (
                   <TableRow key={client.id}>
                     <TableCell className="font-medium">{client.companyName}</TableCell>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type HTMLAttributes } from "react";
+import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -38,8 +39,10 @@ interface RequestHelpFormProps {
 }
 
 export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
+  const router = useRouter();
   const [step, setStep] = useState<1 | 2>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submissionSummary, setSubmissionSummary] = useState<WalkthroughSubmissionSummary | null>(
     null,
@@ -145,6 +148,15 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
     const result = await submitRequestHelp(validated.data);
 
     if (result.success) {
+      const url =
+        "schedulingUrl" in result && result.schedulingUrl
+          ? result.schedulingUrl
+          : result.summary?.schedulingUrl;
+      if (url) {
+        setIsRedirecting(true);
+        router.replace(url);
+        return;
+      }
       if ("summary" in result && result.summary) {
         setSubmissionSummary(result.summary);
       }
@@ -185,7 +197,24 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
     }
   };
 
+  if (isRedirecting) {
+    return (
+      <Card className="rounded-xl border border-amber-200/80 bg-amber-50/40 shadow-sm">
+        <CardContent className="px-6 py-16 sm:px-10 text-center space-y-4">
+          <Loader2 className="mx-auto h-10 w-10 animate-spin text-amber-600" />
+          <p className="font-heading text-lg font-semibold text-stone-900">
+            {FORM_COPY.walkthroughSuccessScheduling.redirecting}
+          </p>
+          <p className="text-sm text-stone-600 max-w-md mx-auto">
+            Your request was received. Choose a walkthrough time on the next screen.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (isSubmitted) {
+    const manualCopy = FORM_COPY.walkthroughSuccessManual;
     const changeMailto = submissionSummary
       ? `mailto:support@hargenenergy.com?subject=${encodeURIComponent(
           `Walkthrough request update (${submissionSummary.requestId.slice(0, 8)})`,
@@ -214,10 +243,10 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
               </svg>
             </div>
             <h3 className="font-heading text-2xl font-semibold text-stone-900">
-              {FORM_COPY.walkthroughSuccess.title}
+              {manualCopy.title}
             </h3>
             <p className="mt-2 text-sm text-stone-600 leading-relaxed max-w-lg mx-auto">
-              {FORM_COPY.walkthroughSuccess.body}
+              {manualCopy.body}
             </p>
           </div>
 
@@ -288,9 +317,9 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
             </h4>
             <div className="space-y-6 max-w-md mx-auto">
               {[
-                COPY.successSteps.received,
-                COPY.successSteps.review,
-                COPY.successSteps.activation,
+                manualCopy.successSteps.received,
+                manualCopy.successSteps.review,
+                manualCopy.successSteps.activation,
               ].map((item, index, arr) => (
                 <div key={item.title} className="flex gap-4">
                   <div className="flex flex-col items-center">
@@ -623,7 +652,7 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
               variant="outline"
               className="h-12 sm:flex-1"
               onClick={() => setStep(1)}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isRedirecting}
             >
               {COPY.back}
             </Button>
@@ -634,7 +663,7 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
                 "h-12 sm:flex-1 text-base font-medium",
                 marketingAmberCta,
               )}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isRedirecting}
             >
               {isSubmitting ? (
                 <>

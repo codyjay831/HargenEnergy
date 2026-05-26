@@ -106,7 +106,7 @@ function validateEmailConfig() {
 export async function sendRequestConfirmation(
   to: string,
   companyName: string,
-  options?: { taskCount?: number; requestId?: string },
+  options?: { taskCount?: number; requestId?: string; schedulingUrl?: string },
 ) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
@@ -118,6 +118,18 @@ export async function sendRequestConfirmation(
       ? `<p>You selected <strong>${options.taskCount}</strong> support area${options.taskCount === 1 ? "" : "s"}. Reply to this email if anything needs to change.</p>`
       : "";
 
+  const schedulingUrl = options?.schedulingUrl?.trim();
+  const scheduleCta = schedulingUrl
+    ? `<p style="margin: 24px 0;">
+            <a href="${escapeHtml(schedulingUrl)}" style="background: #0f172a; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;">Choose your walkthrough time</a>
+          </p>
+          <p style="font-size: 14px; color: #64748b;">This scheduling link expires in 14 days.</p>`
+    : "";
+
+  const followUpCopy = schedulingUrl
+    ? `<p>Pick a time for your discovery walkthrough using the button above. We will review what you shared and come prepared for the conversation.</p>`
+    : `<p>We will review the bottleneck and support needs you shared. If we need more details to understand scope, we will follow up with you directly.</p>`;
+
   try {
     await resend.emails.send({
       from: fromEmail,
@@ -128,7 +140,8 @@ export async function sendRequestConfirmation(
           <h2 style="color: #0f172a;">Walkthrough request received</h2>
           <p>Hargen Energy has received your walkthrough request for <strong>${safeCompany}</strong>.</p>
           ${taskSummary}
-          <p>We will review the bottleneck and support needs you shared. If we need more details to understand scope, we will follow up with you directly.</p>
+          ${scheduleCta}
+          ${followUpCopy}
           <p>We will start with a walkthrough to understand your backlog and where you are stuck. Portal access and ongoing client work begin after onboarding, contract, and payment are in place.</p>
           <p style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 14px; color: #64748b;">
             Hargen Energy Solar Ops Desk<br />
@@ -163,6 +176,7 @@ export async function sendInternalRequestAlert(data: {
   kind?: SupportRequestKind;
   subjectPrefix?: string;
   intakePlan?: string;
+  schedulingUrl?: string;
 }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
@@ -214,6 +228,7 @@ export async function sendInternalRequestAlert(data: {
           },
           metadata: data.intakePlan ? { intakePlan: data.intakePlan } : undefined,
           adminUrl,
+          schedulingUrl: data.schedulingUrl,
         })
       : buildOpsAlertHtml(data, adminUrl);
 

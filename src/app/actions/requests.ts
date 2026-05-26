@@ -30,6 +30,8 @@ import { validateRequestedWalkthroughTaskIds } from "@/lib/walkthrough-catalog";
 import { formatIntakePlanLabel } from "@/lib/intake-plan";
 import { formatUrgencyLabel } from "@/lib/ui-enums";
 import { writeAuditLog } from "@/lib/audit-log";
+import { ensureWalkthroughSchedulingLink } from "@/lib/walkthrough-scheduling/ensure-scheduling-link";
+import { getWalkthroughSchedulingReadiness } from "@/lib/walkthrough-scheduling/scheduling-readiness";
 
 export type WalkthroughSubmissionSummary = {
   requestId: string;
@@ -40,7 +42,14 @@ export type WalkthroughSubmissionSummary = {
   urgency: string;
   urgencyLabel: string;
   tasks: Array<{ id: string; name: string; description: string | null }>;
+  schedulingUrl?: string;
 };
+
+function appendSchedulingFromRequestParam(schedulingUrl: string): string {
+  const url = new URL(schedulingUrl);
+  url.searchParams.set("from", "request");
+  return url.toString();
+}
 
 export async function submitRequestHelp(data: RequestHelpInput) {
   const validatedFields = requestHelpSchema.safeParse(data);
@@ -97,15 +106,45 @@ export async function submitRequestHelp(data: RequestHelpInput) {
 
     const { plan, urgency, bottleneck } = validatedFields.data;
 
-    void Promise.all([
-      sendRequestConfirmation(email, companyName, {
-        taskCount: orderedTasks.length,
-        requestId,
-      }),
-      sendInternalRequestAlert(emailPayload),
-    ]).catch((emailError) => {
+    let schedulingUrl: string | undefined;
+    const readiness = await getWalkthroughSchedulingReadiness();
+    if (readiness.ready) {
+      const linkResult = await ensureWalkthroughSchedulingLink({
+        supportRequestId: requestId,
+        sendSchedulingEmail: false,
+        createdByUserId: null,
+        errorIfActiveExists: false,
+        audit: {
+          actorUserId: null,
+          action: "walkthrough.scheduling_link.auto_created",
+        },
+      });
+      if ("schedulingUrl" in linkResult) {
+        schedulingUrl = appendSchedulingFromRequestParam(linkResult.schedulingUrl);
+      } else {
+        console.error(
+          "[submitRequestHelp] Failed to create scheduling link:",
+          linkResult.error,
+          { requestId, clientId },
+        );
+      }
+    }
+
+    try {
+      await Promise.all([
+        sendRequestConfirmation(email, companyName, {
+          taskCount: orderedTasks.length,
+          requestId,
+          schedulingUrl,
+        }),
+        sendInternalRequestAlert({
+          ...emailPayload,
+          schedulingUrl,
+        }),
+      ]);
+    } catch (emailError) {
       console.error("Failed to send intake emails:", emailError);
-    });
+    }
 
     revalidatePath("/admin");
     revalidateAdminClientPage(clientId);
@@ -119,9 +158,10 @@ export async function submitRequestHelp(data: RequestHelpInput) {
       urgency,
       urgencyLabel: formatUrgencyLabel(urgency),
       tasks: orderedTasks,
+      schedulingUrl,
     };
 
-    return { success: true, requestId, summary };
+    return { success: true, requestId, summary, schedulingUrl };
   } catch (error) {
     console.error("Error submitting request:", error);
     return { error: "Something went wrong. Please try again later." };

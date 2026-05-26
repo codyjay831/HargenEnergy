@@ -63,6 +63,19 @@ describe("deriveWalkthroughPipelineStage", () => {
     ).toBe("link_sent");
   });
 
+  it("returns link_sent for NEW intake with active self-serve link", () => {
+    expect(
+      deriveWalkthroughPipelineStage({
+        clientStatus: ClientStatus.LEAD,
+        requestStatus: RequestStatus.NEW,
+        linkStatus: WalkthroughSchedulingLinkStatus.ACTIVE,
+        appointmentStatus: null,
+        fitDecision: null,
+        recapSentAt: null,
+      }),
+    ).toBe("link_sent");
+  });
+
   it("returns scheduled when appointment exists", () => {
     expect(
       deriveWalkthroughPipelineStage({

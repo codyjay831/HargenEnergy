@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { requestHelpMetadata } from "@/lib/marketing/metadata";
 import { getPublicWalkthroughCatalog } from "@/lib/walkthrough-catalog";
+import { getWalkthroughSchedulingReadiness } from "@/lib/walkthrough-scheduling/scheduling-readiness";
 import {
   marketingShell,
   marketingSectionY,
@@ -22,7 +23,11 @@ const checklist = [
 ];
 
 export default async function RequestHelpPage() {
-  const catalog = await getPublicWalkthroughCatalog();
+  const [catalog, schedulingReadiness] = await Promise.all([
+    getPublicWalkthroughCatalog(),
+    getWalkthroughSchedulingReadiness(),
+  ]);
+  const schedulingEnabled = schedulingReadiness.ready;
 
   return (
     <div className="border-b border-stone-200/80">
@@ -32,7 +37,10 @@ export default async function RequestHelpPage() {
             <div>
               <h1 className={marketingH1}>{PRODUCT_LANGUAGE.walkthrough.action}</h1>
               <p className={cn(marketingLead, "mt-4 max-w-xl")}>
-                Tell us where you are stuck. We start with a walkthrough and activation conversation, not a support ticket. Most companies hear back within one business day.
+                Tell us where you are stuck. We start with a walkthrough and activation conversation, not a support ticket.
+                {schedulingEnabled
+                  ? " Submit your request, then choose a time for your walkthrough."
+                  : " Most companies hear back within one business day."}
               </p>
               <p className="mt-2 text-sm text-stone-500">Takes about 2 minutes.</p>
             </div>
@@ -65,7 +73,9 @@ export default async function RequestHelpPage() {
           </div>
 
           <p className="mx-auto mt-10 max-w-3xl text-center text-sm text-stone-600 leading-relaxed">
-            We read your request, check capacity, and reply by email or phone. Start small if you want — scale hours when your pipeline changes.
+            {schedulingEnabled
+              ? "After you submit, you can pick a walkthrough time right away. We read your request and come prepared for the conversation."
+              : "We read your request, check capacity, and reply by email or phone. Start small if you want — scale hours when your pipeline changes."}
           </p>
 
         </div>

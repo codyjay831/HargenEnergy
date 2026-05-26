@@ -211,7 +211,7 @@ export function getWalkthroughStageConfig(
       return {
         heading: "Walkthrough not scheduled",
         description:
-          "This company submitted a walkthrough request. Review their needs, schedule a discovery call, then decide whether to activate them as a client.",
+          "This company submitted a walkthrough request but does not have an active scheduling link yet (scheduling may be unavailable or link creation failed). Review their needs or send a scheduling link manually.",
         primaryLabel: "Review request",
         secondaryLabels: ["Mark not a fit", "Request more info"],
       };
@@ -232,8 +232,9 @@ export function getWalkthroughStageConfig(
       };
     case "link_sent":
       return {
-        heading: "Scheduling link sent",
-        description: "Waiting for the prospect to pick a time on the scheduling page.",
+        heading: "Awaiting booking",
+        description:
+          "The prospect can pick a time on the self-serve scheduling page (usually right after they submit the request form). Resend or regenerate the link if they need a fresh one.",
         primaryLabel: "Copy scheduling link",
         secondaryLabels: ["Resend link", "Regenerate link", "Revoke link"],
       };

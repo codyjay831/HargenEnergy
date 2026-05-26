@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 
 interface WalkthroughPublicSchedulerProps {
   token: string;
+  fromRequest?: boolean;
 }
 
 type SlotOption = WalkthroughSlotOption;
@@ -101,7 +102,22 @@ function formatAppointmentRange(
   };
 }
 
-export function WalkthroughPublicScheduler({ token }: WalkthroughPublicSchedulerProps) {
+function RequestReceivedBanner() {
+  return (
+    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+      <p className="font-medium">Your walkthrough request was received.</p>
+      <p className="mt-1 text-emerald-900/90">
+        Pick a time below. We also sent a confirmation email with this link in case you need it
+        later.
+      </p>
+    </div>
+  );
+}
+
+export function WalkthroughPublicScheduler({
+  token,
+  fromRequest = false,
+}: WalkthroughPublicSchedulerProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [pageError, setPageError] = useState<"unavailable" | "invalid" | null>(null);
   const [pageData, setPageData] = useState<PageData | null>(null);
@@ -551,6 +567,8 @@ export function WalkthroughPublicScheduler({ token }: WalkthroughPublicScheduler
     );
   }
 
+  const showRequestBanner = fromRequest && bookStep === "slots";
+
   return (
     <Card>
       <CardHeader>
@@ -560,6 +578,7 @@ export function WalkthroughPublicScheduler({ token }: WalkthroughPublicScheduler
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {showRequestBanner && <RequestReceivedBanner />}
         {bookStep === "slots" && (
           <>
             <WalkthroughSlotPicker
@@ -568,6 +587,13 @@ export function WalkthroughPublicScheduler({ token }: WalkthroughPublicScheduler
               onSelect={setSelectedSlot}
               onContinue={() => setBookStep("confirm")}
             />
+            {fromRequest && pageData.slots.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No open times are available in the current booking window. Your request is saved —
+                use the link in your confirmation email to check again, or contact us and we will
+                help you schedule.
+              </p>
+            )}
           </>
         )}
 
