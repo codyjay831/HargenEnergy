@@ -53,7 +53,10 @@ export default async function AdminDashboard() {
     prioritizedRequests,
   ] = await Promise.all([
     prisma.supportRequest.count({
-      where: { kind: SupportRequestKind.PROSPECT_INTAKE, status: RequestStatus.NEW },
+      where: {
+        kind: SupportRequestKind.PROSPECT_INTAKE,
+        status: { in: [RequestStatus.NEW, RequestStatus.NEEDS_INFO] },
+      },
     }),
     prisma.client.count({
       where: {
@@ -106,7 +109,7 @@ export default async function AdminDashboard() {
   const stats = [
     { 
       title: "Needs Review", 
-      subtitle: "New walkthrough requests awaiting review",
+      subtitle: "Walkthrough requests needing review or awaiting prospect response",
       value: newWalkthroughsCount.toString(), 
       icon: Inbox, 
       color: "text-amber-600", 

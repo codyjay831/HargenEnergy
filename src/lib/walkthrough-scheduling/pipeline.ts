@@ -8,6 +8,7 @@ import {
 
 export type WalkthroughPipelineStage =
   | "new_request"
+  | "awaiting_info"
   | "qualified"
   | "link_sent"
   | "scheduled"
@@ -59,10 +60,12 @@ export function deriveWalkthroughPipelineStage(
   if (input.linkStatus === WalkthroughSchedulingLinkStatus.USED) {
     return "scheduled";
   }
+  if (input.requestStatus === RequestStatus.NEEDS_INFO) {
+    return "awaiting_info";
+  }
   if (
     input.requestStatus === RequestStatus.REVIEWED ||
-    input.requestStatus === RequestStatus.IN_PROGRESS ||
-    input.requestStatus === RequestStatus.NEEDS_INFO
+    input.requestStatus === RequestStatus.IN_PROGRESS
   ) {
     return "qualified";
   }
@@ -71,7 +74,11 @@ export function deriveWalkthroughPipelineStage(
 
 export const WALKTHROUGH_PIPELINE_RAIL = [
   { id: "request", label: "Request", stages: ["new_request"] as WalkthroughPipelineStage[] },
-  { id: "qualify", label: "Qualify", stages: ["qualified"] as WalkthroughPipelineStage[] },
+  {
+    id: "qualify",
+    label: "Qualify",
+    stages: ["awaiting_info", "qualified"] as WalkthroughPipelineStage[],
+  },
   { id: "schedule", label: "Schedule", stages: ["link_sent"] as WalkthroughPipelineStage[] },
   {
     id: "walkthrough",
@@ -99,6 +106,8 @@ export function getWalkthroughPipelineStageLabel(
   switch (stage) {
     case "new_request":
       return "Needs review";
+    case "awaiting_info":
+      return "Awaiting response";
     case "qualified":
       return "Ready to schedule";
     case "link_sent":
@@ -130,6 +139,8 @@ export function getWalkthroughPipelineStageBadgeVariant(
   switch (stage) {
     case "new_request":
       return "destructive";
+    case "awaiting_info":
+      return "outline";
     case "qualified":
     case "link_sent":
       return "secondary";
@@ -157,6 +168,14 @@ export function getWalkthroughStageConfig(
           "This company submitted a walkthrough request. Review their needs, schedule a discovery call, then decide whether to activate them as a client.",
         primaryLabel: "Review request",
         secondaryLabels: ["Mark not a fit", "Request more info"],
+      };
+    case "awaiting_info":
+      return {
+        heading: "Waiting on prospect",
+        description:
+          "You asked for more information. They'll reply by email. Qualify when you're ready to schedule.",
+        primaryLabel: "Qualify prospect",
+        secondaryLabels: ["Request more info", "Mark not a fit"],
       };
     case "qualified":
       return {

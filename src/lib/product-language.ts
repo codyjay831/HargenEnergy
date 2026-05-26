@@ -128,6 +128,8 @@ export const EMAIL_SUBJECTS = {
   walkthroughReminder: (companyName: string) => `Reminder: Hargen walkthrough — ${companyName}`,
   walkthroughCancel: (companyName: string) => `Walkthrough canceled — ${companyName}`,
   walkthroughRecap: (companyName: string) => `Walkthrough recap — ${companyName}`,
+  walkthroughNeedsInfo: (companyName: string) =>
+    `More information needed — ${companyName} walkthrough request`,
 } as const;
 
 // Form copy

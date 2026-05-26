@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ClientStatus } from "@/generated/prisma/client";
+import { ClientStatus, RequestStatus } from "@/generated/prisma/client";
 import { cn } from "@/lib/utils";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { BillingStatusBadge } from "@/components/admin/BillingStatusBadge";
@@ -21,6 +21,11 @@ import {
 } from "@/lib/walkthrough-scheduling/pipeline";
 
 export const dynamic = "force-dynamic";
+
+const PROSPECT_NEEDS_ATTENTION_STATUSES = [
+  RequestStatus.NEW,
+  RequestStatus.NEEDS_INFO,
+] as const;
 
 interface AdminClientsPageProps {
   searchParams: Promise<{ status?: string; needsReview?: string }>;
@@ -50,7 +55,7 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
               requests: {
                 some: {
                   kind: "PROSPECT_INTAKE",
-                  status: "NEW",
+                  status: { in: [...PROSPECT_NEEDS_ATTENTION_STATUSES] },
                 },
               },
             }
@@ -61,7 +66,7 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
               requests: {
                 some: {
                   kind: "PROSPECT_INTAKE",
-                  status: "NEW",
+                  status: { in: [...PROSPECT_NEEDS_ATTENTION_STATUSES] },
                 },
               },
             }
@@ -99,7 +104,7 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
         <h1 className="text-2xl font-bold">Clients</h1>
         <p className="text-sm text-muted-foreground mt-1">
           {needsReviewFilter
-            ? "Companies with walkthrough requests awaiting your review."
+            ? "Walkthrough requests needing review or awaiting prospect response."
             : PRODUCT_LANGUAGE.prospect.listSubtitle}
         </p>
       </div>

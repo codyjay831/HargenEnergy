@@ -10,6 +10,7 @@ import { writeAuditLog } from "@/lib/audit-log";
 import { prisma } from "@/lib/prisma";
 import { revalidateAdminClientPage } from "@/lib/revalidate-paths";
 import {
+  sendWalkthroughNeedsInfoEmail,
   sendWalkthroughRecapEmail,
   sendWalkthroughSchedulingLinkEmail,
 } from "@/lib/email";
@@ -49,6 +50,7 @@ export async function qualifyWalkthroughRequest(
     where: { id: request.id },
     data: {
       status: RequestStatus.REVIEWED,
+      needsInfo: false,
       internalNotes: internalNotes?.trim() || request.internalNotes,
     },
   });
@@ -57,13 +59,41 @@ export async function qualifyWalkthroughRequest(
   return { success: true };
 }
 
-export async function markWalkthroughNeedsInfo(supportRequestId: string, message?: string) {
-  await requireStaff();
+const NEEDS_INFO_MESSAGE_MIN = 10;
+const NEEDS_INFO_MESSAGE_MAX = 5000;
+
+export async function markWalkthroughNeedsInfo(supportRequestId: string, message: string) {
+  const session = await requireStaff();
   const request = await getIntakeRequest(supportRequestId);
   if (!request) return { error: "Walkthrough request not found." };
 
-  if (!canTransitionQualificationStatus(request.status, RequestStatus.NEEDS_INFO)) {
+  const trimmedMessage = message.trim();
+  if (trimmedMessage.length < NEEDS_INFO_MESSAGE_MIN) {
+    return { error: "Please enter at least 10 characters describing what you need." };
+  }
+  if (trimmedMessage.length > NEEDS_INFO_MESSAGE_MAX) {
+    return { error: "Message is too long. Please keep it under 5000 characters." };
+  }
+
+  if (!request.client.email?.trim()) {
+    return { error: "Prospect email is missing. Cannot send request." };
+  }
+
+  const isResend = request.status === RequestStatus.NEEDS_INFO;
+  if (
+    !isResend &&
+    !canTransitionQualificationStatus(request.status, RequestStatus.NEEDS_INFO)
+  ) {
     return { error: "Invalid status transition." };
+  }
+
+  const replyTo =
+    session.user.email?.trim() || process.env.SUPPORT_NOTIFICATION_EMAIL?.trim();
+  if (!replyTo) {
+    console.warn(
+      "[markWalkthroughNeedsInfo] No staff email or SUPPORT_NOTIFICATION_EMAIL for reply-to.",
+    );
+    return { error: "Cannot send email: no reply-to address configured." };
   }
 
   await prisma.supportRequest.update({
@@ -71,11 +101,32 @@ export async function markWalkthroughNeedsInfo(supportRequestId: string, message
     data: {
       status: RequestStatus.NEEDS_INFO,
       needsInfo: true,
-      internalNotes: message?.trim() || request.internalNotes,
+      clientVisibleUpdate: trimmedMessage,
     },
   });
 
+  const emailResult = await sendWalkthroughNeedsInfoEmail({
+    to: request.client.email,
+    contactName: request.client.contactName,
+    companyName: request.client.companyName,
+    message: trimmedMessage,
+    replyTo,
+  });
+
+  await writeAuditLog({
+    actorUserId: session.user.id!,
+    action: "walkthrough.needs_info.sent",
+    entityType: "SupportRequest",
+    entityId: request.id,
+    metadata: { clientId: request.clientId, resend: isResend },
+  });
+
   revalidateAdminClientPage(request.clientId);
+
+  if ("error" in emailResult && emailResult.error) {
+    return { success: true, warning: emailResult.error };
+  }
+
   return { success: true };
 }
 

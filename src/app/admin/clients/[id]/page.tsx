@@ -236,6 +236,10 @@ export default async function ClientDetailPage({
             fitDecision={latestAppointment?.fitDecision ?? null}
             recapSentAt={latestAppointment?.recapSentAt ?? null}
             readiness={schedulingReadiness}
+            prospectEmail={client.email}
+            contactName={client.contactName}
+            companyName={client.companyName}
+            clientVisibleUpdate={latestWalkthrough.clientVisibleUpdate}
           />
         ) : (
           <AdminSetupGuide
@@ -379,6 +383,7 @@ export default async function ClientDetailPage({
                       urgency: walkthroughRequestForDrawer.urgency,
                       status: walkthroughRequestForDrawer.status,
                       internalNotes: walkthroughRequestForDrawer.internalNotes,
+                      clientVisibleUpdate: walkthroughRequestForDrawer.clientVisibleUpdate,
                       createdAt: walkthroughRequestForDrawer.createdAt,
                       requestedTasks: walkthroughRequestForDrawer.requestedTasks,
                     }
@@ -391,6 +396,7 @@ export default async function ClientDetailPage({
                       urgency: latestWalkthrough!.urgency,
                       status: latestWalkthrough!.status,
                       internalNotes: latestWalkthrough!.internalNotes,
+                      clientVisibleUpdate: latestWalkthrough!.clientVisibleUpdate,
                       createdAt: latestWalkthrough!.createdAt,
                     }
               }

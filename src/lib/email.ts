@@ -867,6 +867,49 @@ function formatWalkthroughWhen(startUtc: Date, timezone: string): string {
   }).format(startUtc);
 }
 
+export async function sendWalkthroughNeedsInfoEmail(input: {
+  to: string;
+  contactName: string;
+  companyName: string;
+  message: string;
+  replyTo: string;
+}) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  const { resend, fromEmail } = config;
+
+  const safeMessage = escapeHtml(input.message).replace(/\n/g, "<br />");
+
+  try {
+    await resend.emails.send({
+      from: fromEmail,
+      to: input.to,
+      replyTo: input.replyTo,
+      subject: EMAIL_SUBJECTS.walkthroughNeedsInfo(input.companyName),
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          <h2 style="color: #0f172a;">More information needed</h2>
+          <p>Hi ${escapeHtml(input.contactName)},</p>
+          <p>Thanks for your walkthrough request for <strong>${escapeHtml(input.companyName)}</strong>. We need a few more details before we can move forward.</p>
+          <div style="margin: 20px 0; padding: 20px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <p style="margin: 0; font-weight: bold; color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">What we need:</p>
+            <p style="margin-top: 10px; color: #0f172a; line-height: 1.6;">${safeMessage}</p>
+          </div>
+          <p>Reply to this email with the details we need and we'll follow up shortly.</p>
+          <p style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 14px; color: #64748b;">
+            Hargen Energy Solar Ops Desk<br />
+            Flexible Solar Operations Support
+          </p>
+        </div>
+      `,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending walkthrough needs info email:", error);
+    return { error: "Failed to send needs info email." };
+  }
+}
+
 export async function sendWalkthroughSchedulingLinkEmail(input: {
   to: string;
   contactName: string;

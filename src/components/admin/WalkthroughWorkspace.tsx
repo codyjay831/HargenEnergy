@@ -29,10 +29,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { RequestMoreInfoDialog } from "@/components/admin/RequestMoreInfoDialog";
 import {
   getWalkthroughSchedulingLinkUrl,
   markWalkthroughCompleted,
-  markWalkthroughNeedsInfo,
   markWalkthroughNoShow,
   markWalkthroughNotAFit,
   qualifyWalkthroughRequest,
@@ -61,6 +61,7 @@ interface WalkthroughWorkspaceProps {
     mostHelpful: string | null;
     urgency: string;
     internalNotes: string | null;
+    clientVisibleUpdate?: string | null;
     requestedTasks?: Array<{ name: string; description?: string | null }>;
   };
   metadata?: IntakeSnapshotMetadata | null;
@@ -114,6 +115,7 @@ export function WalkthroughWorkspace({
     appointment?.fitDecisionReason ?? "",
   );
   const [recapContent, setRecapContent] = useState(appointment?.recapContent ?? "");
+  const [needsInfoDialogOpen, setNeedsInfoDialogOpen] = useState(false);
 
   const runAction = (action: () => Promise<{ error?: string; success?: boolean; warning?: string; schedulingUrl?: string }>) => {
     startTransition(async () => {
@@ -199,6 +201,15 @@ export function WalkthroughWorkspace({
             </div>
           )}
 
+          {request.status === "NEEDS_INFO" && request.clientVisibleUpdate && (
+            <div className="rounded-md border border-sky-200 bg-sky-50/60 px-3 py-3 text-sm">
+              <p className="font-medium text-sky-900 text-xs uppercase tracking-wide">
+                Sent to prospect
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-sky-950">{request.clientVisibleUpdate}</p>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="qualificationNotes">Internal notes</Label>
             <Textarea
@@ -223,9 +234,7 @@ export function WalkthroughWorkspace({
             <Button
               variant="outline"
               disabled={isPending}
-              onClick={() =>
-                runAction(() => markWalkthroughNeedsInfo(request.id, qualificationNotes))
-              }
+              onClick={() => setNeedsInfoDialogOpen(true)}
             >
               Needs info
             </Button>
@@ -478,6 +487,16 @@ export function WalkthroughWorkspace({
           <span className="text-sm">Saving...</span>
         </div>
       )}
+
+      <RequestMoreInfoDialog
+        open={needsInfoDialogOpen}
+        onOpenChange={setNeedsInfoDialogOpen}
+        supportRequestId={request.id}
+        prospectEmail={client.email}
+        contactName={client.contactName}
+        companyName={client.companyName}
+        defaultMessage={request.clientVisibleUpdate}
+      />
     </div>
   );
 }

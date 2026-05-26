@@ -10,6 +10,7 @@ export type WalkthroughRailNode = {
 
 const STAGE_ORDER: WalkthroughPipelineStage[] = [
   "new_request",
+  "awaiting_info",
   "qualified",
   "link_sent",
   "scheduled",

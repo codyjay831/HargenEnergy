@@ -22,6 +22,7 @@ interface OnboardingWrapperProps {
     urgency: string;
     status: RequestStatusValue;
     internalNotes: string | null;
+    clientVisibleUpdate?: string | null;
     createdAt: Date;
     requestedTasks?: Array<{ name: string; description?: string | null }>;
   };
@@ -66,6 +67,7 @@ export function OnboardingWrapper({
         mostHelpful: latestWalkthroughRequest.mostHelpful,
         urgency: latestWalkthroughRequest.urgency,
         internalNotes: latestWalkthroughRequest.internalNotes,
+        clientVisibleUpdate: latestWalkthroughRequest.clientVisibleUpdate,
         requestedTasks: latestWalkthroughRequest.requestedTasks,
       }}
       metadata={walkthroughMetadata}

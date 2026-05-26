@@ -21,6 +21,32 @@ describe("deriveWalkthroughPipelineStage", () => {
     ).toBe("new_request");
   });
 
+  it("returns awaiting_info when needs more information", () => {
+    expect(
+      deriveWalkthroughPipelineStage({
+        clientStatus: ClientStatus.LEAD,
+        requestStatus: RequestStatus.NEEDS_INFO,
+        linkStatus: null,
+        appointmentStatus: null,
+        fitDecision: null,
+        recapSentAt: null,
+      }),
+    ).toBe("awaiting_info");
+  });
+
+  it("returns qualified for reviewed intake without link", () => {
+    expect(
+      deriveWalkthroughPipelineStage({
+        clientStatus: ClientStatus.LEAD,
+        requestStatus: RequestStatus.REVIEWED,
+        linkStatus: null,
+        appointmentStatus: null,
+        fitDecision: null,
+        recapSentAt: null,
+      }),
+    ).toBe("qualified");
+  });
+
   it("returns link_sent when active link exists", () => {
     expect(
       deriveWalkthroughPipelineStage({

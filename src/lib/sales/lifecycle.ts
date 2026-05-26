@@ -8,8 +8,13 @@ import { RequestStatus, SupportRequestKind } from "@/lib/enums";
 
 // Sales-flavored status transitions for PROSPECT_INTAKE
 const QUALIFICATION_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
-  [RequestStatus.NEW]: [RequestStatus.REVIEWED, RequestStatus.CANCELLED],
-  [RequestStatus.REVIEWED]: [RequestStatus.IN_PROGRESS, RequestStatus.COMPLETE, RequestStatus.CANCELLED],
+  [RequestStatus.NEW]: [RequestStatus.REVIEWED, RequestStatus.NEEDS_INFO, RequestStatus.CANCELLED],
+  [RequestStatus.REVIEWED]: [
+    RequestStatus.IN_PROGRESS,
+    RequestStatus.COMPLETE,
+    RequestStatus.NEEDS_INFO,
+    RequestStatus.CANCELLED,
+  ],
   [RequestStatus.IN_PROGRESS]: [RequestStatus.REVIEWED, RequestStatus.COMPLETE, RequestStatus.CANCELLED],
   [RequestStatus.COMPLETE]: [RequestStatus.IN_PROGRESS], // Allow reopening if needed
   [RequestStatus.CANCELLED]: [RequestStatus.REVIEWED], // Allow re-engaging
