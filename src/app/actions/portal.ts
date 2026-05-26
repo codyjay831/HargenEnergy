@@ -26,9 +26,11 @@ import {
 import {
   createPortalSubmitRequestSchema,
   portalAddCommentSchema,
+  requestScopeChangeSchema,
 } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { requireClientUser } from "@/lib/auth-guards";
+import { validateRequestedWalkthroughTaskIds } from "@/lib/walkthrough-catalog";
 
 const PORTAL_VALIDATION_ERROR =
   "Please shorten your input or fix the required fields and try again.";
@@ -52,6 +54,95 @@ export async function getPortalSubmitOptions(clientId: string) {
     canSubmit: setup.canSubmit,
     blockMessage: setup.blockMessage,
   };
+}
+
+export async function requestScopeChange(data: {
+  note: string;
+  requestedWorkTaskIds?: string[];
+}) {
+  const session = await requireClientUser("portal.work");
+  const clientId = session.user.clientId!;
+
+  const parsed = requestScopeChangeSchema.safeParse(data);
+  if (!parsed.success) {
+    return { error: PORTAL_VALIDATION_ERROR };
+  }
+
+  const scopeLimit = await checkRateLimit("portal-scope-change", `user:${session.user.id}`);
+  if (!scopeLimit.allowed) {
+    return { error: PORTAL_RATE_LIMIT_ERROR };
+  }
+
+  let resolvedTaskNames: string[] = [];
+  if (parsed.data.requestedWorkTaskIds && parsed.data.requestedWorkTaskIds.length > 0) {
+    const taskValidation = await validateRequestedWalkthroughTaskIds(
+      parsed.data.requestedWorkTaskIds,
+    );
+    if (!taskValidation.ok) {
+      return { error: taskValidation.error };
+    }
+    resolvedTaskNames = taskValidation.tasks.map((task) => task.name);
+  }
+
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { companyName: true, contactName: true, email: true, phone: true, planType: true },
+  });
+
+  if (!client) {
+    return { error: "Client not found." };
+  }
+
+  const supportNeeded =
+    resolvedTaskNames.length > 0 ? resolvedTaskNames.join(", ") : "Scope change request";
+
+  try {
+    const supportRequest = await prisma.supportRequest.create({
+      data: {
+        clientId,
+        title: "Scope change request",
+        kind: SupportRequestKind.CLIENT_OPS,
+        source: SupportRequestSource.PORTAL,
+        supportNeeded,
+        description: parsed.data.note,
+        metadata: {
+          type: "scope_change",
+          requestedWorkTaskIds: parsed.data.requestedWorkTaskIds ?? [],
+          requestedTaskNames: resolvedTaskNames,
+        },
+        urgency: Urgency.NORMAL,
+        status: RequestStatus.NEW,
+      },
+    });
+
+    try {
+      await sendInternalRequestAlert({
+        companyName: client.companyName,
+        contactName: client.contactName,
+        email: client.email,
+        phone: client.phone,
+        supportNeeded,
+        plan: client.planType,
+        urgency: Urgency.NORMAL,
+        description: parsed.data.note,
+        requestId: supportRequest.id,
+        clientId,
+        kind: SupportRequestKind.CLIENT_OPS,
+        subjectPrefix: "[Scope change]",
+      });
+    } catch (emailError) {
+      console.error("Failed to send scope change alert:", emailError);
+    }
+
+    revalidatePath("/portal");
+    revalidatePath("/portal/account");
+    revalidatePath("/admin/requests");
+
+    return { success: true, requestId: supportRequest.id };
+  } catch (error) {
+    console.error("Error submitting scope change request:", error);
+    return { error: "Failed to submit scope change request." };
+  }
 }
 
 export async function submitPortalRequest(data: {

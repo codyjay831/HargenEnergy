@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2 } from "lucide-react";
 import { PortalSupportSetupCard } from "@/components/portal/PortalSupportSetupCard";
 import { getClientPortalSupportSetup } from "@/lib/portal-support";
+import { getClientWalkthroughRequest } from "@/lib/portal-walkthrough";
 import { prisma } from "@/lib/prisma";
 import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
 import { PortalSetupGuide } from "@/components/portal/PortalSetupGuide";
@@ -19,7 +20,7 @@ export default async function PortalAccount() {
     return <div>Client not found.</div>;
   }
 
-  const [client, setup, setupReadiness] = await Promise.all([
+  const [client, setup, setupReadiness, walkthrough] = await Promise.all([
     prisma.client.findUnique({
       where: { id: clientId },
       select: {
@@ -33,6 +34,7 @@ export default async function PortalAccount() {
     }),
     getClientPortalSupportSetup(clientId),
     getClientSetupReadiness(clientId),
+    getClientWalkthroughRequest(clientId),
   ]);
 
   if (!client || "error" in setup || "error" in setupReadiness) {
@@ -104,7 +106,7 @@ export default async function PortalAccount() {
           </CardContent>
         </Card>
 
-        <PortalSupportSetupCard setup={setup} />
+        <PortalSupportSetupCard setup={setup} walkthrough={walkthrough} />
       </div>
 
       <Card>

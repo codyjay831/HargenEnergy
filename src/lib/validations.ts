@@ -228,3 +228,15 @@ export const outreachCompanySchema = z.object({
 });
 
 export type OutreachCompanyInput = z.infer<typeof outreachCompanySchema>;
+
+export const requestScopeChangeSchema = z.object({
+  note: trimmedString
+    .min(1, "Please describe what you'd like to change.")
+    .max(4000, "Message must be at most 4000 characters."),
+  requestedWorkTaskIds: z
+    .array(z.string().min(1).max(128))
+    .max(24, "Too many support options selected.")
+    .optional(),
+});
+
+export type RequestScopeChangeInput = z.infer<typeof requestScopeChangeSchema>;

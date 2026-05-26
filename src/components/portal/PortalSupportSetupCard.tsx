@@ -5,6 +5,11 @@ import { PortalBillingPortalButton } from "@/components/forms/PortalBillingPorta
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { BillingMode } from "@/generated/prisma/client";
 import type { ClientPortalSupportSetup } from "@/lib/portal-support";
+import type { ClientWalkthroughRequest } from "@/lib/portal-walkthrough";
+import {
+  flattenApprovedTaskIds,
+  walkthroughScopeMatchesApproved,
+} from "@/lib/portal-walkthrough-utils";
 import {
   getBillingBadgeVariant,
   getClientBillingReadiness,
@@ -12,9 +17,39 @@ import {
 
 interface PortalSupportSetupCardProps {
   setup: ClientPortalSupportSetup;
+  walkthrough?: ClientWalkthroughRequest | null;
 }
 
-export function PortalSupportSetupCard({ setup }: PortalSupportSetupCardProps) {
+function RequestedAreasList({
+  walkthrough,
+}: {
+  walkthrough: ClientWalkthroughRequest;
+}) {
+  const copy = PRODUCT_LANGUAGE.supportSetup;
+
+  return (
+    <div className="space-y-3">
+      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        {copy.requestedAreasTitle}
+      </span>
+      <div className="space-y-2">
+        {walkthrough.tasks.map((task) => (
+          <div key={task.id} className="rounded-md border bg-muted/20 px-3 py-2">
+            <p className="text-sm font-medium">{task.name}</p>
+            {task.description ? (
+              <p className="mt-1 text-xs text-muted-foreground">{task.description}</p>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function PortalSupportSetupCard({
+  setup,
+  walkthrough,
+}: PortalSupportSetupCardProps) {
   const copy = PRODUCT_LANGUAGE.supportSetup;
   const billing = getClientBillingReadiness({
     engagementType: setup.engagementType,
@@ -27,6 +62,11 @@ export function PortalSupportSetupCard({ setup }: PortalSupportSetupCardProps) {
     stripeSubscriptionId: setup.stripeSubscriptionId,
     subscriptionStatus: setup.subscriptionStatus,
   });
+
+  const approvedTaskIds = flattenApprovedTaskIds(setup.supportAreas);
+  const scopeMatches =
+    !walkthrough ||
+    walkthroughScopeMatchesApproved(walkthrough.taskIds, approvedTaskIds);
 
   return (
     <Card id="support-setup">
@@ -43,6 +83,8 @@ export function PortalSupportSetupCard({ setup }: PortalSupportSetupCardProps) {
           </span>
           <span className="text-sm font-medium">{setup.engagementLabel}</span>
         </div>
+
+        {walkthrough && <RequestedAreasList walkthrough={walkthrough} />}
 
         {setup.isRequestBased ? (
           <p className="text-sm text-muted-foreground leading-relaxed">
@@ -92,6 +134,12 @@ export function PortalSupportSetupCard({ setup }: PortalSupportSetupCardProps) {
                 </div>
               )}
             </div>
+
+            {walkthrough && !scopeMatches && (
+              <p className="text-xs text-sky-800 bg-sky-50 border border-sky-200 rounded-md p-3 leading-relaxed">
+                {copy.scopeDiffNotice}
+              </p>
+            )}
 
             {setup.billingMode === BillingMode.STRIPE &&
               (setup.stripeCustomerId ? (

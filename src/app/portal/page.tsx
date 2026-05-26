@@ -25,6 +25,9 @@ import { isRequestBasedPricingComplete } from "@/lib/engagement";
 import { getClientPortalSupportSetup } from "@/lib/portal-support";
 import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
 import { PortalSetupGuide } from "@/components/portal/PortalSetupGuide";
+import { getClientWalkthroughRequest } from "@/lib/portal-walkthrough";
+import { getPublicWalkthroughCatalog } from "@/lib/walkthrough-catalog";
+import { YourWalkthroughRequest } from "@/components/portal/YourWalkthroughRequest";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +63,8 @@ export default async function PortalDashboard() {
 
   const supportSetup = await getClientPortalSupportSetup(clientId);
   const setupReadinessResult = await getClientSetupReadiness(clientId);
+  const walkthrough = await getClientWalkthroughRequest(clientId);
+  const walkthroughCatalog = walkthrough ? await getPublicWalkthroughCatalog() : [];
   const setupBlocked = !("error" in supportSetup) && !supportSetup.canSubmit;
 
   const isSupportBlock = client.engagementType === EngagementType.SUPPORT_BLOCK;
@@ -182,6 +187,10 @@ export default async function PortalDashboard() {
             ))}
           </div>
         </div>
+      )}
+
+      {walkthrough && (
+        <YourWalkthroughRequest walkthrough={walkthrough} catalog={walkthroughCatalog} />
       )}
 
       {!("error" in setupReadinessResult) && (

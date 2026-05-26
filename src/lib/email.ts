@@ -94,12 +94,20 @@ function validateEmailConfig() {
   return { resend, fromEmail: from };
 }
 
-export async function sendRequestConfirmation(to: string, companyName: string) {
+export async function sendRequestConfirmation(
+  to: string,
+  companyName: string,
+  options?: { taskCount?: number; requestId?: string },
+) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
   const { resend, fromEmail } = config;
 
   const safeCompany = escapeHtml(companyName);
+  const taskSummary =
+    options?.taskCount && options.taskCount > 0
+      ? `<p>You selected <strong>${options.taskCount}</strong> support area${options.taskCount === 1 ? "" : "s"}. Reply to this email if anything needs to change.</p>`
+      : "";
 
   try {
     await resend.emails.send({
@@ -110,6 +118,7 @@ export async function sendRequestConfirmation(to: string, companyName: string) {
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
           <h2 style="color: #0f172a;">Walkthrough request received</h2>
           <p>Hargen Energy has received your walkthrough request for <strong>${safeCompany}</strong>.</p>
+          ${taskSummary}
           <p>We will review the bottleneck and support needs you shared. If we need more details to understand scope, we will follow up with you directly.</p>
           <p>We will start with a walkthrough to understand your backlog and where you are stuck. Portal access and ongoing client work begin after onboarding, contract, and payment are in place.</p>
           <p style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 14px; color: #64748b;">

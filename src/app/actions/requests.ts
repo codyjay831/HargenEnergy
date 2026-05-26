@@ -26,7 +26,20 @@ import {
 } from "@/lib/engagement";
 import { persistPublicIntake } from "@/lib/intake-submit";
 import { validateRequestedWalkthroughTaskIds } from "@/lib/walkthrough-catalog";
+import { formatIntakePlanLabel } from "@/lib/intake-plan";
+import { formatUrgencyLabel } from "@/lib/ui-enums";
 import { writeAuditLog } from "@/lib/audit-log";
+
+export type WalkthroughSubmissionSummary = {
+  requestId: string;
+  submittedAt: string;
+  bottleneck: string;
+  plan: string;
+  planLabel: string;
+  urgency: string;
+  urgencyLabel: string;
+  tasks: Array<{ id: string; name: string; description: string | null }>;
+};
 
 export async function submitRequestHelp(data: RequestHelpInput) {
   const validatedFields = requestHelpSchema.safeParse(data);
@@ -66,14 +79,28 @@ export async function submitRequestHelp(data: RequestHelpInput) {
   }
 
   try {
-    const { clientId, emailPayload } = await persistPublicIntake(prisma, {
+    const { clientId, requestId, emailPayload } = await persistPublicIntake(prisma, {
       ...validatedFields.data,
       normalizedEmail,
       resolvedTasks: taskValidation.tasks,
     });
 
+    const taskDetails = await prisma.workTask.findMany({
+      where: { id: { in: validatedFields.data.requestedWorkTaskIds } },
+      select: { id: true, name: true, description: true },
+    });
+    const taskById = new Map(taskDetails.map((task) => [task.id, task]));
+    const orderedTasks = validatedFields.data.requestedWorkTaskIds
+      .map((id) => taskById.get(id))
+      .filter((task): task is NonNullable<typeof task> => Boolean(task));
+
+    const { plan, urgency, bottleneck } = validatedFields.data;
+
     void Promise.all([
-      sendRequestConfirmation(email, companyName),
+      sendRequestConfirmation(email, companyName, {
+        taskCount: orderedTasks.length,
+        requestId,
+      }),
       sendInternalRequestAlert(emailPayload),
     ]).catch((emailError) => {
       console.error("Failed to send intake emails:", emailError);
@@ -83,7 +110,18 @@ export async function submitRequestHelp(data: RequestHelpInput) {
     revalidatePath("/admin/clients");
     revalidatePath(`/admin/clients/${clientId}`);
 
-    return { success: true, requestId: emailPayload.requestId };
+    const summary: WalkthroughSubmissionSummary = {
+      requestId,
+      submittedAt: new Date().toISOString(),
+      bottleneck,
+      plan,
+      planLabel: formatIntakePlanLabel(plan),
+      urgency,
+      urgencyLabel: formatUrgencyLabel(urgency),
+      tasks: orderedTasks,
+    };
+
+    return { success: true, requestId, summary };
   } catch (error) {
     console.error("Error submitting request:", error);
     return { error: "Something went wrong. Please try again later." };

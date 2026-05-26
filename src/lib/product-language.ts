@@ -53,6 +53,9 @@ export const PRODUCT_LANGUAGE = {
   supportSetup: {
     title: "Your support setup",
     approvedAreasTitle: "Approved support areas",
+    requestedAreasTitle: "What you requested",
+    scopeDiffNotice:
+      "Your account manager may adjust scope after the walkthrough. Approved areas can differ from your original request.",
     requestBasedExplainer:
       "Send work as needed. Hargen reviews each request and confirms pricing before work continues.",
     noApprovedAreas: "No support areas configured yet.",
@@ -62,6 +65,23 @@ export const PRODUCT_LANGUAGE = {
     viewSetupLink: "View your support setup",
     inviteScopeBlocked:
       "Configure approved support areas in Engagement & approved work before sending a portal invite.",
+  },
+
+  walkthroughRequest: {
+    title: "Your walkthrough request",
+    submittedLabel: "Submitted",
+    supportAreas: "Support areas you selected",
+    bottleneck: "Biggest bottleneck",
+    planInterest: "Plan interest",
+    urgency: "Urgency",
+    requestScopeChange: "Request scope change",
+    scopeChangeTitle: "Request a scope change",
+    scopeChangeDescription:
+      "Tell us what should change. Your account manager will review before updating approved work.",
+    scopeChangeNote: "What should change?",
+    scopeChangeOptionalAreas: "Updated support areas (optional)",
+    scopeChangeSubmit: "Send scope change request",
+    scopeChangeSuccess: "Scope change request sent. Your account manager will follow up.",
   },
   
   // Outreach CRM

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -16,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { submitRequestHelp } from "@/app/actions/requests";
+import { submitRequestHelp, type WalkthroughSubmissionSummary } from "@/app/actions/requests";
 import { RequestHelpInput, requestHelpSchema, validateRequestHelpStep1 } from "@/lib/validations";
 import type { WalkthroughCatalogCategory } from "@/lib/walkthrough-catalog";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,9 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
   const [step, setStep] = useState<1 | 2>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submissionSummary, setSubmissionSummary] = useState<WalkthroughSubmissionSummary | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [selectedSupport, setSelectedSupport] = useState<string[]>([]);
@@ -141,6 +145,9 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
     const result = await submitRequestHelp(data);
 
     if (result.success) {
+      if ("summary" in result && result.summary) {
+        setSubmissionSummary(result.summary);
+      }
       setIsSubmitted(true);
     } else {
       const msg = result.error || "An unexpected error occurred.";
@@ -162,6 +169,7 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
 
   const resetForm = () => {
     setIsSubmitted(false);
+    setSubmissionSummary(null);
     setStep(1);
     setStep1Values({ companyName: "", name: "", email: "", phone: "", bottleneck: "" });
     setSelectedSupport([]);
@@ -178,6 +186,14 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
   };
 
   if (isSubmitted) {
+    const changeMailto = submissionSummary
+      ? `mailto:support@hargenenergy.com?subject=${encodeURIComponent(
+          `Walkthrough request update (${submissionSummary.requestId.slice(0, 8)})`,
+        )}&body=${encodeURIComponent(
+          `Hi Hargen Energy,\n\nI'd like to update my walkthrough request.\n\nReference: ${submissionSummary.requestId}\n\nChanges needed:\n`,
+        )}`
+      : "mailto:support@hargenenergy.com?subject=Walkthrough%20request%20update";
+
     return (
       <Card className="rounded-xl border border-amber-200/80 bg-amber-50/40 shadow-sm">
         <CardContent className="px-6 py-10 sm:px-10">
@@ -204,6 +220,67 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
               {FORM_COPY.walkthroughSuccess.body}
             </p>
           </div>
+
+          {submissionSummary && (
+            <div className="mb-8 rounded-lg border border-amber-200/80 bg-white/70 p-5 space-y-5">
+              <div>
+                <h4 className="text-sm font-semibold text-stone-900 uppercase tracking-wider">
+                  What you submitted
+                </h4>
+                <p className="mt-1 text-xs text-stone-500">
+                  Submitted {format(new Date(submissionSummary.submittedAt), "MMMM d, yyyy 'at' h:mm a")}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">
+                  Support areas
+                </p>
+                <div className="space-y-2">
+                  {submissionSummary.tasks.map((task) => (
+                    <div key={task.id} className="rounded-md border border-stone-200 px-3 py-2">
+                      <p className="text-sm font-medium text-stone-900">{task.name}</p>
+                      {task.description ? (
+                        <p className="mt-1 text-xs text-stone-600">{task.description}</p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">
+                    Bottleneck
+                  </p>
+                  <p className="mt-1 text-sm text-stone-900 whitespace-pre-wrap">
+                    {submissionSummary.bottleneck}
+                  </p>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">
+                      Plan interest
+                    </p>
+                    <p className="mt-1 text-sm text-stone-900">{submissionSummary.planLabel}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">
+                      Urgency
+                    </p>
+                    <p className="mt-1 text-sm text-stone-900">{submissionSummary.urgencyLabel}</p>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-sm text-stone-600">
+                Need to change something?{" "}
+                <a href={changeMailto} className="font-medium text-amber-800 underline underline-offset-2">
+                  Email us with your reference ID
+                </a>
+              </p>
+            </div>
+          )}
 
           <div className="border-t border-amber-200/60 pt-8 mb-8">
             <h4 className="text-sm font-semibold text-stone-900 mb-6 text-center uppercase tracking-wider">
