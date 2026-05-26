@@ -5,13 +5,22 @@ import { Resend } from "resend";
 import {
   adminIntakeRequestUrl,
   adminRequestUrl,
+  adminWalkthroughUrl,
   portalRequestUrl,
+  walkthroughCalendarIcsUrl,
+  walkthroughSchedulingUrl,
+  walkthroughSignedCalendarIcsUrl,
 } from "@/lib/app-url";
 import { SupportRequestKind } from "@/generated/prisma/client";
 import { escapeHtml, sanitizeEmailSubjectFragment } from "@/lib/html-escape";
 import { resolveClientLogoUrl } from "@/lib/storage/logo-url";
 import { renderIntakeAlertHtml } from "@/lib/intake-snapshot";
 import { EMAIL_SUBJECTS } from "@/lib/product-language";
+import {
+  buildCancelIcsForAppointment,
+  buildWalkthroughCalendarArtifacts,
+} from "@/lib/walkthrough-scheduling/calendar-ics-server";
+import { signWalkthroughAppointmentCalendar } from "@/lib/walkthrough-scheduling/calendar-signature";
 
 /**
  * Returns a Resend instance or null if the API key is missing.
@@ -867,6 +876,57 @@ function formatWalkthroughWhen(startUtc: Date, timezone: string): string {
   }).format(startUtc);
 }
 
+type WalkthroughCalendarEmailContext = {
+  appointmentId: string;
+  companyName: string;
+  startUtc: Date;
+  endUtc: Date;
+  meetingUrl: string | null;
+  schedulingLinkId: string | null;
+  schedulingToken?: string;
+  manageUrl?: string | null;
+};
+
+function getWalkthroughCalendarLinks(input: WalkthroughCalendarEmailContext) {
+  const artifacts = buildWalkthroughCalendarArtifacts({
+    appointmentId: input.appointmentId,
+    companyName: input.companyName,
+    startUtc: input.startUtc,
+    endUtc: input.endUtc,
+    meetingUrl: input.meetingUrl,
+    schedulingLinkId: input.schedulingLinkId,
+    manageUrl: input.manageUrl,
+  });
+
+  const icsUrl = input.schedulingToken
+    ? walkthroughCalendarIcsUrl(input.schedulingToken)
+    : walkthroughSignedCalendarIcsUrl(
+        input.appointmentId,
+        signWalkthroughAppointmentCalendar(input.appointmentId),
+      );
+
+  return {
+    ...artifacts,
+    icsUrl,
+  };
+}
+
+function renderWalkthroughCalendarLinks(input: { googleUrl: string; icsUrl: string }): string {
+  const googleUrl = escapeHtml(input.googleUrl);
+  const icsUrl = escapeHtml(input.icsUrl);
+
+  return `
+    <p style="margin: 0 0 24px; font-size: 14px; color: #64748b;">
+      Add to calendar:
+      <a href="${googleUrl}" style="color: #334155; text-decoration: underline;">Google Calendar</a>
+      ·
+      <a href="${icsUrl}" style="color: #334155; text-decoration: underline;">Apple Calendar</a>
+      ·
+      <a href="${icsUrl}" style="color: #334155; text-decoration: underline;">Outlook</a>
+    </p>
+  `;
+}
+
 export async function sendWalkthroughNeedsInfoEmail(input: {
   to: string;
   contactName: string;
@@ -948,7 +1008,10 @@ export async function sendWalkthroughBookingConfirmationEmail(input: {
   to: string;
   contactName: string;
   companyName: string;
+  appointmentId: string;
+  schedulingLinkId: string;
   startUtc: Date;
+  endUtc: Date;
   timezone: string;
   meetingUrl: string | null;
   schedulingToken: string;
@@ -957,13 +1020,29 @@ export async function sendWalkthroughBookingConfirmationEmail(input: {
   if ("error" in config) return { error: config.error };
   const { resend, fromEmail } = config;
   const when = formatWalkthroughWhen(input.startUtc, input.timezone);
-  const manageUrl = `${process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/schedule/walkthrough/${encodeURIComponent(input.schedulingToken)}`;
+  const manageUrl = walkthroughSchedulingUrl(input.schedulingToken);
+  const calendar = getWalkthroughCalendarLinks({
+    appointmentId: input.appointmentId,
+    companyName: input.companyName,
+    startUtc: input.startUtc,
+    endUtc: input.endUtc,
+    meetingUrl: input.meetingUrl,
+    schedulingLinkId: input.schedulingLinkId,
+    schedulingToken: input.schedulingToken,
+    manageUrl,
+  });
 
   try {
     await resend.emails.send({
       from: fromEmail,
       to: input.to,
       subject: EMAIL_SUBJECTS.walkthroughBookingConfirmation(input.companyName),
+      attachments: [
+        {
+          filename: "hargen-walkthrough.ics",
+          content: Buffer.from(calendar.publishIcs).toString("base64"),
+        },
+      ],
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
           <h2 style="color: #0f172a;">Walkthrough scheduled</h2>
@@ -974,6 +1053,7 @@ export async function sendWalkthroughBookingConfirmationEmail(input: {
           <p style="margin: 24px 0;">
             <a href="${escapeHtml(manageUrl)}" style="background: #0f172a; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;">View or cancel</a>
           </p>
+          ${renderWalkthroughCalendarLinks(calendar)}
         </div>
       `,
     });
@@ -984,11 +1064,74 @@ export async function sendWalkthroughBookingConfirmationEmail(input: {
   }
 }
 
+export async function sendWalkthroughRescheduleEmail(input: {
+  to: string;
+  contactName: string;
+  companyName: string;
+  appointmentId: string;
+  schedulingLinkId: string;
+  startUtc: Date;
+  endUtc: Date;
+  timezone: string;
+  meetingUrl: string | null;
+  schedulingToken: string;
+}) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  const { resend, fromEmail } = config;
+  const when = formatWalkthroughWhen(input.startUtc, input.timezone);
+  const manageUrl = walkthroughSchedulingUrl(input.schedulingToken);
+  const calendar = getWalkthroughCalendarLinks({
+    appointmentId: input.appointmentId,
+    companyName: input.companyName,
+    startUtc: input.startUtc,
+    endUtc: input.endUtc,
+    meetingUrl: input.meetingUrl,
+    schedulingLinkId: input.schedulingLinkId,
+    schedulingToken: input.schedulingToken,
+    manageUrl,
+  });
+
+  try {
+    await resend.emails.send({
+      from: fromEmail,
+      to: input.to,
+      subject: EMAIL_SUBJECTS.walkthroughReschedule(input.companyName),
+      attachments: [
+        {
+          filename: "hargen-walkthrough.ics",
+          content: Buffer.from(calendar.publishIcs).toString("base64"),
+        },
+      ],
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          <h2 style="color: #0f172a;">Walkthrough rescheduled</h2>
+          <p>Hi ${escapeHtml(input.contactName)},</p>
+          <p>Your Hargen walkthrough for <strong>${escapeHtml(input.companyName)}</strong> has a new time.</p>
+          <p><strong>When:</strong> ${escapeHtml(when)} (${escapeHtml(input.timezone)})</p>
+          ${input.meetingUrl ? `<p><strong>Google Meet:</strong> <a href="${escapeHtml(input.meetingUrl)}">${escapeHtml(input.meetingUrl)}</a></p>` : ""}
+          <p style="margin: 24px 0;">
+            <a href="${escapeHtml(manageUrl)}" style="background: #0f172a; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;">View appointment</a>
+          </p>
+          ${renderWalkthroughCalendarLinks(calendar)}
+        </div>
+      `,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending walkthrough reschedule email:", error);
+    return { error: "Failed to send reschedule confirmation email." };
+  }
+}
+
 export async function sendWalkthroughReminderEmail(input: {
   to: string;
   contactName: string;
   companyName: string;
+  appointmentId: string;
+  schedulingLinkId: string;
   startUtc: Date;
+  endUtc: Date;
   timezone: string;
   meetingUrl: string | null;
   reminderLabel: string;
@@ -997,6 +1140,14 @@ export async function sendWalkthroughReminderEmail(input: {
   if ("error" in config) return { error: config.error };
   const { resend, fromEmail } = config;
   const when = formatWalkthroughWhen(input.startUtc, input.timezone);
+  const calendar = getWalkthroughCalendarLinks({
+    appointmentId: input.appointmentId,
+    companyName: input.companyName,
+    startUtc: input.startUtc,
+    endUtc: input.endUtc,
+    meetingUrl: input.meetingUrl,
+    schedulingLinkId: input.schedulingLinkId,
+  });
 
   try {
     await resend.emails.send({
@@ -1010,6 +1161,7 @@ export async function sendWalkthroughReminderEmail(input: {
           <p>Reminder for your Hargen walkthrough with <strong>${escapeHtml(input.companyName)}</strong>.</p>
           <p><strong>When:</strong> ${escapeHtml(when)} (${escapeHtml(input.timezone)})</p>
           ${input.meetingUrl ? `<p><strong>Google Meet:</strong> <a href="${escapeHtml(input.meetingUrl)}">${escapeHtml(input.meetingUrl)}</a></p>` : ""}
+          ${renderWalkthroughCalendarLinks(calendar)}
         </div>
       `,
     });
@@ -1020,23 +1172,82 @@ export async function sendWalkthroughReminderEmail(input: {
   }
 }
 
-export async function sendWalkthroughCancelEmail(input: {
-  to: string;
-  contactName: string;
+export async function sendWalkthroughCancelAdminNotification(input: {
   companyName: string;
+  clientId: string;
   startUtc: Date;
   timezone: string;
 }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
+  if (!ADMIN_EMAIL) {
+    return { error: "Internal notification email not configured." };
+  }
   const { resend, fromEmail } = config;
   const when = formatWalkthroughWhen(input.startUtc, input.timezone);
+  const adminUrl = escapeHtml(adminWalkthroughUrl(input.clientId));
+
+  try {
+    await resend.emails.send({
+      from: fromEmail,
+      to: ADMIN_EMAIL,
+      subject: sanitizeEmailSubjectFragment(
+        `Walkthrough canceled: ${input.companyName}`,
+        200,
+      ),
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          <h2 style="color: #0f172a;">Prospect canceled walkthrough</h2>
+          <p><strong>Company:</strong> ${escapeHtml(input.companyName)}</p>
+          <p><strong>Was scheduled for:</strong> ${escapeHtml(when)} (${escapeHtml(input.timezone)})</p>
+          <p style="margin-top: 20px;">
+            <a href="${adminUrl}" style="background: #0f172a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">View in admin</a>
+          </p>
+        </div>
+      `,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending walkthrough cancel admin notification:", error);
+    return { error: "Failed to send admin notification." };
+  }
+}
+
+export async function sendWalkthroughCancelEmail(input: {
+  to: string;
+  contactName: string;
+  companyName: string;
+  appointmentId: string;
+  schedulingLinkId: string;
+  startUtc: Date;
+  endUtc: Date;
+  timezone: string;
+  meetingUrl: string | null;
+}) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  const { resend, fromEmail } = config;
+  const when = formatWalkthroughWhen(input.startUtc, input.timezone);
+  const cancelIcs = buildCancelIcsForAppointment({
+    appointmentId: input.appointmentId,
+    companyName: input.companyName,
+    startUtc: input.startUtc,
+    endUtc: input.endUtc,
+    meetingUrl: input.meetingUrl,
+    schedulingLinkId: input.schedulingLinkId,
+  });
 
   try {
     await resend.emails.send({
       from: fromEmail,
       to: input.to,
       subject: EMAIL_SUBJECTS.walkthroughCancel(input.companyName),
+      attachments: [
+        {
+          filename: "hargen-walkthrough-cancel.ics",
+          content: Buffer.from(cancelIcs).toString("base64"),
+        },
+      ],
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
           <h2 style="color: #0f172a;">Walkthrough canceled</h2>

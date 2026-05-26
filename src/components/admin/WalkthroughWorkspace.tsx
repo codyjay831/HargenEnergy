@@ -78,6 +78,7 @@ interface WalkthroughWorkspaceProps {
     timezone: string;
     meetingUrl: string | null;
     status: string;
+    canceledAt?: Date | string | null;
     discoveryNotes: string | null;
     fitDecision: WalkthroughFitDecisionValue | null;
     fitDecisionReason: string | null;
@@ -318,8 +319,21 @@ export function WalkthroughWorkspace({
             <div className="border-t pt-4 space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-medium">Booked appointment</span>
-                <Badge variant="secondary">{appointment.status}</Badge>
+                <Badge
+                  variant={appointment.status === "CANCELED" ? "destructive" : "secondary"}
+                >
+                  {appointment.status}
+                </Badge>
               </div>
+              {appointment.status === "CANCELED" && (
+                <div className="rounded-md border border-amber-200 bg-amber-50/60 px-3 py-2 text-sm text-amber-950">
+                  Prospect canceled this booking
+                  {appointment.canceledAt
+                    ? ` on ${format(new Date(appointment.canceledAt), "MMM d, yyyy")}`
+                    : ""}
+                  . Regenerate the scheduling link to reschedule.
+                </div>
+              )}
               <p className="text-sm text-muted-foreground">
                 {formatInTimeZone(
                   new Date(appointment.scheduledStartUtc),
@@ -327,7 +341,7 @@ export function WalkthroughWorkspace({
                   "EEEE, MMMM d, yyyy 'at' h:mm a zzz",
                 )}
               </p>
-              {appointment.meetingUrl && (
+              {appointment.meetingUrl && appointment.status !== "CANCELED" && (
                 <a
                   href={appointment.meetingUrl}
                   target="_blank"
@@ -337,30 +351,32 @@ export function WalkthroughWorkspace({
                   Join meeting
                 </a>
               )}
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  disabled={isPending || appointment.status === "COMPLETED"}
-                  onClick={() => runAction(() => markWalkthroughCompleted(appointment.id))}
-                >
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                  Mark completed
-                </Button>
-                <Button
-                  variant="outline"
-                  disabled={isPending || appointment.status === "NO_SHOW"}
-                  onClick={() => runAction(() => markWalkthroughNoShow(appointment.id))}
-                >
-                  <UserX className="mr-2 h-4 w-4" />
-                  Mark no-show
-                </Button>
-              </div>
+              {appointment.status !== "CANCELED" && (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    disabled={isPending || appointment.status === "COMPLETED"}
+                    onClick={() => runAction(() => markWalkthroughCompleted(appointment.id))}
+                  >
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Mark completed
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={isPending || appointment.status === "NO_SHOW"}
+                    onClick={() => runAction(() => markWalkthroughNoShow(appointment.id))}
+                  >
+                    <UserX className="mr-2 h-4 w-4" />
+                    Mark no-show
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {appointment && (
+      {appointment && appointment.status !== "CANCELED" && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Discovery notes</CardTitle>

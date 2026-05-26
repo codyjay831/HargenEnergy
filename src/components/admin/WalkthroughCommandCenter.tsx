@@ -102,7 +102,10 @@ export function WalkthroughCommandCenter({
   };
 
   const primaryDisabled =
-    (config.primaryLabel === "Send scheduling link" && !readiness.ready) || isPending;
+    ((config.primaryLabel === "Send scheduling link" ||
+      config.primaryLabel === "Regenerate scheduling link") &&
+      !readiness.ready) ||
+    isPending;
 
   const handlePrimary = () => {
     switch (stage) {
@@ -117,6 +120,9 @@ export function WalkthroughCommandCenter({
         break;
       case "link_sent":
         run(() => getWalkthroughSchedulingLinkUrl(supportRequestId));
+        break;
+      case "booking_canceled":
+        run(() => regenerateWalkthroughSchedulingLink(supportRequestId));
         break;
       default:
         openWalkthroughTab();

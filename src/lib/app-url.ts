@@ -45,6 +45,18 @@ export function walkthroughSchedulingUrl(rawToken: string): string {
   return `${baseUrl()}/schedule/walkthrough/${encodeURIComponent(rawToken)}`;
 }
 
+export function walkthroughCalendarIcsUrl(rawToken: string): string {
+  return `${baseUrl()}/schedule/walkthrough/${encodeURIComponent(rawToken)}/calendar.ics`;
+}
+
+export function walkthroughSignedCalendarIcsUrl(
+  appointmentId: string,
+  signature: string,
+): string {
+  const params = new URLSearchParams({ sig: signature });
+  return `${baseUrl()}/api/walkthrough/appointments/${encodeURIComponent(appointmentId)}/calendar.ics?${params.toString()}`;
+}
+
 export function adminCalendarSettingsUrl(): string {
   return `${baseUrl()}/admin/settings/calendar`;
 }

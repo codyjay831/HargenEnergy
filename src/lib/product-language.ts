@@ -125,6 +125,7 @@ export const EMAIL_SUBJECTS = {
   workRequestAdminAlert: (companyName: string) => `New work request: ${companyName}`,
   walkthroughSchedulingLink: (companyName: string) => `Schedule your Hargen walkthrough — ${companyName}`,
   walkthroughBookingConfirmation: (companyName: string) => `Walkthrough scheduled — ${companyName}`,
+  walkthroughReschedule: (companyName: string) => `Walkthrough rescheduled — ${companyName}`,
   walkthroughReminder: (companyName: string) => `Reminder: Hargen walkthrough — ${companyName}`,
   walkthroughCancel: (companyName: string) => `Walkthrough canceled — ${companyName}`,
   walkthroughRecap: (companyName: string) => `Walkthrough recap — ${companyName}`,

@@ -2,15 +2,27 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { formatInTimeZone } from "date-fns-tz";
-import { Calendar, CheckCircle2, Loader2, Video } from "lucide-react";
+import { Calendar, CalendarX2, CheckCircle2, Loader2, Video } from "lucide-react";
 import { toast } from "sonner";
 import {
   bookWalkthroughSlot,
   cancelWalkthroughAppointment,
   getWalkthroughSchedulingPageData,
+  getWalkthroughSchedulingSlots,
+  rebookWalkthroughAppointment,
+  rescheduleWalkthroughAppointment,
 } from "@/app/actions/walkthrough-scheduling-public";
+import { WalkthroughSlotPicker, type WalkthroughSlotOption } from "@/components/scheduling/WalkthroughSlotPicker";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,11 +32,7 @@ interface WalkthroughPublicSchedulerProps {
   token: string;
 }
 
-type SlotOption = {
-  startUtc: string;
-  endUtc: string;
-  displayTimezone: string;
-};
+type SlotOption = WalkthroughSlotOption;
 
 type BookPageData = {
   mode: "book";
@@ -46,9 +54,52 @@ type ManagePageData = {
     meetingUrl: string | null;
     status: string;
   };
+  calendarLinks: {
+    googleUrl: string;
+    icsUrl: string;
+  };
 };
 
-type PageData = BookPageData | ManagePageData;
+type CanceledPageData = {
+  mode: "canceled";
+  companyName: string;
+  contactName: string;
+  customerEmail: string;
+  appointment: {
+    scheduledStartUtc: string;
+    scheduledEndUtc: string;
+    timezone: string;
+  };
+};
+
+type ClosedPageData = {
+  mode: "closed";
+  companyName: string;
+  contactName: string;
+  appointment: {
+    scheduledStartUtc: string;
+    scheduledEndUtc: string;
+    timezone: string;
+    status: string;
+  };
+};
+
+type PageData = BookPageData | ManagePageData | CanceledPageData | ClosedPageData;
+
+function formatAppointmentRange(
+  startUtc: string,
+  endUtc: string,
+  timezone: string,
+) {
+  return {
+    date: formatInTimeZone(new Date(startUtc), timezone, "EEEE, MMMM d, yyyy"),
+    time: `${formatInTimeZone(new Date(startUtc), timezone, "h:mm a")} – ${formatInTimeZone(
+      new Date(endUtc),
+      timezone,
+      "h:mm a zzz",
+    )}`,
+  };
+}
 
 export function WalkthroughPublicScheduler({ token }: WalkthroughPublicSchedulerProps) {
   const [isLoading, setIsLoading] = useState(true);
@@ -58,8 +109,39 @@ export function WalkthroughPublicScheduler({ token }: WalkthroughPublicScheduler
   const [contactName, setContactName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [step, setStep] = useState<"slots" | "confirm">("slots");
+  const [bookStep, setBookStep] = useState<"slots" | "confirm">("slots");
+  const [manageStep, setManageStep] = useState<"details" | "reschedule">("details");
+  const [canceledStep, setCanceledStep] = useState<"confirmation" | "rebook">("confirmation");
+  const [rescheduleSlots, setRescheduleSlots] = useState<SlotOption[]>([]);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  const refreshPageData = async () => {
+    const data = await getWalkthroughSchedulingPageData(token);
+    if ("unavailable" in data && data.unavailable) {
+      setPageError("unavailable");
+      setPageData(null);
+      return;
+    }
+    if ("invalid" in data && data.invalid) {
+      setPageError("invalid");
+      setPageData(null);
+      return;
+    }
+
+    if (data.mode === "book") {
+      setContactName(data.contactName);
+      setEmail(data.email);
+      setPhone(data.phone ?? "");
+    }
+
+    setPageError(null);
+    setPageData(data as PageData);
+    setManageStep("details");
+    setCanceledStep("confirmation");
+    setBookStep("slots");
+    setSelectedSlot(null);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -88,7 +170,7 @@ export function WalkthroughPublicScheduler({ token }: WalkthroughPublicScheduler
       }
 
       setPageError(null);
-      setPageData(data);
+      setPageData(data as PageData);
       setIsLoading(false);
     });
 
@@ -96,6 +178,17 @@ export function WalkthroughPublicScheduler({ token }: WalkthroughPublicScheduler
       cancelled = true;
     };
   }, [token]);
+
+  const loadRescheduleSlots = () => {
+    startTransition(async () => {
+      const result = await getWalkthroughSchedulingSlots(token);
+      if ("error" in result) {
+        toast.error(result.error);
+        return;
+      }
+      setRescheduleSlots(result.slots);
+    });
+  };
 
   const handleBook = () => {
     if (!selectedSlot) return;
@@ -113,12 +206,7 @@ export function WalkthroughPublicScheduler({ token }: WalkthroughPublicScheduler
       }
 
       toast.success("Your walkthrough is booked");
-      const refreshed = await getWalkthroughSchedulingPageData(token);
-      if ("mode" in refreshed && refreshed.mode === "manage") {
-        setPageData(refreshed);
-        setStep("slots");
-        setSelectedSlot(null);
-      }
+      await refreshPageData();
     });
   };
 
@@ -130,14 +218,39 @@ export function WalkthroughPublicScheduler({ token }: WalkthroughPublicScheduler
         return;
       }
 
+      setCancelDialogOpen(false);
       toast.success("Appointment canceled");
-      const refreshed = await getWalkthroughSchedulingPageData(token);
-      if ("mode" in refreshed && refreshed.mode === "book") {
-        setContactName(refreshed.contactName);
-        setEmail(refreshed.email);
-        setPhone(refreshed.phone ?? "");
-        setPageData(refreshed);
+      await refreshPageData();
+    });
+  };
+
+  const handleReschedule = () => {
+    if (!selectedSlot) return;
+
+    startTransition(async () => {
+      const result = await rescheduleWalkthroughAppointment(token, selectedSlot.startUtc);
+      if ("error" in result) {
+        toast.error(result.error);
+        return;
       }
+
+      toast.success("Walkthrough rescheduled");
+      await refreshPageData();
+    });
+  };
+
+  const handleRebook = () => {
+    if (!selectedSlot) return;
+
+    startTransition(async () => {
+      const result = await rebookWalkthroughAppointment(token, selectedSlot.startUtc);
+      if ("error" in result) {
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success("Your walkthrough is booked");
+      await refreshPageData();
     });
   };
 
@@ -173,66 +286,268 @@ export function WalkthroughPublicScheduler({ token }: WalkthroughPublicScheduler
     return null;
   }
 
-  if (pageData.mode === "manage") {
-    const { appointment } = pageData;
-    const canCancel = appointment.status === "SCHEDULED";
+  if (pageData.mode === "closed") {
+    const { date, time } = formatAppointmentRange(
+      pageData.appointment.scheduledStartUtc,
+      pageData.appointment.scheduledEndUtc,
+      pageData.appointment.timezone,
+    );
 
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Your walkthrough is scheduled</CardTitle>
+          <CardTitle>Walkthrough complete</CardTitle>
+          <CardDescription>
+            {pageData.companyName} · {pageData.contactName}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            This walkthrough is no longer available to manage online. Contact Hargen Energy if you
+            need assistance.
+          </p>
+          <div className="mt-4 rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">{date}</p>
+            <p>{time}</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (pageData.mode === "canceled") {
+    const { date, time } = formatAppointmentRange(
+      pageData.appointment.scheduledStartUtc,
+      pageData.appointment.scheduledEndUtc,
+      pageData.appointment.timezone,
+    );
+
+    if (canceledStep === "rebook") {
+      const slots = rescheduleSlots.length > 0 ? rescheduleSlots : [];
+
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pick a new time</CardTitle>
+            <CardDescription>
+              Choose a new walkthrough time for {pageData.companyName}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <WalkthroughSlotPicker
+              slots={slots}
+              selectedSlot={selectedSlot}
+              onSelect={setSelectedSlot}
+              showContinue={false}
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => setCanceledStep("confirmation")}>
+                Back
+              </Button>
+              <Button disabled={isPending || !selectedSlot} onClick={handleRebook}>
+                {isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Booking...
+                  </>
+                ) : (
+                  "Confirm new time"
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Walkthrough canceled</CardTitle>
           <CardDescription>
             {pageData.companyName} · {pageData.contactName}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Your walkthrough has been canceled. A confirmation was sent to{" "}
+            <span className="text-foreground">{pageData.customerEmail}</span>.
+          </p>
           <div className="rounded-lg border bg-muted/30 p-4">
             <div className="flex items-start gap-3">
-              <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" />
+              <CalendarX2 className="mt-0.5 h-5 w-5 text-muted-foreground" />
               <div>
-                <p className="font-medium">
-                  {formatInTimeZone(
-                    new Date(appointment.scheduledStartUtc),
-                    appointment.timezone,
-                    "EEEE, MMMM d, yyyy",
-                  )}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {formatInTimeZone(
-                    new Date(appointment.scheduledStartUtc),
-                    appointment.timezone,
-                    "h:mm a",
-                  )}
-                  {" – "}
-                  {formatInTimeZone(
-                    new Date(appointment.scheduledEndUtc),
-                    appointment.timezone,
-                    "h:mm a zzz",
-                  )}
-                </p>
+                <p className="font-medium text-muted-foreground line-through">{date}</p>
+                <p className="text-sm text-muted-foreground line-through">{time}</p>
               </div>
             </div>
           </div>
-
-          {appointment.meetingUrl && (
-            <a
-              href={appointment.meetingUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(buttonVariants(), "w-full sm:w-auto")}
-            >
-              <Video className="mr-2 h-4 w-4" />
-              Join meeting
-            </a>
-          )}
-
-          {canCancel && (
-            <Button variant="outline" disabled={isPending} onClick={handleCancel}>
-              Cancel appointment
-            </Button>
-          )}
+          <Button
+            className="w-full sm:w-auto"
+            onClick={() => {
+              setCanceledStep("rebook");
+              setSelectedSlot(null);
+              loadRescheduleSlots();
+            }}
+          >
+            Pick a new time
+          </Button>
         </CardContent>
       </Card>
+    );
+  }
+
+  if (pageData.mode === "manage") {
+    const { appointment } = pageData;
+    const { date, time } = formatAppointmentRange(
+      appointment.scheduledStartUtc,
+      appointment.scheduledEndUtc,
+      appointment.timezone,
+    );
+
+    if (manageStep === "reschedule") {
+      const slots = rescheduleSlots.length > 0 ? rescheduleSlots : [];
+
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle>Reschedule walkthrough</CardTitle>
+            <CardDescription>Pick a new time for {pageData.companyName}.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <WalkthroughSlotPicker
+              slots={slots}
+              selectedSlot={selectedSlot}
+              onSelect={setSelectedSlot}
+              showContinue={false}
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => setManageStep("details")}>
+                Back
+              </Button>
+              <Button disabled={isPending || !selectedSlot} onClick={handleReschedule}>
+                {isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Rescheduling...
+                  </>
+                ) : (
+                  "Confirm new time"
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <>
+        <Card>
+          <CardHeader>
+            <CardTitle>Your walkthrough is scheduled</CardTitle>
+            <CardDescription>
+              {pageData.companyName} · {pageData.contactName}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" />
+                <div>
+                  <p className="font-medium">{date}</p>
+                  <p className="text-sm text-muted-foreground">{time}</p>
+                </div>
+              </div>
+            </div>
+
+            {appointment.meetingUrl && (
+              <a
+                href={appointment.meetingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(buttonVariants(), "w-full sm:w-auto")}
+              >
+                <Video className="mr-2 h-4 w-4" />
+                Join meeting
+              </a>
+            )}
+
+            <p className="text-sm text-muted-foreground">
+              Add to calendar:{" "}
+              <a
+                href={pageData.calendarLinks.googleUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-foreground underline underline-offset-2"
+              >
+                Google Calendar
+              </a>
+              {" · "}
+              <a
+                href={pageData.calendarLinks.icsUrl}
+                className="text-foreground underline underline-offset-2"
+              >
+                Apple Calendar
+              </a>
+              {" · "}
+              <a
+                href={pageData.calendarLinks.icsUrl}
+                className="text-foreground underline underline-offset-2"
+              >
+                Outlook
+              </a>
+            </p>
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setManageStep("reschedule");
+                  setSelectedSlot(null);
+                  loadRescheduleSlots();
+                }}
+              >
+                Reschedule
+              </Button>
+              <Button variant="outline" onClick={() => setCancelDialogOpen(true)}>
+                Cancel appointment
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+          <DialogContent showCloseButton={!isPending}>
+            <DialogHeader>
+              <DialogTitle>Cancel this walkthrough?</DialogTitle>
+              <DialogDescription>
+                This will remove the event from our calendar and send you a cancellation
+                confirmation. You can pick a new time afterward.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                disabled={isPending}
+                onClick={() => setCancelDialogOpen(false)}
+              >
+                Keep appointment
+              </Button>
+              <Button variant="destructive" disabled={isPending} onClick={handleCancel}>
+                {isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Canceling...
+                  </>
+                ) : (
+                  "Cancel walkthrough"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 
@@ -245,61 +560,18 @@ export function WalkthroughPublicScheduler({ token }: WalkthroughPublicScheduler
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {step === "slots" && (
+        {bookStep === "slots" && (
           <>
-            {pageData.slots.length === 0 ? (
-              <EmptyState
-                icon={Calendar}
-                title="No times available"
-                description="There are no open slots in the current booking window. Please check back later or contact Hargen Energy."
-              />
-            ) : (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {pageData.slots.map((slot) => {
-                  const selected = selectedSlot?.startUtc === slot.startUtc;
-                  return (
-                    <button
-                      key={slot.startUtc}
-                      type="button"
-                      onClick={() => setSelectedSlot(slot)}
-                      className={cn(
-                        "rounded-lg border px-4 py-3 text-left transition-colors hover:border-primary/50 hover:bg-primary/5",
-                        selected && "border-primary bg-primary/5 ring-1 ring-primary/20",
-                      )}
-                    >
-                      <p className="font-medium">
-                        {formatInTimeZone(
-                          new Date(slot.startUtc),
-                          slot.displayTimezone,
-                          "EEEE, MMM d",
-                        )}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatInTimeZone(
-                          new Date(slot.startUtc),
-                          slot.displayTimezone,
-                          "h:mm a",
-                        )}
-                        {" – "}
-                        {formatInTimeZone(new Date(slot.endUtc), slot.displayTimezone, "h:mm a zzz")}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            <Button
-              className="w-full sm:w-auto"
-              disabled={!selectedSlot}
-              onClick={() => setStep("confirm")}
-            >
-              Continue
-            </Button>
+            <WalkthroughSlotPicker
+              slots={pageData.slots}
+              selectedSlot={selectedSlot}
+              onSelect={setSelectedSlot}
+              onContinue={() => setBookStep("confirm")}
+            />
           </>
         )}
 
-        {step === "confirm" && selectedSlot && (
+        {bookStep === "confirm" && selectedSlot && (
           <div className="space-y-4">
             <div className="rounded-lg border bg-muted/30 p-4 text-sm">
               <p className="font-medium">
@@ -343,7 +615,7 @@ export function WalkthroughPublicScheduler({ token }: WalkthroughPublicScheduler
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => setStep("slots")}>
+              <Button variant="outline" onClick={() => setBookStep("slots")}>
                 Back
               </Button>
               <Button

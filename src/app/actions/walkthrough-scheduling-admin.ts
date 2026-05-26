@@ -2,6 +2,7 @@
 
 import {
   RequestStatus,
+  WalkthroughAppointmentStatus,
   WalkthroughFitDecision,
   WalkthroughSchedulingLinkStatus,
 } from "@/generated/prisma/client";
@@ -178,23 +179,50 @@ async function createOrRefreshSchedulingLink(
 
   const existing = await prisma.walkthroughSchedulingLink.findUnique({
     where: { supportRequestId: request.id },
+    include: { appointment: true },
   });
 
   if (existing && existing.status === WalkthroughSchedulingLinkStatus.ACTIVE && !regenerate) {
     return { error: "An active scheduling link already exists. Resend or regenerate it." };
   }
 
+  if (
+    regenerate &&
+    existing?.status === WalkthroughSchedulingLinkStatus.USED &&
+    existing.appointment &&
+    existing.appointment.status !== WalkthroughAppointmentStatus.CANCELED
+  ) {
+    return {
+      error:
+        "Cannot regenerate this link while a walkthrough is still scheduled. Cancel the appointment first.",
+    };
+  }
+
   const rawToken = createSchedulingRawToken();
-  const link = await prisma.walkthroughSchedulingLink.create({
-    data: {
-      tokenHash: hashSchedulingToken(rawToken),
-      encryptedToken: encryptFieldValue(rawToken),
-      clientId: request.clientId,
-      supportRequestId: request.id,
-      expiresAt: buildSchedulingLinkExpiry(),
-      createdByUserId: session.user.id,
-    },
-  });
+  const linkData = {
+    tokenHash: hashSchedulingToken(rawToken),
+    encryptedToken: encryptFieldValue(rawToken),
+    status: WalkthroughSchedulingLinkStatus.ACTIVE,
+    expiresAt: buildSchedulingLinkExpiry(),
+    revokedAt: null,
+    createdByUserId: session.user.id,
+  };
+
+  const link =
+    regenerate &&
+    existing &&
+    existing.status !== WalkthroughSchedulingLinkStatus.ACTIVE
+      ? await prisma.walkthroughSchedulingLink.update({
+          where: { id: existing.id },
+          data: linkData,
+        })
+      : await prisma.walkthroughSchedulingLink.create({
+          data: {
+            ...linkData,
+            clientId: request.clientId,
+            supportRequestId: request.id,
+          },
+        });
 
   const schedulingUrl = buildWalkthroughSchedulingUrl(rawToken);
   const emailResult = await sendWalkthroughSchedulingLinkEmail({

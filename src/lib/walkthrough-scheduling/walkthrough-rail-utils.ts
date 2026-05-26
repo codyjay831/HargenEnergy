@@ -13,6 +13,7 @@ const STAGE_ORDER: WalkthroughPipelineStage[] = [
   "awaiting_info",
   "qualified",
   "link_sent",
+  "booking_canceled",
   "scheduled",
   "completed",
   "recap",

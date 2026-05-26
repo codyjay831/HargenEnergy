@@ -31,7 +31,7 @@ export type BookWalkthroughSlotInput = {
   companyName: string;
 };
 
-function buildReminderRows(
+export function buildReminderRows(
   appointmentId: string,
   startUtc: Date,
   now: Date,
@@ -99,7 +99,11 @@ function buildReminderRows(
   return rows;
 }
 
-async function buildSlotGeneratorContext(settings: NonNullable<Awaited<ReturnType<typeof getWalkthroughAvailabilitySettings>>>, connection: NonNullable<Awaited<ReturnType<typeof getActiveGoogleCalendarConnection>>>) {
+export async function buildSlotGeneratorContext(
+  settings: NonNullable<Awaited<ReturnType<typeof getWalkthroughAvailabilitySettings>>>,
+  connection: NonNullable<Awaited<ReturnType<typeof getActiveGoogleCalendarConnection>>>,
+  options?: { excludeAppointmentId?: string },
+) {
   const now = new Date();
   const busyBlocksUtc = await fetchGoogleFreeBusy(
     connection.id,
@@ -113,6 +117,9 @@ async function buildSlotGeneratorContext(settings: NonNullable<Awaited<ReturnTyp
       status: {
         in: [WalkthroughAppointmentStatus.SCHEDULED, WalkthroughAppointmentStatus.RESCHEDULED],
       },
+      ...(options?.excludeAppointmentId
+        ? { id: { not: options.excludeAppointmentId } }
+        : {}),
     },
     select: { scheduledStartUtc: true, scheduledEndUtc: true },
   });

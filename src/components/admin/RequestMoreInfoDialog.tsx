@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -28,8 +28,9 @@ type RequestMoreInfoDialogProps = {
   onSuccess?: () => void;
 };
 
-export function RequestMoreInfoDialog({
-  open,
+type RequestMoreInfoDialogContentProps = Omit<RequestMoreInfoDialogProps, "open">;
+
+function RequestMoreInfoDialogContent({
   onOpenChange,
   supportRequestId,
   prospectEmail,
@@ -37,16 +38,10 @@ export function RequestMoreInfoDialog({
   companyName,
   defaultMessage,
   onSuccess,
-}: RequestMoreInfoDialogProps) {
+}: RequestMoreInfoDialogContentProps) {
   const router = useRouter();
   const [message, setMessage] = useState(defaultMessage ?? "");
   const [isPending, startTransition] = useTransition();
-
-  useEffect(() => {
-    if (open) {
-      setMessage(defaultMessage ?? "");
-    }
-  }, [open, defaultMessage]);
 
   const handleSubmit = () => {
     startTransition(async () => {
@@ -67,39 +62,65 @@ export function RequestMoreInfoDialog({
   };
 
   return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Request more info</DialogTitle>
+        <DialogDescription>
+          Send a message to {contactName} at {companyName}. They can reply directly to your
+          inbox.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="space-y-2 py-2">
+        <Label htmlFor="needsInfoMessage">What do you need from them?</Label>
+        <Textarea
+          id="needsInfoMessage"
+          value={message}
+          onChange={(event) => setMessage(event.target.value)}
+          rows={5}
+          placeholder="Describe the details or documents you need before scheduling a walkthrough..."
+          disabled={isPending}
+        />
+        <p className="text-xs text-muted-foreground">
+          Sent to {prospectEmail}. Replies go to your email inbox.
+        </p>
+      </div>
+      <DialogFooter>
+        <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isPending}>
+          Cancel
+        </Button>
+        <Button onClick={handleSubmit} disabled={isPending || message.trim().length < 10}>
+          {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Send request
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  );
+}
+
+export function RequestMoreInfoDialog({
+  open,
+  onOpenChange,
+  supportRequestId,
+  prospectEmail,
+  contactName,
+  companyName,
+  defaultMessage,
+  onSuccess,
+}: RequestMoreInfoDialogProps) {
+  return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Request more info</DialogTitle>
-          <DialogDescription>
-            Send a message to {contactName} at {companyName}. They can reply directly to your
-            inbox.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2 py-2">
-          <Label htmlFor="needsInfoMessage">What do you need from them?</Label>
-          <Textarea
-            id="needsInfoMessage"
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            rows={5}
-            placeholder="Describe the details or documents you need before scheduling a walkthrough..."
-            disabled={isPending}
-          />
-          <p className="text-xs text-muted-foreground">
-            Sent to {prospectEmail}. Replies go to your email inbox.
-          </p>
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isPending}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={isPending || message.trim().length < 10}>
-            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Send request
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      {open ? (
+        <RequestMoreInfoDialogContent
+          key={`${supportRequestId}:${defaultMessage ?? ""}`}
+          onOpenChange={onOpenChange}
+          supportRequestId={supportRequestId}
+          prospectEmail={prospectEmail}
+          contactName={contactName}
+          companyName={companyName}
+          defaultMessage={defaultMessage}
+          onSuccess={onSuccess}
+        />
+      ) : null}
     </Dialog>
   );
 }

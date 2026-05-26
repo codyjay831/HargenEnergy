@@ -36,6 +36,7 @@ interface OnboardingWrapperProps {
   appointment: {
     id: string;
     status: WalkthroughAppointmentStatus;
+    canceledAt?: Date | null;
     scheduledStartUtc: Date;
     scheduledEndUtc: Date;
     timezone: string;

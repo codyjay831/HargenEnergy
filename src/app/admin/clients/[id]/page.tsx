@@ -37,6 +37,7 @@ import { ClientDetailTabs } from "@/components/admin/ClientDetailTabs";
 import { ArchiveClientPanel } from "@/components/admin/ArchiveClientPanel";
 import { DeleteClientPanel } from "@/components/admin/DeleteClientPanel";
 import { getWalkthroughSchedulingReadiness } from "@/lib/walkthrough-scheduling/scheduling-readiness";
+import { pickWalkthroughAppointmentForPipeline } from "@/lib/walkthrough-scheduling/pipeline";
 import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
 import { getClientSystemAccessForAdmin } from "@/app/actions/system-access";
 import { resolveAdminClientTab } from "@/lib/admin-client-tabs";
@@ -141,12 +142,15 @@ export default async function ClientDetailPage({
       walkthroughSchedulingLink: true,
       walkthroughAppointments: {
         orderBy: { createdAt: "desc" },
-        take: 1,
+        take: 10,
       },
     },
   });
 
-  const latestAppointment = latestWalkthrough?.walkthroughAppointments[0] ?? null;
+  const pipelineAppointment = latestWalkthrough
+    ? pickWalkthroughAppointmentForPipeline(latestWalkthrough.walkthroughAppointments)
+    : null;
+  const latestAppointment = pipelineAppointment;
   const schedulingLink = latestWalkthrough?.walkthroughSchedulingLink ?? null;
   const schedulingReadiness = await getWalkthroughSchedulingReadiness();
 
@@ -416,6 +420,7 @@ export default async function ClientDetailPage({
                   ? {
                       id: latestAppointment.id,
                       status: latestAppointment.status,
+                      canceledAt: latestAppointment.canceledAt,
                       scheduledStartUtc: latestAppointment.scheduledStartUtc,
                       scheduledEndUtc: latestAppointment.scheduledEndUtc,
                       timezone: latestAppointment.timezone,

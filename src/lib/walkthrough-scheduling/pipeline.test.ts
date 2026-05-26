@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { deriveWalkthroughPipelineStage } from "@/lib/walkthrough-scheduling/pipeline";
+import {
+  deriveWalkthroughPipelineStage,
+  pickWalkthroughAppointmentForPipeline,
+} from "@/lib/walkthrough-scheduling/pipeline";
 import {
   ClientStatus,
   RequestStatus,
@@ -71,5 +74,47 @@ describe("deriveWalkthroughPipelineStage", () => {
         recapSentAt: null,
       }),
     ).toBe("scheduled");
+  });
+
+  it("returns booking_canceled when appointment is canceled", () => {
+    expect(
+      deriveWalkthroughPipelineStage({
+        clientStatus: ClientStatus.LEAD,
+        requestStatus: RequestStatus.REVIEWED,
+        linkStatus: WalkthroughSchedulingLinkStatus.USED,
+        appointmentStatus: WalkthroughAppointmentStatus.CANCELED,
+        fitDecision: null,
+        recapSentAt: null,
+      }),
+    ).toBe("booking_canceled");
+  });
+
+  it("returns booking_canceled when link is USED without active appointment", () => {
+    expect(
+      deriveWalkthroughPipelineStage({
+        clientStatus: ClientStatus.LEAD,
+        requestStatus: RequestStatus.REVIEWED,
+        linkStatus: WalkthroughSchedulingLinkStatus.USED,
+        appointmentStatus: null,
+        fitDecision: null,
+        recapSentAt: null,
+      }),
+    ).toBe("booking_canceled");
+  });
+});
+
+describe("pickWalkthroughAppointmentForPipeline", () => {
+  it("prefers active booking over newer canceled row", () => {
+    const picked = pickWalkthroughAppointmentForPipeline([
+      {
+        status: WalkthroughAppointmentStatus.CANCELED,
+        createdAt: new Date("2026-05-27T12:00:00Z"),
+      },
+      {
+        status: WalkthroughAppointmentStatus.SCHEDULED,
+        createdAt: new Date("2026-05-27T10:00:00Z"),
+      },
+    ]);
+    expect(picked?.status).toBe(WalkthroughAppointmentStatus.SCHEDULED);
   });
 });

@@ -11,12 +11,41 @@ export type WalkthroughPipelineStage =
   | "awaiting_info"
   | "qualified"
   | "link_sent"
+  | "booking_canceled"
   | "scheduled"
   | "completed"
   | "recap"
   | "proposal_setup"
   | "active_client"
   | "not_a_fit";
+
+type AppointmentForPipeline = {
+  status: WalkthroughAppointmentStatus;
+  fitDecision?: WalkthroughFitDecision | null;
+  recapSentAt?: Date | null;
+  createdAt?: Date;
+};
+
+const ACTIVE_APPOINTMENT_STATUSES: WalkthroughAppointmentStatus[] = [
+  WalkthroughAppointmentStatus.SCHEDULED,
+  WalkthroughAppointmentStatus.RESCHEDULED,
+];
+
+/** Prefer live booking over latest row when multiple appointments exist. */
+export function pickWalkthroughAppointmentForPipeline<T extends AppointmentForPipeline>(
+  appointments: T[],
+): T | null {
+  if (appointments.length === 0) {
+    return null;
+  }
+  const sorted = [...appointments].sort((a, b) => {
+    const aTime = a.createdAt?.getTime() ?? 0;
+    const bTime = b.createdAt?.getTime() ?? 0;
+    return bTime - aTime;
+  });
+  const active = sorted.find((row) => ACTIVE_APPOINTMENT_STATUSES.includes(row.status));
+  return active ?? sorted[0] ?? null;
+}
 
 type PipelineInput = {
   clientStatus: ClientStatus;
@@ -54,11 +83,20 @@ export function deriveWalkthroughPipelineStage(
   ) {
     return "scheduled";
   }
+  if (input.appointmentStatus === WalkthroughAppointmentStatus.CANCELED) {
+    return "booking_canceled";
+  }
   if (input.linkStatus === WalkthroughSchedulingLinkStatus.ACTIVE) {
     return "link_sent";
   }
   if (input.linkStatus === WalkthroughSchedulingLinkStatus.USED) {
-    return "scheduled";
+    if (
+      input.appointmentStatus === WalkthroughAppointmentStatus.SCHEDULED ||
+      input.appointmentStatus === WalkthroughAppointmentStatus.RESCHEDULED
+    ) {
+      return "scheduled";
+    }
+    return "booking_canceled";
   }
   if (input.requestStatus === RequestStatus.NEEDS_INFO) {
     return "awaiting_info";
@@ -79,7 +117,11 @@ export const WALKTHROUGH_PIPELINE_RAIL = [
     label: "Qualify",
     stages: ["awaiting_info", "qualified"] as WalkthroughPipelineStage[],
   },
-  { id: "schedule", label: "Schedule", stages: ["link_sent"] as WalkthroughPipelineStage[] },
+  {
+    id: "schedule",
+    label: "Schedule",
+    stages: ["link_sent", "booking_canceled"] as WalkthroughPipelineStage[],
+  },
   {
     id: "walkthrough",
     label: "Walkthrough",
@@ -112,6 +154,8 @@ export function getWalkthroughPipelineStageLabel(
       return "Ready to schedule";
     case "link_sent":
       return "Link sent";
+    case "booking_canceled":
+      return "Canceled";
     case "scheduled":
       return "Scheduled";
     case "completed":
@@ -144,6 +188,8 @@ export function getWalkthroughPipelineStageBadgeVariant(
     case "qualified":
     case "link_sent":
       return "secondary";
+    case "booking_canceled":
+      return "destructive";
     case "scheduled":
     case "completed":
     case "recap":
@@ -190,6 +236,14 @@ export function getWalkthroughStageConfig(
         description: "Waiting for the prospect to pick a time on the scheduling page.",
         primaryLabel: "Copy scheduling link",
         secondaryLabels: ["Resend link", "Regenerate link", "Revoke link"],
+      };
+    case "booking_canceled":
+      return {
+        heading: "Booking canceled",
+        description:
+          "The prospect canceled their time. Regenerate the scheduling link or follow up to reschedule.",
+        primaryLabel: "Regenerate scheduling link",
+        secondaryLabels: ["Open walkthrough workspace"],
       };
     case "scheduled":
       return {

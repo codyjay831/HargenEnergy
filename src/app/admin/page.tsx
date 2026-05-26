@@ -13,7 +13,8 @@ import {
   CreditCard,
   ChevronRight,
   ArrowUpCircle,
-  ClipboardList
+  ClipboardList,
+  CalendarClock,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -21,8 +22,10 @@ import {
   ClientStatus,
   BillableType,
   SupportRequestKind,
+  WalkthroughAppointmentStatus,
 } from "@/generated/prisma/client";
 import { format, startOfWeek } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import { calculateWeeklyUsage } from "@/lib/usage";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -34,11 +37,40 @@ import {
   deriveWalkthroughPipelineStage,
   getWalkthroughPipelineStageBadgeVariant,
   getWalkthroughPipelineStageLabel,
+  pickWalkthroughAppointmentForPipeline,
+  type WalkthroughPipelineStage,
 } from "@/lib/walkthrough-scheduling/pipeline";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatUrgencyLabel } from "@/lib/ui-enums";
 
 export const dynamic = "force-dynamic";
+
+const NEEDS_SCHEDULING_STAGES: WalkthroughPipelineStage[] = [
+  "qualified",
+  "link_sent",
+  "booking_canceled",
+  "awaiting_info",
+];
+
+function schedulingAttentionSubtitle(
+  stage: WalkthroughPipelineStage,
+  canceledAt: Date | null | undefined,
+): string {
+  switch (stage) {
+    case "booking_canceled":
+      return canceledAt
+        ? `Canceled ${format(canceledAt, "MMM d")} — regenerate link`
+        : "Booking canceled — regenerate link";
+    case "link_sent":
+      return "Link sent — waiting for prospect to book";
+    case "qualified":
+      return "Ready to send scheduling link";
+    case "awaiting_info":
+      return "Awaiting prospect response";
+    default:
+      return "";
+  }
+}
 
 export default async function AdminDashboard() {
   // Funnel metrics
@@ -51,6 +83,9 @@ export default async function AdminDashboard() {
     includedTimeThisWeek,
     overflowTimeThisWeek,
     prioritizedRequests,
+    needsRescheduleCount,
+    upcomingWalkthroughs,
+    schedulingCandidates,
   ] = await Promise.all([
     prisma.supportRequest.count({
       where: {
@@ -101,6 +136,58 @@ export default async function AdminDashboard() {
       take: 5,
       include: { client: true }
     }),
+    prisma.supportRequest.count({
+      where: {
+        kind: SupportRequestKind.PROSPECT_INTAKE,
+        client: { status: ClientStatus.LEAD },
+        status: { notIn: [RequestStatus.COMPLETE, RequestStatus.CANCELLED] },
+        walkthroughAppointments: {
+          some: { status: WalkthroughAppointmentStatus.CANCELED },
+        },
+      },
+    }),
+    prisma.walkthroughAppointment.findMany({
+      where: {
+        status: {
+          in: [
+            WalkthroughAppointmentStatus.SCHEDULED,
+            WalkthroughAppointmentStatus.RESCHEDULED,
+          ],
+        },
+        scheduledStartUtc: { gte: new Date() },
+        client: { status: ClientStatus.LEAD },
+      },
+      include: {
+        client: { select: { id: true, companyName: true } },
+        supportRequest: { select: { urgency: true } },
+      },
+      orderBy: { scheduledStartUtc: "asc" },
+      take: 5,
+    }),
+    prisma.supportRequest.findMany({
+      where: {
+        kind: SupportRequestKind.PROSPECT_INTAKE,
+        client: { status: ClientStatus.LEAD },
+        status: { notIn: [RequestStatus.COMPLETE, RequestStatus.CANCELLED] },
+      },
+      include: {
+        client: true,
+        walkthroughSchedulingLink: { select: { status: true } },
+        walkthroughAppointments: {
+          orderBy: { createdAt: "desc" },
+          take: 10,
+          select: {
+            status: true,
+            fitDecision: true,
+            recapSentAt: true,
+            createdAt: true,
+            canceledAt: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 20,
+    }),
   ]);
 
   const includedHours = (includedTimeThisWeek._sum.minutes || 0) / 60;
@@ -115,6 +202,15 @@ export default async function AdminDashboard() {
       color: "text-amber-600", 
       bg: "bg-amber-50",
       link: "/admin/clients?needsReview=1&status=ALL"
+    },
+    {
+      title: "Needs Reschedule",
+      subtitle: "Prospect canceled a booked walkthrough",
+      value: needsRescheduleCount.toString(),
+      icon: CalendarClock,
+      color: "text-rose-600",
+      bg: "bg-rose-50",
+      link: "/admin/clients?status=LEAD",
     },
     { 
       title: "Walkthrough Pipeline", 
@@ -159,24 +255,23 @@ export default async function AdminDashboard() {
     },
   ];
 
-  const recentWalkthroughs = await prisma.supportRequest.findMany({
-    where: { kind: SupportRequestKind.PROSPECT_INTAKE },
-    include: {
-      client: true,
-      walkthroughSchedulingLink: { select: { status: true } },
-      walkthroughAppointments: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: {
-          status: true,
-          fitDecision: true,
-          recapSentAt: true,
-        },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 5,
-  });
+  const needsSchedulingItems = schedulingCandidates
+    .map((request) => {
+      const appointment = pickWalkthroughAppointmentForPipeline(
+        request.walkthroughAppointments,
+      );
+      const pipelineStage = deriveWalkthroughPipelineStage({
+        clientStatus: request.client.status,
+        requestStatus: request.status,
+        linkStatus: request.walkthroughSchedulingLink?.status ?? null,
+        appointmentStatus: appointment?.status ?? null,
+        fitDecision: appointment?.fitDecision ?? null,
+        recapSentAt: appointment?.recapSentAt ?? null,
+      });
+      return { request, appointment, pipelineStage };
+    })
+    .filter((row) => NEEDS_SCHEDULING_STAGES.includes(row.pipelineStage))
+    .slice(0, 5);
 
   const recentWorkRequests = await prisma.supportRequest.findMany({
     where: { kind: SupportRequestKind.CLIENT_OPS },
@@ -353,35 +448,70 @@ export default async function AdminDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Recent {PRODUCT_LANGUAGE.walkthrough.plural}</CardTitle>
+            <CardTitle>Upcoming walkthroughs</CardTitle>
             <Link href="/admin/clients?status=LEAD" className="text-xs text-primary hover:underline font-medium">
               View All
             </Link>
           </CardHeader>
           <CardContent>
-            {recentWalkthroughs.length === 0 ? (
+            {upcomingWalkthroughs.length === 0 ? (
               <EmptyState
-                icon={FileText}
-                title={`No ${PRODUCT_LANGUAGE.walkthrough.plural.toLowerCase()} yet`}
-                description="New prospect intake requests will appear here. Share your public request form to get started."
-                action={{
-                  label: "View Request Form",
-                  href: "/request-help",
-                }}
+                icon={CalendarClock}
+                title="No upcoming walkthroughs"
+                description="Booked discovery calls on the calendar will appear here."
               />
             ) : (
               <div className="space-y-4">
-                {recentWalkthroughs.map((request) => {
-                  const appointment = request.walkthroughAppointments[0] ?? null;
-                  const pipelineStage = deriveWalkthroughPipelineStage({
-                    clientStatus: request.client.status,
-                    requestStatus: request.status,
-                    linkStatus: request.walkthroughSchedulingLink?.status ?? null,
-                    appointmentStatus: appointment?.status ?? null,
-                    fitDecision: appointment?.fitDecision ?? null,
-                    recapSentAt: appointment?.recapSentAt ?? null,
-                  });
-                  return (
+                {upcomingWalkthroughs.map((appointment) => (
+                  <Link
+                    key={appointment.id}
+                    href={`/admin/clients/${appointment.clientId}?tab=walkthrough&open=walkthrough`}
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">
+                        {appointment.client.companyName}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatInTimeZone(
+                          appointment.scheduledStartUtc,
+                          appointment.timezone,
+                          "EEEE, MMM d 'at' h:mm a zzz",
+                        )}
+                      </p>
+                      {appointment.supportRequest && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 mt-1">
+                          {formatUrgencyLabel(appointment.supportRequest.urgency)}
+                        </Badge>
+                      )}
+                    </div>
+                    <Badge variant="default" className="ml-2 shrink-0 text-[10px] px-1.5 py-0">
+                      Scheduled
+                    </Badge>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Needs scheduling</CardTitle>
+            <Link href="/admin/clients?status=LEAD" className="text-xs text-primary hover:underline font-medium">
+              View All
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {needsSchedulingItems.length === 0 ? (
+              <EmptyState
+                icon={FileText}
+                title="Nothing waiting to be scheduled"
+                description="Qualified prospects, open links, and canceled bookings that need follow-up appear here."
+              />
+            ) : (
+              <div className="space-y-4">
+                {needsSchedulingItems.map(({ request, appointment, pipelineStage }) => (
                   <Link
                     key={request.id}
                     href={`/admin/clients/${request.clientId}?tab=walkthrough&open=walkthrough`}
@@ -389,16 +519,13 @@ export default async function AdminDashboard() {
                   >
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{request.client.companyName}</p>
-                      <p className="text-xs text-muted-foreground truncate line-clamp-2">
-                        {request.description}
+                      <p className="text-xs text-muted-foreground truncate">
+                        {schedulingAttentionSubtitle(pipelineStage, appointment?.canceledAt)}
                       </p>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0">
                           {formatUrgencyLabel(request.urgency)}
                         </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(request.createdAt), "MMM d, h:mm a")}
-                        </span>
                       </div>
                     </div>
                     <Badge
@@ -408,8 +535,7 @@ export default async function AdminDashboard() {
                       {getWalkthroughPipelineStageLabel(pipelineStage)}
                     </Badge>
                   </Link>
-                  );
-                })}
+                ))}
               </div>
             )}
           </CardContent>

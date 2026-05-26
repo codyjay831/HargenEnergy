@@ -18,6 +18,7 @@ import {
   deriveWalkthroughPipelineStage,
   getWalkthroughPipelineStageBadgeVariant,
   getWalkthroughPipelineStageLabel,
+  pickWalkthroughAppointmentForPipeline,
 } from "@/lib/walkthrough-scheduling/pipeline";
 
 export const dynamic = "force-dynamic";
@@ -83,11 +84,12 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
           walkthroughSchedulingLink: { select: { status: true } },
           walkthroughAppointments: {
             orderBy: { createdAt: "desc" },
-            take: 1,
+            take: 10,
             select: {
               status: true,
               fitDecision: true,
               recapSentAt: true,
+              createdAt: true,
             },
           },
         },
@@ -152,7 +154,11 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
             <TableBody>
               {clients.map((client) => {
                 const latestRequest = client.requests[0];
-                const latestAppointment = latestRequest?.walkthroughAppointments[0] ?? null;
+                const latestAppointment = latestRequest
+                  ? pickWalkthroughAppointmentForPipeline(
+                      latestRequest.walkthroughAppointments,
+                    )
+                  : null;
                 const pipelineStage =
                   client.status === ClientStatus.LEAD && latestRequest
                     ? deriveWalkthroughPipelineStage({
