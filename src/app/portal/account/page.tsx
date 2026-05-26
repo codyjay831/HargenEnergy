@@ -50,7 +50,11 @@ export default async function PortalAccount() {
         </p>
       </div>
 
-      <PortalSetupGuide readiness={setupReadiness} />
+      <PortalSetupGuide
+        readiness={setupReadiness}
+        setup={setup}
+        walkthrough={walkthrough}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <Card>

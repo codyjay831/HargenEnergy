@@ -1,8 +1,17 @@
+"use client";
+
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { BillingMode } from "@/generated/prisma/client";
 import { getAdminBillingModeHeadline } from "@/lib/client-billing-mode";
 import type { ClientSetupReadiness } from "@/lib/client-setup-readiness";
 import { SetupGuideShell } from "@/components/setup-guide/SetupGuideShell";
+import { SetupGuideProvider } from "@/components/setup-guide/SetupGuideProvider";
+import { SetupStepSheet } from "@/components/setup-guide/SetupStepSheet";
+import {
+  AdminSetupSheetPanels,
+  type AdminSetupSheetPanelsProps,
+} from "@/components/setup-guide/AdminSetupSheetPanels";
 import {
   ADMIN_NEXT_STEP_ORDER,
   ADMIN_SETUP_RAIL,
@@ -50,24 +59,40 @@ function AdminSetupSummary({ readiness }: { readiness: ClientSetupReadiness }) {
   );
 }
 
-export function ClientSetupGuide({ readiness }: { readiness: ClientSetupReadiness }) {
+type AdminSetupGuideProps = AdminSetupSheetPanelsProps & {
+  readiness: ClientSetupReadiness;
+};
+
+export function AdminSetupGuide({ readiness, ...sheetProps }: AdminSetupGuideProps) {
+  const router = useRouter();
   const railNodes = computeRailNodes(readiness.adminSteps, ADMIN_SETUP_RAIL);
   const nextStep = findNextStep(readiness.adminSteps, ADMIN_NEXT_STEP_ORDER);
   const allComplete = nextStep == null;
 
+  const openWalkthrough = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("open", "walkthrough");
+    router.push(url.pathname + url.search);
+  };
+
   return (
-    <Card className="border-sky-200/80 shadow-sm">
-      <CardContent className="pt-6">
-        <SetupGuideShell
-          title="Guided setup"
-          summary={<AdminSetupSummary readiness={readiness} />}
-          railNodes={railNodes}
-          nextStep={nextStep}
-          allComplete={allComplete}
-          steps={readiness.adminSteps}
-          variant="admin"
-        />
-      </CardContent>
-    </Card>
+    <SetupGuideProvider variant="admin" onOpenWalkthrough={openWalkthrough}>
+      <Card className="border-sky-200/80 shadow-sm">
+        <CardContent className="pt-6">
+          <SetupGuideShell
+            title="Guided setup"
+            summary={<AdminSetupSummary readiness={readiness} />}
+            railNodes={railNodes}
+            nextStep={nextStep}
+            allComplete={allComplete}
+            steps={readiness.adminSteps}
+            variant="admin"
+          />
+        </CardContent>
+      </Card>
+      <SetupStepSheet>
+        <AdminSetupSheetPanels {...sheetProps} />
+      </SetupStepSheet>
+    </SetupGuideProvider>
   );
 }

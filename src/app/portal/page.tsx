@@ -194,7 +194,11 @@ export default async function PortalDashboard() {
       )}
 
       {!("error" in setupReadinessResult) && (
-        <PortalSetupGuide readiness={setupReadinessResult} />
+        <PortalSetupGuide
+          readiness={setupReadinessResult}
+          setup={"error" in supportSetup ? null : supportSetup}
+          walkthrough={walkthrough}
+        />
       )}
 
       {isRequestBased && pendingPricingRequests.length > 0 && (

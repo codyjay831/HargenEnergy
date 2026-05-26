@@ -19,7 +19,7 @@ type SetupDetailsAccordionProps = {
   variant: "admin" | "customer";
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  id?: string;
+  onStepAction?: (step: ClientSetupStep) => void;
 };
 
 function statusTextClass(tone: ReturnType<typeof stepStatusTone>): string {
@@ -39,10 +39,12 @@ function StepRow({
   step,
   variant,
   compact,
+  onStepAction,
 }: {
   step: ClientSetupStep;
   variant: "admin" | "customer";
   compact?: boolean;
+  onStepAction?: (step: ClientSetupStep) => void;
 }) {
   const statusLabel = variant === "admin" ? adminStatusLabel(step) : customerStatusLabel(step);
   const blockerLabel =
@@ -83,12 +85,22 @@ function StepRow({
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           {!isDone && blockerLabel !== "Informational" && <span>{blockerLabel}</span>}
           {step.actionHref && step.actionLabel && (
-            <Link
-              href={step.actionHref}
-              className={cn(buttonVariants({ variant: "link", size: "sm" }), "h-auto px-0 text-xs")}
-            >
-              {step.actionLabel}
-            </Link>
+            step.interactionMode === "sheet" && step.sheetKey && onStepAction ? (
+              <button
+                type="button"
+                onClick={() => onStepAction(step)}
+                className={cn(buttonVariants({ variant: "link", size: "sm" }), "h-auto px-0 text-xs")}
+              >
+                {step.actionLabel}
+              </button>
+            ) : (
+              <Link
+                href={step.actionHref}
+                className={cn(buttonVariants({ variant: "link", size: "sm" }), "h-auto px-0 text-xs")}
+              >
+                {step.actionLabel}
+              </Link>
+            )
           )}
         </div>
       )}
@@ -101,8 +113,9 @@ export function SetupDetailsAccordion({
   variant,
   open: controlledOpen,
   onOpenChange,
+  onStepAction,
   id = "setup-details",
-}: SetupDetailsAccordionProps) {
+}: SetupDetailsAccordionProps & { id?: string }) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
   const setOpen = onOpenChange ?? setUncontrolledOpen;
@@ -146,7 +159,7 @@ export function SetupDetailsAccordion({
               </p>
               <ul className="space-y-1.5">
                 {completedSteps.map((step) => (
-                  <StepRow key={step.id} step={step} variant={variant} compact />
+                  <StepRow key={step.id} step={step} variant={variant} compact onStepAction={onStepAction} />
                 ))}
               </ul>
             </div>
@@ -159,7 +172,7 @@ export function SetupDetailsAccordion({
               </p>
               <ul className="space-y-2">
                 {activeSteps.map((step) => (
-                  <StepRow key={step.id} step={step} variant={variant} />
+                  <StepRow key={step.id} step={step} variant={variant} onStepAction={onStepAction} />
                 ))}
               </ul>
             </div>

@@ -27,7 +27,6 @@ interface OnboardingWrapperProps {
     users: { id: string; email: string; name: string | null }[];
   };
   intakeClient: IntakeSnapshotClient;
-  walkthroughPlanRequestBased?: boolean;
   walkthroughMetadata?: IntakeSnapshotMetadata | null;
   latestWalkthroughRequest: {
     id: string;
@@ -56,15 +55,17 @@ interface OnboardingWrapperProps {
 export function OnboardingWrapper({
   client,
   intakeClient,
-  walkthroughPlanRequestBased,
   walkthroughMetadata,
   latestWalkthroughRequest,
 }: OnboardingWrapperProps) {
   return (
     <>
       <OnboardingSteps
-        client={client}
-        walkthroughPlanRequestBased={walkthroughPlanRequestBased}
+        client={{
+          id: client.id,
+          status: client.status,
+          engagementType: client.engagementType,
+        }}
         latestWalkthroughRequest={
           latestWalkthroughRequest
             ? {

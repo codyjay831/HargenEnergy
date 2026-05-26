@@ -13,6 +13,12 @@ import {
   getClientBillingReadiness,
 } from "@/lib/client-billing-readiness";
 import { getAdminBillingModeHeadline } from "@/lib/client-billing-mode";
+import {
+  ADMIN_STEP_SHEET,
+  CUSTOMER_STEP_SHEET,
+  enrichSetupSteps,
+  type SetupSheetKey,
+} from "@/lib/setup-sheet-keys";
 
 export type SetupStepOwner = "admin" | "customer" | "system" | "stripe";
 export type SetupStepStatus =
@@ -27,6 +33,8 @@ export type SetupStepBlocker =
   | "blocks_billing"
   | "informational";
 
+export type SetupStepInteractionMode = "sheet" | "navigate";
+
 export type ClientSetupStep = {
   id: string;
   title: string;
@@ -37,6 +45,8 @@ export type ClientSetupStep = {
   required: boolean;
   actionLabel?: string;
   actionHref?: string;
+  interactionMode?: SetupStepInteractionMode;
+  sheetKey?: SetupSheetKey;
   adminOnly?: boolean;
   customerVisible?: boolean;
 };
@@ -668,7 +678,9 @@ export function deriveClientSetupReadiness(
     },
   ];
 
-  const steps = [...adminSteps, ...customerSteps];
+  const enrichedAdminSteps = enrichSetupSteps(adminSteps, ADMIN_STEP_SHEET);
+  const enrichedCustomerSteps = enrichSetupSteps(customerSteps, CUSTOMER_STEP_SHEET);
+  const steps = [...enrichedAdminSteps, ...enrichedCustomerSteps];
 
   return {
     clientId: input.clientId,
@@ -688,8 +700,8 @@ export function deriveClientSetupReadiness(
     systemAccess,
     scope,
     steps,
-    adminSteps,
-    customerSteps,
+    adminSteps: enrichedAdminSteps,
+    customerSteps: enrichedCustomerSteps,
     blockingMessages,
   };
 }

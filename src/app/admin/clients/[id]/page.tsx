@@ -30,7 +30,7 @@ import { calculateWeeklyUsage, type WeeklyUsage } from "@/lib/usage";
 import { OnboardingWrapper } from "@/components/onboarding/OnboardingWrapper";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { formatIntakePlanLabel } from "@/lib/intake-plan";
-import { ClientSetupGuide } from "@/components/admin/ClientSetupGuide";
+import { AdminSetupGuide } from "@/components/admin/AdminSetupGuide";
 import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
 import { getClientSystemAccessForAdmin } from "@/app/actions/system-access";
 
@@ -178,7 +178,44 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
       </div>
 
       <div id="setup-guide" className="scroll-mt-8">
-        <ClientSetupGuide readiness={setupReadiness} />
+        <AdminSetupGuide
+          readiness={setupReadiness}
+          client={{
+            id: client.id,
+            companyName: client.companyName,
+            contactName: client.contactName,
+            email: client.email,
+            phone: client.phone,
+            role: client.role,
+            website: client.website,
+            serviceArea: client.serviceArea,
+            currentTools: client.currentTools,
+            status: client.status,
+            planType: client.planType,
+            engagementType: client.engagementType,
+            billingMode: client.billingMode,
+            billingOverrideReason: client.billingOverrideReason,
+            billingOverrideExpiresAt: client.billingOverrideExpiresAt,
+            billingOverrideCreatedAt: client.billingOverrideCreatedAt,
+            billingOverrideCreatedById: client.billingOverrideCreatedById,
+            billingOverrideCreatedByName: client.billingOverrideCreatedBy?.name ?? null,
+            billingOverrideCreatedByEmail: client.billingOverrideCreatedBy?.email ?? null,
+            subscriptionStatus: client.subscriptionStatus,
+            stripeCustomerId: client.stripeCustomerId,
+            stripeSubscriptionId: client.stripeSubscriptionId,
+            subscriptionCurrentPeriodEnd: client.subscriptionCurrentPeriodEnd,
+            approvedWorkTaskCount,
+            users: client.users,
+          }}
+          engagement={{
+            approvedWorkTaskIds: client.approvedWorkTasks.map((a) => a.workTaskId),
+            suggestedWorkTaskIds,
+            categories: catalogCategories,
+            walkthroughPlanRequestBased,
+          }}
+          systemAccessRecords={decryptedSystemAccesses}
+          adminRequestsHref={`/admin/requests?clientId=${client.id}`}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -217,7 +254,6 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
                   serviceArea: client.serviceArea,
                   currentTools: client.currentTools,
                 }}
-                walkthroughPlanRequestBased={walkthroughPlanRequestBased}
                 walkthroughMetadata={walkthroughMetadata}
                 latestWalkthroughRequest={walkthroughRequestForDrawer}
               />
