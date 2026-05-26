@@ -12,8 +12,11 @@ export const DEFAULT_WEEKDAY_WINDOWS = {
   sun: [] as { start: string; end: string }[],
 };
 
-export const GOOGLE_CALENDAR_SCOPE =
-  "https://www.googleapis.com/auth/calendar.events";
+export const GOOGLE_CALENDAR_SCOPE = [
+  "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/calendar.readonly",
+  "https://www.googleapis.com/auth/userinfo.email",
+].join(" ");
 
 export function isWalkthroughSchedulingEnabled(): boolean {
   return process.env.WALKTHROUGH_SCHEDULING_ENABLED === "true";

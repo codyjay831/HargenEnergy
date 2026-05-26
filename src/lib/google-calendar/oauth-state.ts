@@ -27,11 +27,36 @@ export async function createGoogleOAuthState(userId: string): Promise<string> {
   return Buffer.from(JSON.stringify({ ...payload, state }), "utf8").toString("base64url");
 }
 
+function coercePayload(raw: unknown): OAuthStatePayload | null {
+  if (!raw) return null;
+  // Upstash REST may return the stored JSON object directly OR as a string,
+  // depending on client version and how the value was serialized.
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw) as OAuthStatePayload;
+      return parsed?.userId ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof raw === "object" && raw !== null && "userId" in raw) {
+    const payload = raw as OAuthStatePayload;
+    return payload.userId ? payload : null;
+  }
+  return null;
+}
+
 export async function consumeGoogleOAuthState(state: string): Promise<string | null> {
   const redis = getRedisClient();
   if (redis) {
-    const payload = await redis.get<OAuthStatePayload>(`google-oauth-state:${state}`);
-    if (!payload?.userId) {
+    const raw = await redis.get(`google-oauth-state:${state}`);
+    const payload = coercePayload(raw);
+    if (!payload) {
+      console.warn("[google-oauth-state] state not found or invalid in Redis", {
+        statePrefix: state.slice(0, 6),
+        hadRaw: raw !== null && raw !== undefined,
+        rawType: typeof raw,
+      });
       return null;
     }
     await redis.del(`google-oauth-state:${state}`);

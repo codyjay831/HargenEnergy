@@ -17,7 +17,16 @@ export const metadata = {
 const ERROR_MESSAGES: Record<string, string> = {
   oauth_failed: "Google sign-in failed. Try again.",
   oauth_not_configured: "Google OAuth is not configured in this environment.",
-  missing_refresh_token: "Google did not return a refresh token. Disconnect and reconnect.",
+  oauth_denied: "You cancelled the Google sign-in. Click Connect to try again.",
+  oauth_missing_params: "Google did not return the expected response. Try connecting again.",
+  oauth_state_invalid:
+    "Sign-in session expired before Google redirected back. Click Connect and finish the flow within a few minutes.",
+  oauth_token_exchange:
+    "Google rejected the authorization code. Confirm the redirect URI matches Google Cloud Console exactly, then try again.",
+  oauth_storage:
+    "Connection succeeded with Google but the tokens could not be saved. Check FIELD_ENCRYPTION_KEY and try again.",
+  missing_refresh_token:
+    "Google did not return a refresh token. Disconnect, then click Connect again to force a fresh consent.",
 };
 
 interface CalendarSettingsPageProps {
@@ -91,6 +100,12 @@ export default async function CalendarSettingsPage({ searchParams }: CalendarSet
             </p>
           )}
 
+          {connected && !calendarSelected && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Google is connected. Select your booking calendar below and click <strong>Save calendar</strong> to finish setup.
+            </div>
+          )}
+
           <GoogleCalendarSettingsPanel
             connected={connected}
             selectedCalendarId={connection?.calendarId}
@@ -107,13 +122,13 @@ export default async function CalendarSettingsPage({ searchParams }: CalendarSet
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div className="flex items-center justify-between border-b py-2">
-            <span className="text-muted-foreground">Google connected</span>
-            <Badge variant={readiness.googleConnected ? "default" : "secondary"}>
-              {readiness.googleConnected ? "Ready" : "Missing"}
+            <span className="text-muted-foreground">Google account authorized</span>
+            <Badge variant={connected ? "default" : "secondary"}>
+              {connected ? "Ready" : "Missing"}
             </Badge>
           </div>
           <div className="flex items-center justify-between border-b py-2">
-            <span className="text-muted-foreground">Calendar selected</span>
+            <span className="text-muted-foreground">Booking calendar configured</span>
             <Badge variant={calendarSelected ? "default" : "secondary"}>
               {calendarSelected ? "Ready" : "Missing"}
             </Badge>
