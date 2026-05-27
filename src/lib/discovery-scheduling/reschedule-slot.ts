@@ -18,6 +18,7 @@ import { getDiscoveryAvailabilitySettings } from "@/lib/discovery-scheduling/ava
 import {
   buildReminderRows,
   buildSlotGeneratorContext,
+  upsertReminderRows,
 } from "@/lib/discovery-scheduling/book-slot";
 import { blockedRangeOverlapsAny } from "@/lib/discovery-scheduling/overlap";
 import { isSlotStillAvailable } from "@/lib/discovery-scheduling/slot-generator";
@@ -250,6 +251,9 @@ export async function applyDiscoverySlotChange(
         data: { status: DiscoverySchedulingLinkStatus.USED },
       });
 
+      // Clear all prior reminders for this appointment and upsert the new set.
+      // Upsert avoids P2002 entirely; previously createMany+skipDuplicates was
+      // not honored on the production driver adapter and kept throwing.
       await tx.discoveryReminder.deleteMany({
         where: { appointmentId: input.appointmentId },
       });
@@ -259,10 +263,7 @@ export async function applyDiscoverySlotChange(
         customerPhone: input.customerPhone,
       });
       if (reminderRows.length > 0) {
-        await tx.discoveryReminder.createMany({
-          data: reminderRows,
-          skipDuplicates: true,
-        });
+        await upsertReminderRows(tx, reminderRows);
       }
 
       if (input.mode === "rebook" || !appointment.googleEventId || createdEventIdForCleanup) {

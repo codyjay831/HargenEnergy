@@ -21,10 +21,12 @@ vi.mock("@/lib/google-calendar/token-store", () => ({
 }));
 
 const mockBuildReminderRows = vi.fn();
+const mockUpsertReminderRows = vi.fn();
 
 vi.mock("@/lib/discovery-scheduling/book-slot", () => ({
   buildSlotGeneratorContext: (...args: unknown[]) => mockBuildSlotContext(...args),
   buildReminderRows: (...args: unknown[]) => mockBuildReminderRows(...args),
+  upsertReminderRows: (...args: unknown[]) => mockUpsertReminderRows(...args),
 }));
 
 vi.mock("@/lib/discovery-scheduling/slot-generator", () => ({
@@ -121,7 +123,6 @@ describe("applyDiscoverySlotChange", () => {
 
   it("clears existing reminders before recreating to avoid unique-constraint failure", async () => {
     const reminderDeleteMany = vi.fn().mockResolvedValue({ count: 2 });
-    const reminderCreateMany = vi.fn().mockResolvedValue({ count: 0 });
 
     mockTransaction.mockImplementationOnce(async (fn: (tx: unknown) => unknown) =>
       fn({
@@ -132,7 +133,6 @@ describe("applyDiscoverySlotChange", () => {
         discoverySchedulingLink: { update: vi.fn().mockResolvedValue({}) },
         discoveryReminder: {
           deleteMany: reminderDeleteMany,
-          createMany: reminderCreateMany,
         },
         googleCalendarConnection: { update: vi.fn().mockResolvedValue({}) },
       }),
@@ -157,10 +157,9 @@ describe("applyDiscoverySlotChange", () => {
     });
   });
 
-  it("recreates reminders with skipDuplicates after deleting all prior rows including SKIPPED", async () => {
+  it("upserts reminders (instead of createMany) so P2002 cannot fire on driver adapters", async () => {
     const reminderDeleteMany = vi.fn().mockResolvedValue({ count: 3 });
-    const reminderCreateMany = vi.fn().mockResolvedValue({ count: 2 });
-    mockBuildReminderRows.mockReturnValue([
+    const reminderRows = [
       {
         appointmentId: "appt-1",
         type: "CONFIRMATION",
@@ -175,22 +174,23 @@ describe("applyDiscoverySlotChange", () => {
         scheduledFor: new Date("2026-05-28T16:00:00.000Z"),
         status: "PENDING",
       },
-    ]);
+    ];
+    mockBuildReminderRows.mockReturnValue(reminderRows);
+    mockUpsertReminderRows.mockResolvedValue(undefined);
 
-    mockTransaction.mockImplementationOnce(async (fn: (tx: unknown) => unknown) =>
-      fn({
-        discoveryAppointment: {
-          findFirst: vi.fn().mockResolvedValue(null),
-          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-        },
-        discoverySchedulingLink: { update: vi.fn().mockResolvedValue({}) },
-        discoveryReminder: {
-          deleteMany: reminderDeleteMany,
-          createMany: reminderCreateMany,
-        },
-        googleCalendarConnection: { update: vi.fn().mockResolvedValue({}) },
-      }),
-    );
+    const txStub = {
+      discoveryAppointment: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      discoverySchedulingLink: { update: vi.fn().mockResolvedValue({}) },
+      discoveryReminder: {
+        deleteMany: reminderDeleteMany,
+      },
+      googleCalendarConnection: { update: vi.fn().mockResolvedValue({}) },
+    };
+
+    mockTransaction.mockImplementationOnce(async (fn: (tx: unknown) => unknown) => fn(txStub));
 
     const result = await applyDiscoverySlotChange({
       mode: "reschedule",
@@ -209,9 +209,6 @@ describe("applyDiscoverySlotChange", () => {
     expect(reminderDeleteMany).toHaveBeenCalledWith({
       where: { appointmentId: "appt-1" },
     });
-    expect(reminderCreateMany).toHaveBeenCalledWith({
-      data: expect.any(Array),
-      skipDuplicates: true,
-    });
+    expect(mockUpsertReminderRows).toHaveBeenCalledWith(txStub, reminderRows);
   });
 });

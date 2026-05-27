@@ -35,6 +35,60 @@ export type BookDiscoverySlotInput = {
   companyName: string;
 };
 
+export type ReminderRow = {
+  appointmentId: string;
+  type: DiscoveryReminderType;
+  channel: DiscoveryReminderChannel;
+  scheduledFor: Date;
+  status: DiscoveryReminderStatus;
+};
+
+// Upsert each reminder by its compound unique key so we can never hit a P2002
+// from a stale row (the previous createMany + skipDuplicates path was not
+// honored reliably on the production driver adapter and kept throwing).
+export async function upsertReminderRows(
+  tx: {
+    discoveryReminder: {
+      upsert: (args: {
+        where: {
+          appointmentId_type_channel: {
+            appointmentId: string;
+            type: DiscoveryReminderType;
+            channel: DiscoveryReminderChannel;
+          };
+        };
+        create: ReminderRow;
+        update: {
+          scheduledFor: Date;
+          status: DiscoveryReminderStatus;
+          sentAt: null;
+          error: null;
+        };
+      }) => Promise<unknown>;
+    };
+  },
+  rows: ReminderRow[],
+) {
+  for (const row of rows) {
+    await tx.discoveryReminder.upsert({
+      where: {
+        appointmentId_type_channel: {
+          appointmentId: row.appointmentId,
+          type: row.type,
+          channel: row.channel,
+        },
+      },
+      create: row,
+      update: {
+        scheduledFor: row.scheduledFor,
+        status: row.status,
+        sentAt: null,
+        error: null,
+      },
+    });
+  }
+}
+
 export function buildReminderRows(
   appointmentId: string,
   startUtc: Date,
@@ -43,14 +97,8 @@ export function buildReminderRows(
     smsRemindersEnabled?: boolean;
     customerPhone?: string | null;
   },
-) {
-  const rows: Array<{
-    appointmentId: string;
-    type: DiscoveryReminderType;
-    channel: DiscoveryReminderChannel;
-    scheduledFor: Date;
-    status: DiscoveryReminderStatus;
-  }> = [];
+): ReminderRow[] {
+  const rows: ReminderRow[] = [];
 
   rows.push({
     appointmentId,
@@ -252,10 +300,7 @@ export async function bookDiscoverySlotAtomic(
         customerPhone: input.customerPhone,
       });
       if (reminderRows.length > 0) {
-        await tx.discoveryReminder.createMany({
-          data: reminderRows,
-          skipDuplicates: true,
-        });
+        await upsertReminderRows(tx, reminderRows);
       }
 
       await tx.googleCalendarConnection.update({
