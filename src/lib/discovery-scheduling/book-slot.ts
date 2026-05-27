@@ -46,7 +46,7 @@ export type ReminderRow = {
 // Upsert each reminder by its compound unique key so we can never hit a P2002
 // from a stale row (the previous createMany + skipDuplicates path was not
 // honored reliably on the production driver adapter and kept throwing).
-export async function upsertReminderRows(
+export async function upsertDiscoveryReminderRows(
   tx: {
     discoveryReminder: {
       upsert: (args: {
@@ -300,7 +300,7 @@ export async function bookDiscoverySlotAtomic(
         customerPhone: input.customerPhone,
       });
       if (reminderRows.length > 0) {
-        await upsertReminderRows(tx, reminderRows);
+        await upsertDiscoveryReminderRows(tx, reminderRows);
       }
 
       await tx.googleCalendarConnection.update({

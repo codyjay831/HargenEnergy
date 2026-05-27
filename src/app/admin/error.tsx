@@ -1,9 +1,17 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
+import { reportAdminRouteError } from "@/app/actions/admin-error-report";
+
+function clientIdFromAdminPath(pathname: string | null): string | undefined {
+  if (!pathname) return undefined;
+  const match = pathname.match(/^\/admin\/clients\/([^/?#]+)/);
+  return match?.[1];
+}
 
 export default function AdminError({
   error,
@@ -12,13 +20,22 @@ export default function AdminError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const pathname = usePathname();
+  const clientId = clientIdFromAdminPath(pathname);
+
   useEffect(() => {
-    console.error("Admin error:", {
+    const payload = {
       message: error.message,
       digest: error.digest,
       stack: error.stack,
-    });
-  }, [error]);
+      route: pathname ?? undefined,
+      clientId,
+    };
+
+    console.error("[admin-route-error:client-boundary]", payload);
+
+    void reportAdminRouteError(payload);
+  }, [clientId, error, pathname]);
 
   const showDevDetails = process.env.NODE_ENV !== "production";
 

@@ -18,7 +18,7 @@ import { getDiscoveryAvailabilitySettings } from "@/lib/discovery-scheduling/ava
 import {
   buildReminderRows,
   buildSlotGeneratorContext,
-  upsertReminderRows,
+  upsertDiscoveryReminderRows,
 } from "@/lib/discovery-scheduling/book-slot";
 import { blockedRangeOverlapsAny } from "@/lib/discovery-scheduling/overlap";
 import { isSlotStillAvailable } from "@/lib/discovery-scheduling/slot-generator";
@@ -251,9 +251,10 @@ export async function applyDiscoverySlotChange(
         data: { status: DiscoverySchedulingLinkStatus.USED },
       });
 
-      // Clear all prior reminders for this appointment and upsert the new set.
-      // Upsert avoids P2002 entirely; previously createMany+skipDuplicates was
-      // not honored on the production driver adapter and kept throwing.
+      // Reminder lifecycle on slot change:
+      // 1. Cancel marks unsent PENDING rows as SKIPPED (audit trail; unique keys stay occupied).
+      // 2. Reschedule/rebook deletes all rows for this appointment, then upserts the new set.
+      // Upsert on the compound key cannot P2002 even if deleteMany races or rows survive cancel.
       await tx.discoveryReminder.deleteMany({
         where: { appointmentId: input.appointmentId },
       });
@@ -263,7 +264,7 @@ export async function applyDiscoverySlotChange(
         customerPhone: input.customerPhone,
       });
       if (reminderRows.length > 0) {
-        await upsertReminderRows(tx, reminderRows);
+        await upsertDiscoveryReminderRows(tx, reminderRows);
       }
 
       if (input.mode === "rebook" || !appointment.googleEventId || createdEventIdForCleanup) {

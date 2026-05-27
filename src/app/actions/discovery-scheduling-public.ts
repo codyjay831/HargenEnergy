@@ -388,6 +388,8 @@ export async function cancelDiscoveryAppointment(rawToken: string) {
         throw new Error("CANCEL_STATUS_CONFLICT");
       }
 
+      // Keep SKIPPED rows for audit (sent reminders stay SENT). Reschedule/rebook clears
+      // all rows via deleteMany before upserting, so occupied unique keys cannot block rebook.
       await tx.discoveryReminder.updateMany({
         where: {
           appointmentId: appointment.id,

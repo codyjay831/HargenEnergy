@@ -238,9 +238,44 @@ export async function getClientSystemAccessForAdmin(clientId: string) {
     orderBy: { createdAt: "asc" },
   });
 
-  return rows.map((row) => ({
-    ...row,
-    vaultLink: decryptFieldValue(row.vaultLink),
-    adminSecureNote: decryptFieldValue(row.adminSecureNote),
-  }));
+  return rows.map((row) => {
+    let vaultLink: string | null = null;
+    let adminSecureNote: string | null = null;
+    let decryptFailed = false;
+
+    try {
+      vaultLink = decryptFieldValue(row.vaultLink);
+    } catch (error) {
+      decryptFailed = true;
+      console.error("Failed to decrypt system access vaultLink for admin:", {
+        clientId,
+        accessId: row.id,
+        error,
+      });
+    }
+
+    try {
+      adminSecureNote = decryptFieldValue(row.adminSecureNote);
+    } catch (error) {
+      decryptFailed = true;
+      console.error("Failed to decrypt system access adminSecureNote for admin:", {
+        clientId,
+        accessId: row.id,
+        error,
+      });
+    }
+
+    if (decryptFailed) {
+      console.warn("[admin-client] system access row loaded with decrypt failures", {
+        clientId,
+        accessId: row.id,
+      });
+    }
+
+    return {
+      ...row,
+      vaultLink,
+      adminSecureNote,
+    };
+  });
 }
