@@ -9,7 +9,6 @@ import {
   BillingMode,
   ClientStatus,
   EngagementType,
-  SystemAccessStatus,
 } from "@/generated/prisma/client";
 import { adminClientTabHref } from "@/lib/admin-client-tabs";
 import { ActivateClientButton } from "@/components/forms/ActivateClientButton";
@@ -189,10 +188,4 @@ export function AdminNextUpCard({
       </CardContent>
     </Card>
   );
-}
-
-export function countPendingSystemAccess(
-  statuses: SystemAccessStatus[],
-): number {
-  return statuses.filter((s) => s === SystemAccessStatus.NOT_PROVIDED).length;
 }
