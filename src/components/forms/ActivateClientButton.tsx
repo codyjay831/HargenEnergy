@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { activateClient } from "@/app/actions/clients";
 import { Loader2 } from "lucide-react";
@@ -11,7 +10,6 @@ interface ActivateClientButtonProps {
 }
 
 export function ActivateClientButton({ clientId }: ActivateClientButtonProps) {
-  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +25,6 @@ export function ActivateClientButton({ clientId }: ActivateClientButtonProps) {
         setError(result.error);
       } else {
         setMessage("Client marked active. Set up billing and send a portal invite when ready.");
-        router.refresh();
       }
     } catch (activateError: unknown) {
       setError(

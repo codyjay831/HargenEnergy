@@ -141,11 +141,11 @@ export async function activateClient(clientId: string) {
   }
 
   if (client.status === ClientStatus.ACTIVE) {
-    return { success: true, client };
+    return { success: true as const };
   }
 
   try {
-    const updated = await prisma.client.update({
+    await prisma.client.update({
       where: { id: clientId },
       data: {
         status: ClientStatus.ACTIVE,
@@ -161,7 +161,7 @@ export async function activateClient(clientId: string) {
 
     revalidateAdminClientPage(clientId);
     revalidatePortalClientSurfaces();
-    return { success: true, client: updated };
+    return { success: true as const };
   } catch (error) {
     console.error("Error activating client:", error);
     return { error: "Failed to activate client." };

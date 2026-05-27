@@ -252,7 +252,10 @@ export async function bookDiscoverySlotAtomic(
         customerPhone: input.customerPhone,
       });
       if (reminderRows.length > 0) {
-        await tx.discoveryReminder.createMany({ data: reminderRows });
+        await tx.discoveryReminder.createMany({
+          data: reminderRows,
+          skipDuplicates: true,
+        });
       }
 
       await tx.googleCalendarConnection.update({

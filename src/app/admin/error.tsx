@@ -13,8 +13,14 @@ export default function AdminError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("Admin error:", error);
+    console.error("Admin error:", {
+      message: error.message,
+      digest: error.digest,
+      stack: error.stack,
+    });
   }, [error]);
+
+  const showDevDetails = process.env.NODE_ENV !== "production";
 
   return (
     <div className="flex items-center justify-center min-h-[60vh]">
@@ -29,6 +35,11 @@ export default function AdminError({
           <p className="text-sm text-muted-foreground">
             We encountered an error loading this page. This has been logged and we&apos;ll look into it.
           </p>
+          {showDevDetails && error.message && (
+            <p className="text-xs text-red-700 font-mono bg-red-50 p-2 rounded break-words">
+              {error.message}
+            </p>
+          )}
           {error.digest && (
             <p className="text-xs text-muted-foreground font-mono bg-slate-50 p-2 rounded">
               Error ID: {error.digest}

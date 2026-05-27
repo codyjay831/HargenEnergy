@@ -259,7 +259,10 @@ export async function applyDiscoverySlotChange(
         customerPhone: input.customerPhone,
       });
       if (reminderRows.length > 0) {
-        await tx.discoveryReminder.createMany({ data: reminderRows });
+        await tx.discoveryReminder.createMany({
+          data: reminderRows,
+          skipDuplicates: true,
+        });
       }
 
       if (input.mode === "rebook" || !appointment.googleEventId || createdEventIdForCleanup) {

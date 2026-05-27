@@ -20,9 +20,11 @@ vi.mock("@/lib/google-calendar/token-store", () => ({
   getActiveGoogleCalendarConnection: () => mockGetConnection(),
 }));
 
+const mockBuildReminderRows = vi.fn();
+
 vi.mock("@/lib/discovery-scheduling/book-slot", () => ({
   buildSlotGeneratorContext: (...args: unknown[]) => mockBuildSlotContext(...args),
-  buildReminderRows: () => [],
+  buildReminderRows: (...args: unknown[]) => mockBuildReminderRows(...args),
 }));
 
 vi.mock("@/lib/discovery-scheduling/slot-generator", () => ({
@@ -86,6 +88,7 @@ describe("applyDiscoverySlotChange", () => {
       meetingType: "Google Meet",
     });
     mockUpdateEvent.mockResolvedValue(undefined);
+    mockBuildReminderRows.mockReturnValue([]);
   });
 
   it("returns refresh error when status changed before transactional update", async () => {
@@ -151,6 +154,64 @@ describe("applyDiscoverySlotChange", () => {
     expect(result).toEqual({ success: true, appointmentId: "appt-1" });
     expect(reminderDeleteMany).toHaveBeenCalledWith({
       where: { appointmentId: "appt-1" },
+    });
+  });
+
+  it("recreates reminders with skipDuplicates after deleting all prior rows including SKIPPED", async () => {
+    const reminderDeleteMany = vi.fn().mockResolvedValue({ count: 3 });
+    const reminderCreateMany = vi.fn().mockResolvedValue({ count: 2 });
+    mockBuildReminderRows.mockReturnValue([
+      {
+        appointmentId: "appt-1",
+        type: "CONFIRMATION",
+        channel: "EMAIL",
+        scheduledFor: new Date("2026-05-27T12:00:00.000Z"),
+        status: "PENDING",
+      },
+      {
+        appointmentId: "appt-1",
+        type: "TWENTY_FOUR_HOUR",
+        channel: "EMAIL",
+        scheduledFor: new Date("2026-05-28T16:00:00.000Z"),
+        status: "PENDING",
+      },
+    ]);
+
+    mockTransaction.mockImplementationOnce(async (fn: (tx: unknown) => unknown) =>
+      fn({
+        discoveryAppointment: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+        discoverySchedulingLink: { update: vi.fn().mockResolvedValue({}) },
+        discoveryReminder: {
+          deleteMany: reminderDeleteMany,
+          createMany: reminderCreateMany,
+        },
+        googleCalendarConnection: { update: vi.fn().mockResolvedValue({}) },
+      }),
+    );
+
+    const result = await applyDiscoverySlotChange({
+      mode: "reschedule",
+      schedulingLinkId: "link-1",
+      appointmentId: "appt-1",
+      slotStartUtc: new Date("2026-05-29T16:00:00.000Z"),
+      companyName: "Acme Solar",
+      customerContactName: "Jamie",
+      customerEmail: "jamie@example.com",
+      customerPhone: null,
+      currentStatus: DiscoveryAppointmentStatus.SCHEDULED,
+      googleEventId: "evt-1",
+    });
+
+    expect(result).toEqual({ success: true, appointmentId: "appt-1" });
+    expect(reminderDeleteMany).toHaveBeenCalledWith({
+      where: { appointmentId: "appt-1" },
+    });
+    expect(reminderCreateMany).toHaveBeenCalledWith({
+      data: expect.any(Array),
+      skipDuplicates: true,
     });
   });
 });

@@ -61,6 +61,25 @@ type ClientWithRelations = Client & {
   approvedWorkTasks?: { workTaskId: string }[];
 };
 
+function mapDiscoveryRequestedTasks(
+  rows: Array<{
+    workTaskId: string;
+    workTask: { id: string; name: string; description: string | null } | null;
+  }>,
+) {
+  return rows.flatMap((row) => {
+    if (!row.workTask) {
+      return [];
+    }
+    return [
+      {
+        name: row.workTask.name,
+        description: row.workTask.description,
+      },
+    ];
+  });
+}
+
 export default async function ClientDetailPage({
   params,
   searchParams,
@@ -160,11 +179,17 @@ export default async function ClientDetailPage({
 
   const discoveryRequestForDrawer = latestDiscovery
     ? {
-        ...latestDiscovery,
-        requestedTasks: latestDiscovery.requestedWorkTasks.map((row) => ({
-          name: row.workTask.name,
-          description: row.workTask.description,
-        })),
+        id: latestDiscovery.id,
+        title: latestDiscovery.title,
+        supportNeeded: latestDiscovery.supportNeeded,
+        description: latestDiscovery.description,
+        mostHelpful: latestDiscovery.mostHelpful,
+        urgency: latestDiscovery.urgency,
+        status: latestDiscovery.status,
+        internalNotes: latestDiscovery.internalNotes,
+        clientVisibleUpdate: latestDiscovery.clientVisibleUpdate,
+        createdAt: latestDiscovery.createdAt,
+        requestedTasks: mapDiscoveryRequestedTasks(latestDiscovery.requestedWorkTasks),
       }
     : null;
 
@@ -175,7 +200,18 @@ export default async function ClientDetailPage({
   const approvedWorkTaskCount = client.approvedWorkTasks.length;
   const planInterestLabel = formatIntakePlanLabel(discoveryMetadata?.intakePlan);
   const setupReadinessResult = await getClientSetupReadiness(client.id);
-  const decryptedSystemAccesses = await getClientSystemAccessForAdmin(client.id);
+
+  let decryptedSystemAccesses: ClientSystemAccess[] = [];
+  let systemAccessLoadError: string | null = null;
+  try {
+    decryptedSystemAccesses = await getClientSystemAccessForAdmin(client.id);
+  } catch (error) {
+    console.error("Failed to load system access for admin client page:", {
+      clientId: client.id,
+      error,
+    });
+    systemAccessLoadError = "System access records could not be decrypted. Check FIELD_ENCRYPTION_KEY or contact support.";
+  }
 
   if ("error" in setupReadinessResult) {
     notFound();
@@ -396,6 +432,7 @@ export default async function ClientDetailPage({
             )
           }
           discovery={
+            discoveryRequestForDrawer ? (
             <DiscoveryClientPanel
               intakeClient={{
                 companyName: client.companyName,
@@ -408,34 +445,7 @@ export default async function ClientDetailPage({
                 currentTools: client.currentTools,
               }}
               discoveryMetadata={discoveryMetadata}
-              latestDiscoveryRequest={
-                discoveryRequestForDrawer
-                  ? {
-                      id: discoveryRequestForDrawer.id,
-                      title: discoveryRequestForDrawer.title,
-                      supportNeeded: discoveryRequestForDrawer.supportNeeded,
-                      description: discoveryRequestForDrawer.description,
-                      mostHelpful: discoveryRequestForDrawer.mostHelpful,
-                      urgency: discoveryRequestForDrawer.urgency,
-                      status: discoveryRequestForDrawer.status,
-                      internalNotes: discoveryRequestForDrawer.internalNotes,
-                      clientVisibleUpdate: discoveryRequestForDrawer.clientVisibleUpdate,
-                      createdAt: discoveryRequestForDrawer.createdAt,
-                      requestedTasks: discoveryRequestForDrawer.requestedTasks,
-                    }
-                  : {
-                      id: latestDiscovery!.id,
-                      title: latestDiscovery!.title,
-                      supportNeeded: latestDiscovery!.supportNeeded,
-                      description: latestDiscovery!.description,
-                      mostHelpful: latestDiscovery!.mostHelpful,
-                      urgency: latestDiscovery!.urgency,
-                      status: latestDiscovery!.status,
-                      internalNotes: latestDiscovery!.internalNotes,
-                      clientVisibleUpdate: latestDiscovery!.clientVisibleUpdate,
-                      createdAt: latestDiscovery!.createdAt,
-                    }
-              }
+              latestDiscoveryRequest={discoveryRequestForDrawer}
               schedulingReadiness={schedulingReadiness}
               schedulingLink={
                 schedulingLink
@@ -468,9 +478,23 @@ export default async function ClientDetailPage({
                   : null
               }
             />
+            ) : (
+              <Card>
+                <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                  Discovery intake data is unavailable for this client.
+                </CardContent>
+              </Card>
+            )
           }
           setup={
             <div className="space-y-8 max-w-3xl">
+              {systemAccessLoadError && (
+                <Card className="border-amber-200 bg-amber-50/40">
+                  <CardContent className="py-4 text-sm text-amber-900">
+                    {systemAccessLoadError}
+                  </CardContent>
+                </Card>
+              )}
               {engagementPanel}
               {renderSystemAccess(client.id, decryptedSystemAccesses)}
               {!isProspect && renderBranding(client)}
