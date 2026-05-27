@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import {
   DiscoveryAppointmentStatus,
+  GoogleCalendarSyncStatus,
   DiscoverySchedulingLinkStatus,
 } from "@/generated/prisma/client";
 import { bookDiscoverySlotAtomic, loadPublicSlotOptions } from "@/lib/discovery-scheduling/book-slot";
@@ -30,6 +31,13 @@ import {
   isDiscoveryAppointmentCancelable,
 } from "@/lib/discovery-scheduling/public-page-mode";
 import { applyDiscoverySlotChange } from "@/lib/discovery-scheduling/reschedule-slot";
+
+function summarizeError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message.slice(0, 500);
+  }
+  return "Unknown error";
+}
 
 async function resolveSchedulingLink(rawToken: string) {
   const tokenHash = hashSchedulingToken(rawToken);
@@ -68,11 +76,6 @@ function mapSlots(slots: Awaited<ReturnType<typeof loadPublicSlotOptions>>) {
 }
 
 export async function getDiscoverySchedulingPageData(rawToken: string) {
-  const readiness = await getDiscoverySchedulingReadiness();
-  if (!readiness.ready) {
-    return { unavailable: true as const };
-  }
-
   const link = await resolveSchedulingLink(rawToken);
   if (
     !link ||
@@ -149,6 +152,11 @@ export async function getDiscoverySchedulingPageData(rawToken: string) {
         status: appointment.status,
       },
     };
+  }
+
+  const readiness = await getDiscoverySchedulingReadiness();
+  if (!readiness.ready) {
+    return { unavailable: true as const };
   }
 
   const slots = await loadPublicSlotOptions();
@@ -356,34 +364,85 @@ export async function cancelDiscoveryAppointment(rawToken: string) {
     return { error: "This appointment cannot be canceled." };
   }
 
-  const connection = await getActiveGoogleCalendarConnection();
-  if (connection?.calendarId && appointment.googleEventId) {
-    await cancelDiscoveryCalendarEvent({
-      connectionId: connection.id,
-      calendarId: connection.calendarId,
-      eventId: appointment.googleEventId,
+  const eventIdToCancel = appointment.googleEventId;
+  try {
+    await prisma.$transaction(async (tx) => {
+      const canceled = await tx.discoveryAppointment.updateMany({
+        where: {
+          id: appointment.id,
+          status: {
+            in: [DiscoveryAppointmentStatus.SCHEDULED, DiscoveryAppointmentStatus.RESCHEDULED],
+          },
+        },
+        data: {
+          status: DiscoveryAppointmentStatus.CANCELED,
+          canceledAt: new Date(),
+          googleEventId: null,
+          googleEventLink: null,
+          meetingUrl: null,
+          googleSyncStatus: GoogleCalendarSyncStatus.SKIPPED,
+          googleSyncError: null,
+        },
+      });
+      if (canceled.count === 0) {
+        throw new Error("CANCEL_STATUS_CONFLICT");
+      }
+
+      await tx.discoveryReminder.updateMany({
+        where: {
+          appointmentId: appointment.id,
+          status: "PENDING",
+        },
+        data: { status: "SKIPPED" },
+      });
     });
+  } catch (error) {
+    if (error instanceof Error && error.message === "CANCEL_STATUS_CONFLICT") {
+      const current = await prisma.discoveryAppointment.findUnique({
+        where: { id: appointment.id },
+        select: { status: true },
+      });
+      if (current?.status === DiscoveryAppointmentStatus.CANCELED) {
+        return { error: "This appointment is already canceled." };
+      }
+      return { error: "This appointment cannot be canceled." };
+    }
+    throw error;
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.discoveryAppointment.update({
-      where: { id: appointment.id },
-      data: {
-        status: DiscoveryAppointmentStatus.CANCELED,
-        canceledAt: new Date(),
-        googleEventId: null,
-        googleEventLink: null,
-        meetingUrl: null,
-      },
-    });
-    await tx.discoveryReminder.updateMany({
-      where: {
+  const connection = await getActiveGoogleCalendarConnection();
+  const calendarIdToCancel = appointment.googleCalendarId ?? connection?.calendarId ?? null;
+  const canSyncCalendar = Boolean(connection && calendarIdToCancel && eventIdToCancel);
+  if (canSyncCalendar) {
+    try {
+      await cancelDiscoveryCalendarEvent({
+        connectionId: connection!.id,
+        calendarId: calendarIdToCancel!,
+        eventId: eventIdToCancel!,
+      });
+      await prisma.discoveryAppointment.update({
+        where: { id: appointment.id },
+        data: {
+          googleSyncStatus: GoogleCalendarSyncStatus.SYNCED,
+          googleSyncError: null,
+        },
+      });
+    } catch (error) {
+      console.error("[discovery-scheduling] cancel calendar sync failed", {
         appointmentId: appointment.id,
-        status: "PENDING",
-      },
-      data: { status: "SKIPPED" },
-    });
-  });
+        eventId: eventIdToCancel,
+        calendarId: calendarIdToCancel,
+        error,
+      });
+      await prisma.discoveryAppointment.update({
+        where: { id: appointment.id },
+        data: {
+          googleSyncStatus: GoogleCalendarSyncStatus.FAILED,
+          googleSyncError: summarizeError(error),
+        },
+      });
+    }
+  }
 
   await writeAuditLog({
     action: "discovery.appointment.canceled",
@@ -392,6 +451,8 @@ export async function cancelDiscoveryAppointment(rawToken: string) {
     metadata: {
       clientId: link.clientId,
       canceledBy: "prospect",
+      priorGoogleEventId: eventIdToCancel,
+      googleSyncAttempted: canSyncCalendar,
     },
   });
 

@@ -7,6 +7,7 @@ import { RequestStatusValue } from "@/lib/ui-enums";
 import {
   DiscoveryAppointmentStatus,
   DiscoveryFitDecision,
+  GoogleCalendarSyncStatus,
   DiscoverySchedulingLinkStatus,
 } from "@/generated/prisma/client";
 
@@ -46,6 +47,8 @@ interface DiscoveryClientPanelProps {
     fitDecisionReason: string | null;
     recapContent: string | null;
     recapSentAt: Date | null;
+    googleSyncStatus: GoogleCalendarSyncStatus;
+    googleSyncError: string | null;
   } | null;
 }
 

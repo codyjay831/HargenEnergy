@@ -468,6 +468,7 @@ model DiscoveryAppointment {
   customerPhone       String?
   status              DiscoveryAppointmentStatus @default(SCHEDULED)
   googleEventId       String?
+  googleCalendarId    String?
   googleEventLink     String?
   googleSyncStatus    GoogleCalendarSyncStatus @default(PENDING)
   googleSyncError     String?

@@ -10,7 +10,10 @@ import {
   DiscoverySchedulingLinkStatus,
 } from "@/generated/prisma/client";
 import { addHours, addMinutes } from "date-fns";
-import { createDiscoveryCalendarEvent } from "@/lib/google-calendar/events";
+import {
+  cancelDiscoveryCalendarEvent,
+  createDiscoveryCalendarEvent,
+} from "@/lib/google-calendar/events";
 import { fetchGoogleFreeBusy } from "@/lib/google-calendar/freebusy";
 import { getActiveGoogleCalendarConnection } from "@/lib/google-calendar/token-store";
 import { prisma } from "@/lib/prisma";
@@ -176,8 +179,25 @@ export async function bookDiscoverySlotAtomic(
   }
 
   const useMeet = connection.meetCreationEnabled;
+  let createdEventId: string | null = null;
 
   try {
+    const calendarResult = await createDiscoveryCalendarEvent({
+      connectionId: connection.id,
+      calendarId: connection.calendarId!,
+      summary: `Discovery — ${input.companyName}`,
+      description: `Hargen Energy discovery with ${input.customerContactName}.`,
+      startUtc: input.slotStartUtc,
+      endUtc,
+      timezone: settings.timezone,
+      attendeeEmail: input.customerEmail,
+      attendeeName: input.customerContactName,
+      phone: input.customerPhone,
+      useMeet,
+      fallbackMeetingUrl: settings.defaultMeetingUrl,
+    });
+    createdEventId = calendarResult.eventId;
+
     const appointmentId = await prisma.$transaction(async (tx) => {
       const overlap = await tx.discoveryAppointment.findFirst({
         where: {
@@ -191,21 +211,6 @@ export async function bookDiscoverySlotAtomic(
       if (overlap) {
         throw new Error("OVERLAP");
       }
-
-      const calendarResult = await createDiscoveryCalendarEvent({
-        connectionId: connection.id,
-        calendarId: connection.calendarId!,
-        summary: `Discovery — ${input.companyName}`,
-        description: `Hargen Energy discovery with ${input.customerContactName}.`,
-        startUtc: input.slotStartUtc,
-        endUtc,
-        timezone: settings.timezone,
-        attendeeEmail: input.customerEmail,
-        attendeeName: input.customerContactName,
-        phone: input.customerPhone,
-        useMeet,
-        fallbackMeetingUrl: settings.defaultMeetingUrl,
-      });
 
       const created = await tx.discoveryAppointment.create({
         data: {
@@ -222,8 +227,10 @@ export async function bookDiscoverySlotAtomic(
           customerPhone: input.customerPhone?.trim() || null,
           status: DiscoveryAppointmentStatus.SCHEDULED,
           googleEventId: calendarResult.eventId,
+          googleCalendarId: connection.calendarId,
           googleEventLink: calendarResult.htmlLink,
           googleSyncStatus: GoogleCalendarSyncStatus.SYNCED,
+          googleSyncError: null,
         },
       });
 
@@ -262,9 +269,29 @@ export async function bookDiscoverySlotAtomic(
 
     return { success: true, appointmentId };
   } catch (error) {
+    if (createdEventId) {
+      try {
+        await cancelDiscoveryCalendarEvent({
+          connectionId: connection.id,
+          calendarId: connection.calendarId!,
+          eventId: createdEventId,
+        });
+      } catch (cleanupError) {
+        console.error("[discovery-scheduling] failed to cleanup orphaned booking event", {
+          eventId: createdEventId,
+          appointmentId: null,
+          cleanupError,
+        });
+      }
+    }
     if (error instanceof Error && error.message === "OVERLAP") {
       return { error: "That time is no longer available. Please choose another slot." };
     }
+    console.error("[discovery-scheduling] booking failed", {
+      slotStartUtc: input.slotStartUtc.toISOString(),
+      clientId: input.clientId,
+      error,
+    });
     return {
       error: "Unable to complete booking. Please try another time or contact us.",
     };

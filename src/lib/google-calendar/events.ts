@@ -19,6 +19,47 @@ type CreateDiscoveryEventInput = {
   fallbackMeetingUrl?: string | null;
 };
 
+type GoogleApiError = {
+  status?: number;
+  response?: {
+    status?: number;
+    data?: unknown;
+  };
+};
+
+export class GoogleCalendarEventNotFoundError extends Error {
+  readonly eventId: string;
+  readonly calendarId: string;
+
+  constructor(input: { eventId: string; calendarId: string }) {
+    super(`Google Calendar event not found: ${input.eventId}`);
+    this.name = "GoogleCalendarEventNotFoundError";
+    this.eventId = input.eventId;
+    this.calendarId = input.calendarId;
+  }
+}
+
+function getGoogleApiStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") {
+    return undefined;
+  }
+  const candidate = error as GoogleApiError;
+  return candidate.response?.status ?? candidate.status;
+}
+
+export function isGoogleCalendarNotFoundError(error: unknown): boolean {
+  const status = getGoogleApiStatus(error);
+  return status === 404 || status === 410;
+}
+
+function logGoogleCalendarError(action: string, details: Record<string, unknown>, error: unknown) {
+  console.error(`[google-calendar] ${action} failed`, {
+    ...details,
+    status: getGoogleApiStatus(error),
+    error,
+  });
+}
+
 function extractMeetUrl(event: {
   conferenceData?: { entryPoints?: Array<{ entryPointType?: string | null; uri?: string | null }> | null } | null;
   hangoutLink?: string | null;
@@ -115,15 +156,34 @@ export async function updateDiscoveryCalendarEvent(input: {
   timezone: string;
 }) {
   const calendar = await getGoogleCalendarClient(input.connectionId);
-  await calendar.events.patch({
-    calendarId: input.calendarId,
-    eventId: input.eventId,
-    sendUpdates: "none",
-    requestBody: {
-      start: toGoogleCalendarEventDateTime(input.startUtc, input.timezone),
-      end: toGoogleCalendarEventDateTime(input.endUtc, input.timezone),
-    },
-  });
+  try {
+    await calendar.events.patch({
+      calendarId: input.calendarId,
+      eventId: input.eventId,
+      sendUpdates: "none",
+      requestBody: {
+        start: toGoogleCalendarEventDateTime(input.startUtc, input.timezone),
+        end: toGoogleCalendarEventDateTime(input.endUtc, input.timezone),
+      },
+    });
+  } catch (error) {
+    if (isGoogleCalendarNotFoundError(error)) {
+      throw new GoogleCalendarEventNotFoundError({
+        eventId: input.eventId,
+        calendarId: input.calendarId,
+      });
+    }
+
+    logGoogleCalendarError(
+      "events.patch",
+      {
+        calendarId: input.calendarId,
+        eventId: input.eventId,
+      },
+      error,
+    );
+    throw error;
+  }
 }
 
 export async function cancelDiscoveryCalendarEvent(input: {
@@ -132,11 +192,27 @@ export async function cancelDiscoveryCalendarEvent(input: {
   eventId: string;
 }) {
   const calendar = await getGoogleCalendarClient(input.connectionId);
-  await calendar.events.delete({
-    calendarId: input.calendarId,
-    eventId: input.eventId,
-    sendUpdates: "none",
-  });
+  try {
+    await calendar.events.delete({
+      calendarId: input.calendarId,
+      eventId: input.eventId,
+      sendUpdates: "none",
+    });
+  } catch (error) {
+    if (isGoogleCalendarNotFoundError(error)) {
+      return;
+    }
+
+    logGoogleCalendarError(
+      "events.delete",
+      {
+        calendarId: input.calendarId,
+        eventId: input.eventId,
+      },
+      error,
+    );
+    throw error;
+  }
 }
 
 export async function listGoogleCalendars(connectionId: string) {

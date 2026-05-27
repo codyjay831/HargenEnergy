@@ -462,6 +462,8 @@ export default async function ClientDetailPage({
                       fitDecisionReason: latestAppointment.fitDecisionReason,
                       recapContent: latestAppointment.recapContent,
                       recapSentAt: latestAppointment.recapSentAt,
+                      googleSyncStatus: latestAppointment.googleSyncStatus,
+                      googleSyncError: latestAppointment.googleSyncError,
                     }
                   : null
               }

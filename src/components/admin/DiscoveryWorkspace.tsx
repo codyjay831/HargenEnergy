@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import {
   CalendarClock,
+  AlertTriangle,
   CheckCircle2,
   Copy,
   Loader2,
@@ -48,6 +49,7 @@ import {
 import type { IntakeSnapshotClient, IntakeSnapshotMetadata } from "@/lib/intake-snapshot";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import type { RequestStatusValue } from "@/lib/ui-enums";
+import type { GoogleCalendarSyncStatus } from "@/generated/prisma/client";
 
 type DiscoveryFitDecisionValue = "GOOD_FIT" | "MAYBE_FIT" | "NOT_A_FIT";
 
@@ -84,6 +86,8 @@ interface DiscoveryWorkspaceProps {
     fitDecisionReason: string | null;
     recapContent: string | null;
     recapSentAt: Date | string | null;
+    googleSyncStatus: GoogleCalendarSyncStatus;
+    googleSyncError: string | null;
   } | null;
   schedulingReadiness?: {
     ready: boolean;
@@ -331,7 +335,19 @@ export function DiscoveryWorkspace({
                   {appointment.canceledAt
                     ? ` on ${format(new Date(appointment.canceledAt), "MMM d, yyyy")}`
                     : ""}
-                  . Regenerate the scheduling link to reschedule.
+                  . They can rebook from their existing link, or you can regenerate a link if the
+                  current one expired.
+                </div>
+              )}
+              {appointment.googleSyncStatus !== "SYNCED" && (
+                <div className="rounded-md border border-amber-200 bg-amber-50/60 px-3 py-2 text-sm text-amber-950">
+                  <div className="flex items-center gap-2 font-medium">
+                    <AlertTriangle className="h-4 w-4" />
+                    Calendar sync status: {appointment.googleSyncStatus}
+                  </div>
+                  {appointment.googleSyncError && (
+                    <p className="mt-1 break-words text-amber-900">{appointment.googleSyncError}</p>
+                  )}
                 </div>
               )}
               <p className="text-sm text-muted-foreground">
