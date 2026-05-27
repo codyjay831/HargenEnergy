@@ -3,7 +3,6 @@ import "server-only";
 import {
   GoogleCalendarSyncStatus,
   DiscoveryAppointmentStatus,
-  DiscoveryReminderStatus,
   DiscoverySchedulingLinkStatus,
 } from "@/generated/prisma/client";
 import { addMinutes } from "date-fns";
@@ -251,12 +250,8 @@ export async function applyDiscoverySlotChange(
         data: { status: DiscoverySchedulingLinkStatus.USED },
       });
 
-      await tx.discoveryReminder.updateMany({
-        where: {
-          appointmentId: input.appointmentId,
-          status: DiscoveryReminderStatus.PENDING,
-        },
-        data: { status: DiscoveryReminderStatus.SKIPPED },
+      await tx.discoveryReminder.deleteMany({
+        where: { appointmentId: input.appointmentId },
       });
 
       const reminderRows = buildReminderRows(input.appointmentId, input.slotStartUtc, now, {

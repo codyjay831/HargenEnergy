@@ -97,14 +97,14 @@ export async function ensureDiscoverySchedulingLink(
   }
 
   if (
-    regenerate &&
     existing?.status === DiscoverySchedulingLinkStatus.USED &&
     existing.appointment &&
     existing.appointment.status !== DiscoveryAppointmentStatus.CANCELED
   ) {
     return {
-      error:
-        "Cannot regenerate this link while a discovery is still scheduled. Cancel the appointment first.",
+      error: regenerate
+        ? "Cannot regenerate this link while a discovery is still scheduled. Cancel the appointment first."
+        : "An appointment is already booked for this request. Cancel it to create a new link.",
     };
   }
 
@@ -118,21 +118,18 @@ export async function ensureDiscoverySchedulingLink(
     createdByUserId,
   };
 
-  const link =
-    regenerate &&
-    existing &&
-    existing.status !== DiscoverySchedulingLinkStatus.ACTIVE
-      ? await prisma.discoverySchedulingLink.update({
-          where: { id: existing.id },
-          data: linkData,
-        })
-      : await prisma.discoverySchedulingLink.create({
-          data: {
-            ...linkData,
-            clientId: request.clientId,
-            supportRequestId: request.id,
-          },
-        });
+  const link = existing
+    ? await prisma.discoverySchedulingLink.update({
+        where: { id: existing.id },
+        data: linkData,
+      })
+    : await prisma.discoverySchedulingLink.create({
+        data: {
+          ...linkData,
+          clientId: request.clientId,
+          supportRequestId: request.id,
+        },
+      });
 
   const schedulingUrl = buildDiscoverySchedulingUrl(rawToken);
 

@@ -115,4 +115,42 @@ describe("applyDiscoverySlotChange", () => {
       error: "This appointment changed while you were booking. Refresh and try again.",
     });
   });
+
+  it("clears existing reminders before recreating to avoid unique-constraint failure", async () => {
+    const reminderDeleteMany = vi.fn().mockResolvedValue({ count: 2 });
+    const reminderCreateMany = vi.fn().mockResolvedValue({ count: 0 });
+
+    mockTransaction.mockImplementationOnce(async (fn: (tx: unknown) => unknown) =>
+      fn({
+        discoveryAppointment: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+        discoverySchedulingLink: { update: vi.fn().mockResolvedValue({}) },
+        discoveryReminder: {
+          deleteMany: reminderDeleteMany,
+          createMany: reminderCreateMany,
+        },
+        googleCalendarConnection: { update: vi.fn().mockResolvedValue({}) },
+      }),
+    );
+
+    const result = await applyDiscoverySlotChange({
+      mode: "reschedule",
+      schedulingLinkId: "link-1",
+      appointmentId: "appt-1",
+      slotStartUtc: new Date("2026-05-29T16:00:00.000Z"),
+      companyName: "Acme Solar",
+      customerContactName: "Jamie",
+      customerEmail: "jamie@example.com",
+      customerPhone: null,
+      currentStatus: DiscoveryAppointmentStatus.SCHEDULED,
+      googleEventId: "evt-1",
+    });
+
+    expect(result).toEqual({ success: true, appointmentId: "appt-1" });
+    expect(reminderDeleteMany).toHaveBeenCalledWith({
+      where: { appointmentId: "appt-1" },
+    });
+  });
 });
