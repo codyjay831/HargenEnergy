@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getGoogleCalendarClient } from "@/lib/google-calendar/client";
+import { toGoogleCalendarEventDateTime } from "@/lib/google-calendar/datetime";
 import type { GoogleCalendarEventResult } from "@/lib/google-calendar/types";
 
 type CreateDiscoveryEventInput = {
@@ -42,14 +43,8 @@ export async function createDiscoveryCalendarEvent(
   const baseEvent = {
     summary: input.summary,
     description: descriptionParts.join("\n\n"),
-    start: {
-      dateTime: input.startUtc.toISOString(),
-      timeZone: input.timezone,
-    },
-    end: {
-      dateTime: input.endUtc.toISOString(),
-      timeZone: input.timezone,
-    },
+    start: toGoogleCalendarEventDateTime(input.startUtc, input.timezone),
+    end: toGoogleCalendarEventDateTime(input.endUtc, input.timezone),
     attendees: [{ email: input.attendeeEmail, displayName: input.attendeeName }],
   };
 
@@ -125,14 +120,8 @@ export async function updateDiscoveryCalendarEvent(input: {
     eventId: input.eventId,
     sendUpdates: "none",
     requestBody: {
-      start: {
-        dateTime: input.startUtc.toISOString(),
-        timeZone: input.timezone,
-      },
-      end: {
-        dateTime: input.endUtc.toISOString(),
-        timeZone: input.timezone,
-      },
+      start: toGoogleCalendarEventDateTime(input.startUtc, input.timezone),
+      end: toGoogleCalendarEventDateTime(input.endUtc, input.timezone),
     },
   });
 }
