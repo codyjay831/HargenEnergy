@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { startOfWeek } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { ClientStatus, RequestStatus, SupportRequestKind } from "@/generated/prisma/client";
+import { ClientStatus, DiscoverySchedulingLinkStatus, RequestStatus, SupportRequestKind } from "@/generated/prisma/client";
 import { cn } from "@/lib/utils";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { BillingStatusBadge } from "@/components/admin/BillingStatusBadge";
@@ -38,6 +38,20 @@ const PROSPECT_NEEDS_ATTENTION_STATUSES = [
 interface AdminClientsPageProps {
   searchParams: Promise<{ status?: string; needsReview?: string }>;
 }
+
+type ActiveClientTopRequest = {
+  id: string;
+  title: string;
+  needsInfo: boolean;
+};
+
+type ProspectIntakeRequest = {
+  id: string;
+  title: string;
+  status: RequestStatus;
+  discoverySchedulingLink: { status: DiscoverySchedulingLinkStatus } | null;
+  discoveryAppointments: Parameters<typeof pickDiscoveryAppointmentForPipeline>[0];
+};
 
 export default async function AdminClients({ searchParams }: AdminClientsPageProps) {
   const { status, needsReview } = await searchParams;
@@ -183,7 +197,8 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
         <div className="space-y-2">
           {clients.map((client, index) => {
             const timeEntries = (client as { timeEntries?: { minutes: number; billableType: string; date: Date }[] }).timeEntries ?? [];
-            const topRequest = client.requests[0] ?? null;
+            const topRequest =
+              (client.requests[0] as ActiveClientTopRequest | undefined) ?? null;
             const hasNeedsInfo = topRequest?.needsInfo ?? false;
 
             let health: ClientHealth = "Healthy";
@@ -274,7 +289,9 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
             </thead>
             <tbody className="divide-y divide-slate-100">
               {clients.map((client) => {
-                const latestRequest = client.requests[0];
+                const latestRequest = client.requests[0] as
+                  | ProspectIntakeRequest
+                  | undefined;
                 const latestAppointment = latestRequest
                   ? pickDiscoveryAppointmentForPipeline(
                       latestRequest.discoveryAppointments,
