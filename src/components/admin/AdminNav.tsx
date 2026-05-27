@@ -3,20 +3,52 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import type { LucideIcon } from "lucide-react";
+import {
+  LayoutDashboard,
+  Users,
+  ClipboardList,
+  Clock,
+  CreditCard,
+  UserCog,
+  Megaphone,
+  Settings2,
+  Shield,
+  CalendarDays,
+  CalendarClock,
+  type LucideIcon,
+} from "lucide-react";
+import { NAV_LABELS } from "@/lib/product-language";
 
-export interface AdminNavItem {
+interface NavItem {
   name: string;
   href: string;
   icon: LucideIcon;
 }
 
-export function AdminNav({ items }: { items: AdminNavItem[] }) {
+const NAV_ITEMS: NavItem[] = [
+  { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+  { name: "Outreach", href: "/admin/outreach", icon: Megaphone },
+  { name: NAV_LABELS.adminClients, href: "/admin/clients", icon: Users },
+  { name: NAV_LABELS.adminWorkRequests, href: "/admin/requests", icon: ClipboardList },
+  { name: "Time Tracking", href: "/admin/time", icon: Clock },
+  { name: "Billing", href: "/admin/billing", icon: CreditCard },
+  { name: "Team", href: "/admin/team", icon: Shield },
+  { name: "Service Catalog", href: "/admin/services", icon: Settings2 },
+  { name: "Calendar", href: "/admin/settings/calendar", icon: CalendarDays },
+  {
+    name: "Discovery Hours",
+    href: "/admin/settings/discovery-availability",
+    icon: CalendarClock,
+  },
+  { name: "Account", href: "/admin/account", icon: UserCog },
+];
+
+export function AdminNav() {
   const pathname = usePathname();
 
   return (
     <nav className="flex-1 px-3 py-4 space-y-0.5">
-      {items.map((item) => {
+      {NAV_ITEMS.map((item) => {
         const isActive =
           item.href === "/admin"
             ? pathname === "/admin"

@@ -1,43 +1,10 @@
 import Link from "next/link";
-import {
-  LayoutDashboard,
-  Users,
-  ClipboardList,
-  Clock,
-  CreditCard,
-  UserCog,
-  Megaphone,
-  Settings2,
-  Shield,
-  CalendarDays,
-  CalendarClock,
-} from "lucide-react";
 import { LogoutButton } from "@/components/layout/LogoutButton";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { NAV_LABELS } from "@/lib/product-language";
 import { AdminNav } from "@/components/admin/AdminNav";
-import type { AdminNavItem } from "@/components/admin/AdminNav";
 
 export const dynamic = "force-dynamic";
-
-const sidebarItems: AdminNavItem[] = [
-  { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { name: "Outreach", href: "/admin/outreach", icon: Megaphone },
-  { name: NAV_LABELS.adminClients, href: "/admin/clients", icon: Users },
-  { name: NAV_LABELS.adminWorkRequests, href: "/admin/requests", icon: ClipboardList },
-  { name: "Time Tracking", href: "/admin/time", icon: Clock },
-  { name: "Billing", href: "/admin/billing", icon: CreditCard },
-  { name: "Team", href: "/admin/team", icon: Shield },
-  { name: "Service Catalog", href: "/admin/services", icon: Settings2 },
-  { name: "Calendar", href: "/admin/settings/calendar", icon: CalendarDays },
-  {
-    name: "Discovery Hours",
-    href: "/admin/settings/discovery-availability",
-    icon: CalendarClock,
-  },
-  { name: "Account", href: "/admin/account", icon: UserCog },
-];
 
 export default async function AdminLayout({
   children,
@@ -73,7 +40,7 @@ export default async function AdminLayout({
           </Link>
         </div>
 
-        <AdminNav items={sidebarItems} />
+        <AdminNav />
 
         <div className="border-t border-slate-200 p-3">
           <LogoutButton />
