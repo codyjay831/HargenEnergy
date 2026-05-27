@@ -82,33 +82,7 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
             }
           : { status: statusFilter as ClientStatus },
     include: {
-      requests: {
-        where: { kind: "PROSPECT_INTAKE" },
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: {
-          id: true,
-          title: true,
-          status: true,
-          discoverySchedulingLink: { select: { status: true } },
-          discoveryAppointments: {
-            orderBy: { createdAt: "desc" },
-            take: 10,
-            select: {
-              status: true,
-              fitDecision: true,
-              recapSentAt: true,
-              createdAt: true,
-            },
-          },
-        },
-      },
-      // For active clients, load time entries for health derivation
-      timeEntries: isActiveClientsTab
-        ? { where: { date: { gte: weekStart } } }
-        : false,
-      // For active clients, load open ops requests for next step
-      opsRequests: isActiveClientsTab
+      requests: isActiveClientsTab
         ? {
             where: {
               kind: SupportRequestKind.CLIENT_OPS,
@@ -124,6 +98,30 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
             take: 1,
             select: { id: true, title: true, needsInfo: true },
           }
+        : {
+            where: { kind: "PROSPECT_INTAKE" },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              discoverySchedulingLink: { select: { status: true } },
+              discoveryAppointments: {
+                orderBy: { createdAt: "desc" },
+                take: 10,
+                select: {
+                  status: true,
+                  fitDecision: true,
+                  recapSentAt: true,
+                  createdAt: true,
+                },
+              },
+            },
+          },
+      // For active clients, load time entries for health derivation
+      timeEntries: isActiveClientsTab
+        ? { where: { date: { gte: weekStart } } }
         : false,
     },
     orderBy: { updatedAt: "desc" },
@@ -185,8 +183,7 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
         <div className="space-y-2">
           {clients.map((client, index) => {
             const timeEntries = (client as { timeEntries?: { minutes: number; billableType: string; date: Date }[] }).timeEntries ?? [];
-            const opsRequests = (client as { opsRequests?: { id: string; title: string; needsInfo: boolean }[] }).opsRequests ?? [];
-            const topRequest = opsRequests[0] ?? null;
+            const topRequest = client.requests[0] ?? null;
             const hasNeedsInfo = topRequest?.needsInfo ?? false;
 
             let health: ClientHealth = "Healthy";
