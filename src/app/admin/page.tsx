@@ -1,22 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  AlertCircle, 
-  Clock, 
-  TrendingUp,
-  Inbox,
-  UserCheck,
-  FileText,
-  Users,
-  PlusCircle,
-  Clock3,
-  CreditCard,
-  ChevronRight,
-  ArrowUpCircle,
-  ClipboardList,
-  CalendarClock,
-} from "lucide-react";
-import { EmptyState } from "@/components/ui/empty-state";
 import {
   RequestStatus,
   ClientStatus,
@@ -24,24 +6,56 @@ import {
   SupportRequestKind,
   DiscoveryAppointmentStatus,
 } from "@/generated/prisma/client";
-import { format, startOfWeek } from "date-fns";
+import {
+  startOfWeek,
+  startOfDay,
+  endOfDay,
+  formatDistanceToNow,
+} from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { calculateWeeklyUsage } from "@/lib/usage";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
-import { PRODUCT_LANGUAGE } from "@/lib/product-language";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PriorityButtons } from "@/components/admin/PriorityButtons";
 import {
   deriveDiscoveryPipelineStage,
-  getDiscoveryPipelineStageBadgeVariant,
   getDiscoveryPipelineStageLabel,
   pickDiscoveryAppointmentForPipeline,
   type DiscoveryPipelineStage,
 } from "@/lib/discovery-scheduling/pipeline";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { formatUrgencyLabel } from "@/lib/ui-enums";
+import {
+  adminBrandGlow,
+  adminBrandGlowHover,
+  adminBtnPrimary,
+  adminPanelBorder,
+  adminViewAllLink,
+  adminSecondaryLink,
+} from "@/lib/admin-ui/tokens";
+import {
+  clientHealthBadgeClass,
+  rankToPriorityLabel,
+  priorityRankBadgeClass,
+  requestStatusBadgeClass,
+  formatAge,
+  type ClientHealth,
+} from "@/lib/admin-ui/status-badges";
+import {
+  ArrowUpRight,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  Flame,
+  Inbox,
+  Plus,
+  TriangleAlert,
+  Users,
+  Wrench,
+  PlayCircle,
+} from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -52,17 +66,14 @@ const NEEDS_SCHEDULING_STAGES: DiscoveryPipelineStage[] = [
   "awaiting_info",
 ];
 
-function schedulingAttentionSubtitle(
+function schedulingStageSubtitle(
   stage: DiscoveryPipelineStage,
-  canceledAt: Date | null | undefined,
 ): string {
   switch (stage) {
     case "booking_canceled":
-      return canceledAt
-        ? `Canceled ${format(canceledAt, "MMM d")} — regenerate link`
-        : "Booking canceled — regenerate link";
+      return "Booking canceled — regenerate link";
     case "link_sent":
-      return "Link sent — waiting for prospect to book";
+      return "Link sent, waiting to book";
     case "qualified":
       return "Ready to send scheduling link";
     case "awaiting_info":
@@ -72,80 +83,131 @@ function schedulingAttentionSubtitle(
   }
 }
 
+function deriveClientHealth({
+  weeklyHours,
+  includedMinutesThisWeek,
+  hasNeedsInfo,
+  isNearLimit,
+  isOverLimit,
+}: {
+  weeklyHours: number;
+  includedMinutesThisWeek: number;
+  hasNeedsInfo: boolean;
+  isNearLimit: boolean;
+  isOverLimit: boolean;
+}): ClientHealth {
+  if (weeklyHours > 0 && isOverLimit) return "Over limit";
+  if (weeklyHours > 0 && isNearLimit) return "Near limit";
+  if (hasNeedsInfo) return "Needs info";
+  return "Healthy";
+}
+
+function deriveNextStep(health: ClientHealth, topTitle: string | null): string {
+  if (health === "Over limit") return "Approve overflow billing";
+  if (health === "Near limit") return "Approaching weekly limit";
+  if (health === "Needs info" && topTitle) return topTitle;
+  if (health === "Needs info") return "Awaiting client response";
+  return topTitle ?? "No open work";
+}
+
 export default async function AdminDashboard() {
-  // Funnel metrics
+  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+  const todayStart = startOfDay(new Date());
+  const todayEnd = endOfDay(new Date());
+
   const [
-    newDiscoverysCount,
-    prospectsAwaitingActivationCount,
-    newWorkRequestsCount,
-    inProgressWorkCount,
+    openWorkCount,
     needsInfoCount,
-    includedTimeThisWeek,
-    overflowTimeThisWeek,
-    prioritizedRequests,
-    needsRescheduleCount,
-    upcomingDiscoverys,
+    includedTime,
+    overflowTime,
+    activeClientsRaw,
+    workQueueRaw,
+    upcomingDiscoveries,
     schedulingCandidates,
+    activeTimer,
+    inProgressCount,
   ] = await Promise.all([
+    // Open work (New + In Progress + Reviewed + needs attention)
     prisma.supportRequest.count({
       where: {
-        kind: SupportRequestKind.PROSPECT_INTAKE,
-        status: { in: [RequestStatus.NEW, RequestStatus.NEEDS_INFO] },
-      },
-    }),
-    prisma.client.count({
-      where: {
-        status: ClientStatus.LEAD,
-        requests: {
-          some: {
-            kind: SupportRequestKind.PROSPECT_INTAKE,
-            status: { in: [RequestStatus.REVIEWED, RequestStatus.IN_PROGRESS] }
-          }
-        }
-      }
-    }),
-    prisma.supportRequest.count({
-      where: { kind: SupportRequestKind.CLIENT_OPS, status: RequestStatus.NEW },
-    }),
-    prisma.supportRequest.count({
-      where: { kind: SupportRequestKind.CLIENT_OPS, status: RequestStatus.IN_PROGRESS },
-    }),
-    prisma.supportRequest.count({
-      where: { kind: SupportRequestKind.CLIENT_OPS, needsInfo: true },
-    }),
-    prisma.timeEntry.aggregate({
-      where: {
-        billableType: BillableType.INCLUDED,
-        date: { gte: startOfWeek(new Date(), { weekStartsOn: 1 }) }
-      },
-      _sum: { minutes: true }
-    }),
-    prisma.timeEntry.aggregate({
-      where: {
-        billableType: BillableType.OVERFLOW,
-        date: { gte: startOfWeek(new Date(), { weekStartsOn: 1 }) }
-      },
-      _sum: { minutes: true }
-    }),
-    prisma.supportRequest.findMany({
-      where: { 
-        status: { notIn: [RequestStatus.COMPLETE, RequestStatus.CANCELLED] },
-        priorityRank: { not: null }
-      },
-      orderBy: { priorityRank: "asc" },
-      take: 5,
-      include: { client: true }
-    }),
-    prisma.supportRequest.count({
-      where: {
-        kind: SupportRequestKind.PROSPECT_INTAKE,
-        client: { status: ClientStatus.LEAD },
-        status: { notIn: [RequestStatus.COMPLETE, RequestStatus.CANCELLED] },
-        discoveryAppointments: {
-          some: { status: DiscoveryAppointmentStatus.CANCELED },
+        kind: SupportRequestKind.CLIENT_OPS,
+        status: {
+          notIn: [RequestStatus.COMPLETE, RequestStatus.CANCELLED],
         },
       },
     }),
+
+    // Needs info
+    prisma.supportRequest.count({
+      where: { kind: SupportRequestKind.CLIENT_OPS, needsInfo: true },
+    }),
+
+    // Hours this week — included
+    prisma.timeEntry.aggregate({
+      where: {
+        billableType: BillableType.INCLUDED,
+        date: { gte: weekStart },
+      },
+      _sum: { minutes: true },
+    }),
+
+    // Hours this week — overflow
+    prisma.timeEntry.aggregate({
+      where: {
+        billableType: BillableType.OVERFLOW,
+        date: { gte: weekStart },
+      },
+      _sum: { minutes: true },
+    }),
+
+    // Active clients with usage + top open request
+    prisma.client.findMany({
+      where: { status: ClientStatus.ACTIVE },
+      include: {
+        timeEntries: {
+          where: { date: { gte: weekStart } },
+        },
+        requests: {
+          where: {
+            kind: SupportRequestKind.CLIENT_OPS,
+            status: {
+              notIn: [RequestStatus.COMPLETE, RequestStatus.CANCELLED],
+            },
+          },
+          orderBy: [
+            { needsInfo: "desc" },
+            { priorityRank: "asc" },
+            { createdAt: "desc" },
+          ],
+          take: 1,
+          select: {
+            id: true,
+            title: true,
+            needsInfo: true,
+            priorityRank: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 8,
+    }),
+
+    // Work queue: prioritized first, then open
+    prisma.supportRequest.findMany({
+      where: {
+        kind: SupportRequestKind.CLIENT_OPS,
+        status: {
+          notIn: [RequestStatus.COMPLETE, RequestStatus.CANCELLED],
+        },
+      },
+      orderBy: [{ priorityRank: "asc" }, { createdAt: "desc" }],
+      take: 8,
+      include: {
+        client: { select: { id: true, companyName: true } },
+      },
+    }),
+
+    // Upcoming discovery calls
     prisma.discoveryAppointment.findMany({
       where: {
         status: {
@@ -159,11 +221,12 @@ export default async function AdminDashboard() {
       },
       include: {
         client: { select: { id: true, companyName: true } },
-        supportRequest: { select: { urgency: true } },
       },
       orderBy: { scheduledStartUtc: "asc" },
-      take: 5,
+      take: 4,
     }),
+
+    // Scheduling candidates (leads needing attention)
     prisma.supportRequest.findMany({
       where: {
         kind: SupportRequestKind.PROSPECT_INTAKE,
@@ -171,7 +234,9 @@ export default async function AdminDashboard() {
         status: { notIn: [RequestStatus.COMPLETE, RequestStatus.CANCELLED] },
       },
       include: {
-        client: true,
+        client: {
+          select: { id: true, companyName: true, status: true },
+        },
         discoverySchedulingLink: { select: { status: true } },
         discoveryAppointments: {
           orderBy: { createdAt: "desc" },
@@ -186,456 +251,630 @@ export default async function AdminDashboard() {
         },
       },
       orderBy: { updatedAt: "desc" },
-      take: 20,
+      take: 10,
+    }),
+
+    // Running timer
+    prisma.supportRequest.findFirst({
+      where: { timerStartedAt: { not: null } },
+      select: {
+        id: true,
+        title: true,
+        timerStartedAt: true,
+        client: { select: { companyName: true } },
+      },
+    }),
+
+    // In-progress count (for today feed)
+    prisma.supportRequest.count({
+      where: {
+        kind: SupportRequestKind.CLIENT_OPS,
+        status: RequestStatus.IN_PROGRESS,
+      },
     }),
   ]);
 
-  const includedHours = (includedTimeThisWeek._sum.minutes || 0) / 60;
-  const overflowHours = (overflowTimeThisWeek._sum.minutes || 0) / 60;
+  // ── Derived: client health + next step ──────────────────────────────────
+  const clientsWithHealth = activeClientsRaw.map((client) => {
+    const usage = calculateWeeklyUsage(client.timeEntries, client.weeklyHours);
+    const topRequest = client.requests[0] ?? null;
+    const hasNeedsInfo = topRequest?.needsInfo ?? false;
+    const health = deriveClientHealth({
+      weeklyHours: client.weeklyHours,
+      includedMinutesThisWeek: usage.includedMinutesThisWeek,
+      hasNeedsInfo,
+      isNearLimit: usage.isNearLimit,
+      isOverLimit: usage.isOverLimit,
+    });
+    const nextStep = deriveNextStep(health, topRequest?.title ?? null);
+    const usageLabel =
+      client.weeklyHours > 0
+        ? `${(usage.includedMinutesThisWeek / 60).toFixed(1)} / ${client.weeklyHours}h`
+        : "Unlimited";
 
-  const stats = [
-    { 
-      title: "Needs Review", 
-      subtitle: "Discovery requests needing review or awaiting prospect response",
-      value: newDiscoverysCount.toString(), 
-      icon: Inbox, 
-      color: "text-amber-600", 
-      bg: "bg-amber-50",
-      link: "/admin/clients?needsReview=1&status=ALL"
-    },
-    {
-      title: "Needs Reschedule",
-      subtitle: "Prospect canceled a booked discovery",
-      value: needsRescheduleCount.toString(),
-      icon: CalendarClock,
-      color: "text-rose-600",
-      bg: "bg-rose-50",
-      link: "/admin/clients?status=LEAD",
-    },
-    { 
-      title: "Discovery Pipeline", 
-      subtitle: `${PRODUCT_LANGUAGE.prospect.plural} qualified and moving toward activation`,
-      value: prospectsAwaitingActivationCount.toString(), 
-      icon: UserCheck, 
-      color: "text-blue-600", 
-      bg: "bg-blue-50",
-      link: "/admin/clients"
-    },
-    { 
-      title: `New ${PRODUCT_LANGUAGE.workRequest.plural}`, 
-      value: newWorkRequestsCount.toString(), 
-      icon: AlertCircle, 
-      color: "text-orange-600", 
-      bg: "bg-orange-50",
-      link: "/admin/requests"
-    },
-    { 
-      title: "In Progress", 
-      value: inProgressWorkCount.toString(), 
-      icon: Clock, 
-      color: "text-indigo-600", 
-      bg: "bg-indigo-50",
-      link: "/admin/requests"
-    },
-    { 
-      title: "Needs Info", 
-      value: needsInfoCount.toString(), 
-      icon: AlertCircle, 
-      color: "text-red-600", 
-      bg: "bg-red-50",
-      link: "/admin/requests"
-    },
-    { 
-      title: `Capacity: ${includedHours.toFixed(1)}h + ${overflowHours.toFixed(1)}h overflow`, 
-      value: `${(includedHours + overflowHours).toFixed(1)}h`, 
-      icon: TrendingUp, 
-      color: "text-green-600", 
-      bg: "bg-green-50",
-      link: "/admin/time"
-    },
-  ];
+    return { ...client, usage, health, nextStep, usageLabel };
+  });
 
+  const activeClientCount = clientsWithHealth.length;
+  const nearLimitCount = clientsWithHealth.filter(
+    (c) => c.health === "Near limit" || c.health === "Over limit",
+  ).length;
+
+  // ── Derived: KPIs ───────────────────────────────────────────────────────
+  const includedHours = (includedTime._sum.minutes ?? 0) / 60;
+  const overflowHours = (overflowTime._sum.minutes ?? 0) / 60;
+
+  // ── Derived: work queue with enriched labels ────────────────────────────
+  const queueItems = workQueueRaw.map((req) => ({
+    ...req,
+    priorityLabel: rankToPriorityLabel(req.priorityRank),
+    priorityClass: priorityRankBadgeClass(req.priorityRank),
+    statusClass: requestStatusBadgeClass(req.status),
+    age: formatAge(req.createdAt),
+    statusLabel: req.status.replace(/_/g, " "),
+  }));
+
+  // ── Derived: leads lane ─────────────────────────────────────────────────
   const needsSchedulingItems = schedulingCandidates
     .map((request) => {
-      const appointment = pickDiscoveryAppointmentForPipeline(
+      const appt = pickDiscoveryAppointmentForPipeline(
         request.discoveryAppointments,
       );
       const pipelineStage = deriveDiscoveryPipelineStage({
         clientStatus: request.client.status,
         requestStatus: request.status,
         linkStatus: request.discoverySchedulingLink?.status ?? null,
-        appointmentStatus: appointment?.status ?? null,
-        fitDecision: appointment?.fitDecision ?? null,
-        recapSentAt: appointment?.recapSentAt ?? null,
+        appointmentStatus: appt?.status ?? null,
+        fitDecision: appt?.fitDecision ?? null,
+        recapSentAt: appt?.recapSentAt ?? null,
       });
-      return { request, appointment, pipelineStage };
+      return { request, pipelineStage };
     })
-    .filter((row) => NEEDS_SCHEDULING_STAGES.includes(row.pipelineStage))
-    .slice(0, 5);
+    .filter(({ pipelineStage }) =>
+      NEEDS_SCHEDULING_STAGES.includes(pipelineStage),
+    )
+    .slice(0, Math.max(0, 4 - upcomingDiscoveries.length));
 
-  const recentWorkRequests = await prisma.supportRequest.findMany({
-    where: { kind: SupportRequestKind.CLIENT_OPS },
-    include: { client: true },
-    orderBy: { createdAt: "desc" },
-    take: 5,
-  });
+  const leadsLaneItems = [
+    ...upcomingDiscoveries.map((appt) => ({
+      id: `appt-${appt.id}`,
+      company: appt.client.companyName,
+      subtitle: formatInTimeZone(
+        appt.scheduledStartUtc,
+        appt.timezone,
+        "EEE, MMM d 'at' h:mm a",
+      ),
+      badge: "Scheduled",
+      badgeClass: "border-blue-200 bg-blue-50 text-blue-800",
+      href: `/admin/clients/${appt.clientId}?tab=discovery`,
+    })),
+    ...needsSchedulingItems.map(({ request, pipelineStage }) => ({
+      id: `req-${request.id}`,
+      company: request.client.companyName,
+      subtitle: schedulingStageSubtitle(pipelineStage),
+      badge: getDiscoveryPipelineStageLabel(pipelineStage),
+      badgeClass: "border-amber-200 bg-amber-50 text-amber-900",
+      href: `/admin/clients/${request.clientId}?tab=discovery`,
+    })),
+  ];
 
-  const capacityClients = await prisma.client.findMany({
-    where: { status: ClientStatus.ACTIVE },
-    include: {
-      timeEntries: {
-        where: {
-          date: {
-            gte: startOfWeek(new Date(), { weekStartsOn: 1 })
-          }
-        }
-      }
-    },
-    take: 10
-  });
-
-  const capacityWatch = capacityClients.map(client => ({
-    ...client,
-    usage: calculateWeeklyUsage(client.timeEntries, client.weeklyHours)
-  })).sort((a, b) => b.usage.percentUsed - a.usage.percentUsed);
+  // ── Derived: today feed ─────────────────────────────────────────────────
+  const todayDiscoveryCount = upcomingDiscoveries.filter(
+    (a) =>
+      a.scheduledStartUtc >= todayStart && a.scheduledStartUtc <= todayEnd,
+  ).length;
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">Discovery pipeline and delivery at a glance.</p>
+    <div className="space-y-5">
+      {/* ── Hero ────────────────────────────────────────────────────────── */}
+      <div
+        className={cn(
+          "rounded-xl border border-slate-200 bg-white p-4 sm:p-5",
+          adminBrandGlow,
+        )}
+      >
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              Solar Ops Desk
+            </p>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+              Dashboard
+            </h1>
+            <p className="mt-0.5 text-sm text-slate-600">
+              Active clients first. Work in, work out.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/admin/clients?status=ACTIVE"
+              className={cn(
+                buttonVariants({ variant: "outline", size: "sm" }),
+                "border-slate-200 text-slate-700 hover:bg-slate-50",
+              )}
+            >
+              <Users className="h-3.5 w-3.5" />
+              Active Clients
+            </Link>
+            <Link
+              href="/admin/requests"
+              className={cn(buttonVariants({ size: "sm" }), adminBtnPrimary)}
+            >
+              <Wrench className="h-3.5 w-3.5" />
+              Open Work Queue
+            </Link>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Link 
-            href="/admin/clients" 
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "flex items-center gap-2")}
-          >
-            <Users className="h-4 w-4" />
-            Manage Clients
-          </Link>
-          <Link 
-            href="/admin/requests" 
-            className={cn(buttonVariants({ variant: "default", size: "sm" }), "flex items-center gap-2")}
-          >
-            <ClipboardList className="h-4 w-4" />
-            All Requests
-          </Link>
-        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {stats.map((stat) => (
-          <Link key={stat.title} href={stat.link}>
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {stat.title}
-                </CardTitle>
-                <div className={`${stat.bg} p-2 rounded-md`}>
-                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
-                {"subtitle" in stat && stat.subtitle && (
-                  <p className="text-xs text-muted-foreground mt-1">{stat.subtitle}</p>
-                )}
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
+      {/* ── KPI strip ───────────────────────────────────────────────────── */}
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard
+          label="Active Clients"
+          value={activeClientCount}
+          note={
+            nearLimitCount > 0
+              ? `${nearLimitCount} near limit`
+              : "All healthy"
+          }
+          noteClass={nearLimitCount > 0 ? "text-orange-600" : "text-emerald-700"}
+          icon={Users}
+          href="/admin/clients?status=ACTIVE"
+        />
+        <KpiCard
+          label="Open Work"
+          value={openWorkCount}
+          note={`${inProgressCount} in progress`}
+          icon={Wrench}
+          href="/admin/requests"
+        />
+        <KpiCard
+          label="Needs Info"
+          value={needsInfoCount}
+          note={needsInfoCount > 0 ? "Follow up today" : "All clear"}
+          noteClass={needsInfoCount > 0 ? "text-amber-600" : "text-slate-400"}
+          icon={TriangleAlert}
+          href="/admin/requests"
+          urgent={needsInfoCount > 0}
+        />
+        <KpiCard
+          label="Hours This Week"
+          value={`${includedHours.toFixed(1)}h`}
+          note={
+            overflowHours > 0
+              ? `+${overflowHours.toFixed(1)}h overflow`
+              : "No overflow"
+          }
+          noteClass={overflowHours > 0 ? "text-orange-600" : "text-slate-400"}
+          icon={Clock3}
+          href="/admin/time"
+        />
+      </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Quick Actions Panel */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-lg font-bold">Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Link 
-              href="/admin/clients" 
-              className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 rounded text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                  <PlusCircle className="h-4 w-4" />
-                </div>
-                <span className="text-sm font-semibold">Invite New Client</span>
-              </div>
-              <ChevronRight className="h-4 w-4 text-slate-400" />
-            </Link>
-            <Link 
-              href="/admin/time" 
-              className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-50 rounded text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                  <Clock3 className="h-4 w-4" />
-                </div>
-                <span className="text-sm font-semibold">Log Time</span>
-              </div>
-              <ChevronRight className="h-4 w-4 text-slate-400" />
-            </Link>
-            <Link 
-              href="/admin/billing" 
-              className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-50 rounded text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                  <CreditCard className="h-4 w-4" />
-                </div>
-                <span className="text-sm font-semibold">New Disbursement</span>
-              </div>
-              <ChevronRight className="h-4 w-4 text-slate-400" />
-            </Link>
-          </CardContent>
-        </Card>
-
-        {/* Priority Management Panel */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg font-bold flex items-center gap-2">
-              <ArrowUpCircle className="h-5 w-5 text-primary" />
-              Priority Management
-            </CardTitle>
-            <Link href="/admin/requests" className="text-xs text-primary hover:underline font-medium">View All</Link>
-          </CardHeader>
-          <CardContent>
-            {prioritizedRequests.length === 0 ? (
-              <div className="py-8 text-center border-2 border-dashed rounded-lg">
-                <p className="text-sm text-muted-foreground">No requests have a priority rank assigned.</p>
-                <Link 
-                  href="/admin/requests" 
-                  className={cn(buttonVariants({ variant: "link", size: "sm" }), "mt-2")}
-                >
-                  Assign Priority
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {prioritizedRequests.map((request) => (
-                  <div 
-                    key={request.id}
-                    className="flex items-center justify-between p-3 border rounded-lg bg-white shadow-sm"
-                  >
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600 shrink-0">
-                        #{request.priorityRank}
-                      </div>
-                      <div className="min-w-0">
-                        <Link href={`/admin/requests/${request.id}`} className="text-sm font-bold truncate hover:underline block">
-                          {request.title}
-                        </Link>
-                        <p className="text-[10px] text-muted-foreground truncate">
-                          {request.client.companyName}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <StatusBadge status={request.status} className="hidden sm:inline-flex" />
-                      <PriorityButtons requestId={request.id} currentPriority={request.priorityRank} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Upcoming discoverys</CardTitle>
-            <Link href="/admin/clients?status=LEAD" className="text-xs text-primary hover:underline font-medium">
-              View All
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {upcomingDiscoverys.length === 0 ? (
-              <EmptyState
-                icon={CalendarClock}
-                title="No upcoming discoverys"
-                description="Booked discovery calls on the calendar will appear here."
-              />
-            ) : (
-              <div className="space-y-4">
-                {upcomingDiscoverys.map((appointment) => (
+      {/* ── Two-col grid: main + right rail ─────────────────────────────── */}
+      <section className="grid gap-5 xl:grid-cols-[1.65fr_1fr]">
+        {/* Left: main column */}
+        <div className="space-y-5">
+          {/* Active clients panel */}
+          <Card className={cn(adminPanelBorder)}>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-base font-semibold text-slate-900">
+                Active clients
+              </CardTitle>
+              <Link href="/admin/clients?status=ACTIVE" className={adminViewAllLink}>
+                View all
+              </Link>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {clientsWithHealth.length === 0 ? (
+                <EmptyState
+                  icon={Users}
+                  title="No active clients yet"
+                  description="Activate a prospect after discovery to start tracking delivery."
+                  action={{ label: "View Prospects", href: "/admin/clients" }}
+                />
+              ) : (
+                clientsWithHealth.map((client, index) => (
                   <Link
-                    key={appointment.id}
-                    href={`/admin/clients/${appointment.clientId}?tab=discovery`}
-                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors"
+                    key={client.id}
+                    href={`/admin/clients/${client.id}`}
+                    className={cn(
+                      "grid gap-2 rounded-lg border border-slate-200 bg-white p-3 transition-all",
+                      "sm:grid-cols-[1.5fr_1fr_1fr_auto_auto] sm:items-center",
+                      adminBrandGlowHover,
+                      index === 0 && adminBrandGlow,
+                    )}
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">
-                        {appointment.client.companyName}
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-slate-900">
+                        {client.companyName}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatInTimeZone(
-                          appointment.scheduledStartUtc,
-                          appointment.timezone,
-                          "EEEE, MMM d 'at' h:mm a zzz",
-                        )}
+                      <p className="truncate text-xs text-slate-500">
+                        {client.contactName}
                       </p>
-                      {appointment.supportRequest && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 mt-1">
-                          {formatUrgencyLabel(appointment.supportRequest.urgency)}
-                        </Badge>
-                      )}
                     </div>
-                    <Badge variant="default" className="ml-2 shrink-0 text-[10px] px-1.5 py-0">
-                      Scheduled
-                    </Badge>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Needs scheduling</CardTitle>
-            <Link href="/admin/clients?status=LEAD" className="text-xs text-primary hover:underline font-medium">
-              View All
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {needsSchedulingItems.length === 0 ? (
-              <EmptyState
-                icon={FileText}
-                title="Nothing waiting to be scheduled"
-                description="Qualified prospects, open links, and canceled bookings that need follow-up appear here."
-              />
-            ) : (
-              <div className="space-y-4">
-                {needsSchedulingItems.map(({ request, appointment, pipelineStage }) => (
-                  <Link
-                    key={request.id}
-                    href={`/admin/clients/${request.clientId}?tab=discovery`}
-                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{request.client.companyName}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {schedulingAttentionSubtitle(pipelineStage, appointment?.canceledAt)}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                          {formatUrgencyLabel(request.urgency)}
-                        </Badge>
-                      </div>
+                    <div className="min-w-0 text-xs text-slate-600">
+                      <p className="font-medium text-slate-700">Next</p>
+                      <p className="truncate">{client.nextStep}</p>
                     </div>
+                    <p className="text-xs font-medium text-slate-600">
+                      {client.usageLabel}
+                    </p>
                     <Badge
-                      variant={getDiscoveryPipelineStageBadgeVariant(pipelineStage)}
-                      className="ml-2 shrink-0 text-[10px] px-1.5 py-0"
+                      variant="outline"
+                      className={cn(
+                        "w-fit text-[10px] font-medium",
+                        clientHealthBadgeClass(client.health),
+                      )}
                     >
-                      {getDiscoveryPipelineStageLabel(pipelineStage)}
+                      {client.health}
                     </Badge>
+                    <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-400" />
                   </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                ))
+              )}
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Recent {PRODUCT_LANGUAGE.workRequest.plural}</CardTitle>
-            <Link href="/admin/requests" className="text-xs text-primary hover:underline font-medium">
-              View All
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {recentWorkRequests.length === 0 ? (
-              <EmptyState
-                icon={Inbox}
-                title={`No ${PRODUCT_LANGUAGE.workRequest.plural.toLowerCase()} yet`}
-                description="Client work requests will appear here once you have active clients in the system."
-                action={{
-                  label: "View All Clients",
-                  href: "/admin/clients",
-                }}
-              />
-            ) : (
-              <div className="space-y-4">
-                {recentWorkRequests.map((request) => (
-                  <Link
-                    key={request.id}
-                    href={`/admin/requests/${request.id}`}
-                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors"
+          {/* Work queue */}
+          <Card className={adminPanelBorder}>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-base font-semibold text-slate-900">
+                  Work queue
+                </CardTitle>
+                <Badge
+                  variant="outline"
+                  className="border-emerald-200 bg-emerald-50 text-[10px] font-medium text-emerald-800"
+                >
+                  Do now
+                </Badge>
+              </div>
+              <Link href="/admin/requests" className={adminSecondaryLink}>
+                Full queue
+              </Link>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {queueItems.length === 0 ? (
+                <EmptyState
+                  icon={Wrench}
+                  title="No open work right now"
+                  description="New requests from clients will appear here."
+                  action={{ label: "View Requests", href: "/admin/requests" }}
+                />
+              ) : (
+                queueItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-[64px_1fr_52px_110px_80px] sm:items-center"
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{request.client.companyName}</p>
-                      <p className="text-xs text-muted-foreground truncate">{request.title}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {format(new Date(request.createdAt), "MMM d, h:mm a")}
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "w-fit text-[10px] font-semibold",
+                        item.priorityClass,
+                      )}
+                    >
+                      {item.priorityLabel}
+                    </Badge>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-900">
+                        {item.title}
+                      </p>
+                      <p className="truncate text-xs text-slate-500">
+                        {item.client.companyName}
                       </p>
                     </div>
-                    <StatusBadge status={request.status} className="ml-2 shrink-0" />
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Capacity Watch</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {capacityWatch.length === 0 ? (
-              <EmptyState
-                icon={Users}
-                title="No active clients yet"
-                description="Activate clients to start tracking their weekly capacity usage and support hours."
-                action={{
-                  label: "Manage Clients",
-                  href: "/admin/clients",
-                }}
-              />
-            ) : (
-              <div className="space-y-6">
-                {capacityWatch.map((client) => (
-                  <div key={client.id} className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <div className="flex flex-col">
-                        <span className="font-medium">{client.companyName}</span>
-                        <span className="text-xs text-muted-foreground">{client.planType} Support</span>
-                      </div>
-                      <div className="text-right">
-                        <span className={cn("font-bold", client.usage.isOverLimit ? "text-red-600" : client.usage.isNearLimit ? "text-orange-600" : "text-slate-900")}>
-                          {(client.usage.includedMinutesThisWeek / 60).toFixed(1)} / {client.weeklyHours} hrs
-                        </span>
-                        <p className="text-[10px] text-muted-foreground">
-                          {(client.usage.remainingIncludedMinutes / 60).toFixed(1)} hrs remaining
-                        </p>
-                      </div>
-                    </div>
-                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                      <div 
-                        className={cn("h-full transition-all", client.usage.isOverLimit ? "bg-red-500" : client.usage.isNearLimit ? "bg-orange-500" : "bg-primary")} 
-                        style={{ width: `${Math.min(client.usage.percentUsed, 100)}%` }}
+                    <p className="text-xs text-slate-500">{item.age}</p>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "w-fit text-[10px] font-medium",
+                        item.statusClass,
+                      )}
+                    >
+                      {item.statusLabel}
+                    </Badge>
+                    <div className="flex items-center gap-1.5">
+                      <Link
+                        href={`/admin/requests/${item.id}`}
+                        className={cn(
+                          buttonVariants({ size: "sm" }),
+                          adminBtnPrimary,
+                          "h-7 text-xs",
+                        )}
+                      >
+                        Open
+                      </Link>
+                      <PriorityButtons
+                        requestId={item.id}
+                        currentPriority={item.priorityRank}
                       />
                     </div>
-                    <div className="flex justify-between items-center">
-                      <Badge variant={client.usage.isOverLimit ? "destructive" : client.usage.isNearLimit ? "default" : "outline"} className="text-[10px] px-1 py-0 h-4">
-                        {client.usage.isOverLimit ? "Over Limit" : client.usage.isNearLimit ? "Near Limit" : "OK"}
-                      </Badge>
-                      <Link href={`/admin/clients/${client.id}`} className="text-[10px] text-primary hover:underline">
-                        Manage
-                      </Link>
-                    </div>
                   </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Leads lane */}
+          {leadsLaneItems.length > 0 && (
+            <Card className={cn(adminPanelBorder, "border-slate-100")}>
+              <CardHeader className="flex flex-row items-center justify-between pb-3">
+                <CardTitle className="text-sm font-medium text-slate-600">
+                  Discovery pipeline
+                </CardTitle>
+                <Link
+                  href="/admin/clients?status=LEAD"
+                  className={adminSecondaryLink}
+                >
+                  View leads
+                </Link>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {leadsLaneItems.map((lead) => (
+                  <Link
+                    key={lead.id}
+                    href={lead.href}
+                    className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50/60 p-3 transition-colors hover:bg-slate-100/60"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-900">
+                        {lead.company}
+                      </p>
+                      <p className="truncate text-xs text-slate-500">
+                        {lead.subtitle}
+                      </p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "ml-3 shrink-0 text-[10px] font-medium",
+                        lead.badgeClass,
+                      )}
+                    >
+                      {lead.badge}
+                    </Badge>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Right rail */}
+        <div className="space-y-5">
+          {/* Quick execution rail */}
+          <Card className={cn(adminPanelBorder, adminBrandGlow)}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold text-slate-900">
+                Quick execution
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Timer block */}
+              {activeTimer ? (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <PlayCircle className="h-3.5 w-3.5 text-emerald-600 animate-pulse" />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                      Timer running
+                    </p>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-900 truncate">
+                    {activeTimer.client.companyName}
+                  </p>
+                  <p className="text-xs text-slate-600 truncate mt-0.5">
+                    {activeTimer.title}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Started{" "}
+                    {formatDistanceToNow(activeTimer.timerStartedAt!, {
+                      addSuffix: true,
+                    })}
+                  </p>
+                  <Link
+                    href={`/admin/requests/${activeTimer.id}`}
+                    className={cn(
+                      buttonVariants({ size: "sm" }),
+                      adminBtnPrimary,
+                      "mt-3 w-full justify-center text-xs",
+                    )}
+                  >
+                    Continue working →
+                  </Link>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-slate-200 p-3 text-center">
+                  <p className="text-xs text-slate-500">No active timer</p>
+                  <Link
+                    href="/admin/requests"
+                    className="mt-0.5 block text-xs font-medium text-emerald-700 hover:underline"
+                  >
+                    Start from work queue →
+                  </Link>
+                </div>
+              )}
+
+              {/* Quick action links */}
+              <div className="grid gap-1.5">
+                {[
+                  {
+                    icon: Plus,
+                    label: "Log work request",
+                    href: "/admin/requests",
+                  },
+                  {
+                    icon: Clock3,
+                    label: "Quick time entry",
+                    href: "/admin/time",
+                  },
+                  {
+                    icon: Users,
+                    label: "View active clients",
+                    href: "/admin/clients?status=ACTIVE",
+                  },
+                ].map(({ icon: Icon, label, href }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    className="flex items-center justify-between rounded-lg border border-slate-200 p-2.5 transition-colors hover:bg-slate-50"
+                  >
+                    <span className="flex items-center gap-2 text-sm font-medium text-slate-800">
+                      <Icon className="h-4 w-4 text-slate-400" />
+                      {label}
+                    </span>
+                    <ArrowUpRight className="h-3.5 w-3.5 text-slate-400" />
+                  </Link>
                 ))}
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+
+          {/* Today feed */}
+          <Card className={adminPanelBorder}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-slate-700">
+                Today
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <TodayRow
+                icon={TriangleAlert}
+                tone={needsInfoCount > 0 ? "warning" : "ok"}
+                href="/admin/requests"
+              >
+                {needsInfoCount > 0
+                  ? `${needsInfoCount} request${needsInfoCount === 1 ? "" : "s"} need info`
+                  : "No requests need info"}
+              </TodayRow>
+
+              <TodayRow
+                icon={Wrench}
+                tone={inProgressCount > 0 ? "active" : "ok"}
+                href="/admin/requests"
+              >
+                {inProgressCount > 0
+                  ? `${inProgressCount} in progress`
+                  : "Nothing in progress"}
+              </TodayRow>
+
+              <TodayRow
+                icon={CalendarDays}
+                tone={todayDiscoveryCount > 0 ? "active" : "ok"}
+                href="/admin/clients?status=LEAD"
+              >
+                {todayDiscoveryCount > 0
+                  ? `${todayDiscoveryCount} discovery call${todayDiscoveryCount === 1 ? "" : "s"} today`
+                  : "No discovery calls today"}
+              </TodayRow>
+
+              <TodayRow
+                icon={nearLimitCount > 0 ? Flame : CheckCircle2}
+                tone={nearLimitCount > 0 ? "warning" : "success"}
+                href="/admin/clients?status=ACTIVE"
+              >
+                {nearLimitCount > 0
+                  ? `${nearLimitCount} client${nearLimitCount === 1 ? "" : "s"} near capacity`
+                  : "All clients within capacity"}
+              </TodayRow>
+
+              <TodayRow icon={Inbox} tone="ok" href="/admin/time">
+                {`${includedHours.toFixed(1)}h logged this week`}
+              </TodayRow>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
     </div>
+  );
+}
+
+// ── Sub-components ──────────────────────────────────────────────────────────
+
+function KpiCard({
+  label,
+  value,
+  note,
+  noteClass,
+  icon: Icon,
+  href,
+  urgent,
+}: {
+  label: string;
+  value: string | number;
+  note: string;
+  noteClass?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  href: string;
+  urgent?: boolean;
+}) {
+  return (
+    <Link href={href}>
+      <Card
+        className={cn(
+          "border-slate-200 shadow-none transition-shadow hover:shadow-sm",
+          urgent && "border-amber-200",
+        )}
+      >
+        <CardContent className="flex items-center justify-between p-4">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              {label}
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">
+              {value}
+            </p>
+            <p className={cn("text-xs", noteClass ?? "text-slate-500")}>
+              {note}
+            </p>
+          </div>
+          <div
+            className={cn(
+              "rounded-lg p-2",
+              urgent ? "bg-amber-50" : "bg-slate-100",
+            )}
+          >
+            <Icon
+              className={cn(
+                "h-4 w-4",
+                urgent ? "text-amber-600" : "text-slate-500",
+              )}
+            />
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
+function TodayRow({
+  icon: Icon,
+  tone,
+  href,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  tone: "success" | "warning" | "active" | "ok";
+  href: string;
+  children: React.ReactNode;
+}) {
+  const iconClass =
+    tone === "success"
+      ? "text-emerald-600"
+      : tone === "warning"
+        ? "text-amber-600"
+        : tone === "active"
+          ? "text-blue-600"
+          : "text-slate-400";
+
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-2 rounded-md px-1 py-1 text-sm text-slate-700 transition-colors hover:bg-slate-50"
+    >
+      <Icon className={cn("h-4 w-4 shrink-0", iconClass)} />
+      {children}
+    </Link>
   );
 }

@@ -16,10 +16,12 @@ import { LogoutButton } from "@/components/layout/LogoutButton";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { NAV_LABELS } from "@/lib/product-language";
+import { AdminNav } from "@/components/admin/AdminNav";
+import type { AdminNavItem } from "@/components/admin/AdminNav";
 
 export const dynamic = "force-dynamic";
 
-const sidebarItems = [
+const sidebarItems: AdminNavItem[] = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Outreach", href: "/admin/outreach", icon: Megaphone },
   { name: NAV_LABELS.adminClients, href: "/admin/clients", icon: Users },
@@ -48,58 +50,57 @@ export default async function AdminLayout({
     redirect("/login");
   }
 
-  const userInitials = session.user.name 
-    ? session.user.name.split(" ").map(n => n[0]).join("").toUpperCase()
+  const userInitials = session.user.name
+    ? session.user.name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
     : session.user.email?.substring(0, 2).toUpperCase() || "AD";
 
   return (
     <div className="flex min-h-screen bg-slate-50">
       {/* Sidebar */}
-      <aside className="w-64 border-r bg-white hidden md:flex flex-col">
-        <div className="p-6 border-b">
-          <Link href="/" className="flex items-center space-x-2">
-            <span className="text-xl font-bold tracking-tight text-primary">
-              Hargen Admin
+      <aside className="hidden w-60 flex-col border-r border-slate-200 bg-white md:flex">
+        <div className="border-b border-slate-200 px-5 py-4">
+          <Link href="/" className="block">
+            <span className="text-lg font-bold tracking-tight text-slate-900">
+              Hargen
+            </span>
+            <span className="ml-1 text-lg font-bold tracking-tight text-orange-500">
+              Admin
             </span>
           </Link>
         </div>
-        <nav className="flex-1 p-4 space-y-1">
-          {sidebarItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md hover:bg-slate-100 transition-colors"
-            >
-              <item.icon className="h-4 w-4 text-slate-500" />
-              {item.name}
-            </Link>
-          ))}
-        </nav>
-        <div className="p-4 border-t">
+
+        <AdminNav items={sidebarItems} />
+
+        <div className="border-t border-slate-200 p-3">
           <LogoutButton />
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        <header className="h-16 border-b bg-white flex items-center justify-between px-4 md:px-8">
-          <h2 className="text-lg font-semibold">Solar Ops Desk</h2>
-          <div className="flex items-center gap-2 md:gap-4">
-            <div className="hidden sm:flex flex-col items-end mr-2">
-              <span className="text-sm font-medium">{session.user.name || "Admin"}</span>
-              <span className="text-xs text-muted-foreground">{session.user.email}</span>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <header className="flex h-14 items-center justify-between border-b border-slate-200 bg-white px-4 md:px-6">
+          <p className="text-sm font-semibold text-slate-700">Solar Ops Desk</p>
+          <div className="flex items-center gap-3">
+            <div className="hidden flex-col items-end sm:flex">
+              <span className="text-sm font-medium text-slate-800">
+                {session.user.name || "Admin"}
+              </span>
+              <span className="text-xs text-slate-500">{session.user.email}</span>
             </div>
             <div className="md:hidden">
               <LogoutButton compact className="w-auto" />
             </div>
-            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs border border-primary/20">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-50 text-xs font-bold text-orange-700">
               {userInitials}
             </div>
           </div>
         </header>
-        <main className="p-8 flex-1">
-          {children}
-        </main>
+
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
       </div>
     </div>
   );

@@ -1,16 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { format } from "date-fns";
+import { startOfWeek } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { ClientStatus, RequestStatus } from "@/generated/prisma/client";
+import { ClientStatus, RequestStatus, SupportRequestKind } from "@/generated/prisma/client";
 import { cn } from "@/lib/utils";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { BillingStatusBadge } from "@/components/admin/BillingStatusBadge";
@@ -20,6 +13,20 @@ import {
   getDiscoveryPipelineStageLabel,
   pickDiscoveryAppointmentForPipeline,
 } from "@/lib/discovery-scheduling/pipeline";
+import { calculateWeeklyUsage } from "@/lib/usage";
+import {
+  clientHealthBadgeClass,
+  type ClientHealth,
+} from "@/lib/admin-ui/status-badges";
+import {
+  adminBrandGlow,
+  adminBrandGlowHover,
+  adminBtnPrimary,
+  adminPanelBorder,
+} from "@/lib/admin-ui/tokens";
+import { buttonVariants } from "@/components/ui/button";
+import { ArrowUpRight, Users, UserCheck, ClipboardList } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +54,8 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
   const isNeedsReviewActive = needsReviewFilter;
   const isActiveClientsTab = !needsReviewFilter && statusFilter === "ACTIVE";
   const isAllCompaniesActive = !needsReviewFilter && statusFilter === "ALL";
+
+  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
 
   const clients = await prisma.client.findMany({
     where:
@@ -94,64 +103,179 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
           },
         },
       },
+      // For active clients, load time entries for health derivation
+      timeEntries: isActiveClientsTab
+        ? { where: { date: { gte: weekStart } } }
+        : false,
+      // For active clients, load open ops requests for next step
+      opsRequests: isActiveClientsTab
+        ? {
+            where: {
+              kind: SupportRequestKind.CLIENT_OPS,
+              status: {
+                notIn: [RequestStatus.COMPLETE, RequestStatus.CANCELLED],
+              },
+            },
+            orderBy: [
+              { needsInfo: "desc" },
+              { priorityRank: "asc" },
+              { createdAt: "desc" },
+            ],
+            take: 1,
+            select: { id: true, title: true, needsInfo: true },
+          }
+        : false,
     },
-    orderBy: {
-      updatedAt: "desc",
-    },
+    orderBy: { updatedAt: "desc" },
   });
 
+  const pageSubtitle = needsReviewFilter
+    ? "Discovery requests needing review or awaiting prospect response."
+    : isActiveClientsTab
+      ? "Your current active clients and their delivery status."
+      : PRODUCT_LANGUAGE.prospect.listSubtitle;
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Clients</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {needsReviewFilter
-            ? "Discovery requests needing review or awaiting prospect response."
-            : PRODUCT_LANGUAGE.prospect.listSubtitle}
-        </p>
+    <div className="space-y-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Clients</h1>
+          <p className="mt-0.5 text-sm text-slate-600">{pageSubtitle}</p>
+        </div>
+        {isActiveClientsTab && (
+          <Link
+            href="/admin/requests"
+            className={cn(buttonVariants({ size: "sm" }), adminBtnPrimary)}
+          >
+            <ClipboardList className="h-3.5 w-3.5" />
+            Work Queue
+          </Link>
+        )}
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <FilterLink href="/admin/clients" active={isOnboardingActive}>
-          Onboarding ({PRODUCT_LANGUAGE.prospect.plural})
-        </FilterLink>
-        <FilterLink href="/admin/clients?needsReview=1&status=ALL" active={isNeedsReviewActive}>
+      <div className="flex flex-wrap gap-1.5">
+        <FilterTab href="/admin/clients" active={isOnboardingActive}>
+          Onboarding
+        </FilterTab>
+        <FilterTab href="/admin/clients?needsReview=1&status=ALL" active={isNeedsReviewActive}>
           Needs review
-        </FilterLink>
-        <FilterLink href="/admin/clients?status=ACTIVE" active={isActiveClientsTab}>
+        </FilterTab>
+        <FilterTab href="/admin/clients?status=ACTIVE" active={isActiveClientsTab}>
           Active {PRODUCT_LANGUAGE.client.plural}
-        </FilterLink>
-        <FilterLink href="/admin/clients?status=ALL" active={isAllCompaniesActive}>
+        </FilterTab>
+        <FilterTab href="/admin/clients?status=ALL" active={isAllCompaniesActive}>
           All Companies
-        </FilterLink>
+        </FilterTab>
       </div>
 
       {clients.length === 0 ? (
-        <div className="bg-white border rounded-lg p-12 text-center text-muted-foreground">
-          {needsReviewFilter
-            ? "No discovery requests need review right now."
-            : statusFilter === "LEAD"
-              ? `No ${PRODUCT_LANGUAGE.prospect.plural.toLowerCase()} yet. ${PRODUCT_LANGUAGE.discoveryRequest.plural} create ${PRODUCT_LANGUAGE.prospect.plural.toLowerCase()} automatically when submitted via the public form.`
-              : statusFilter === "ACTIVE"
-                ? `No active ${PRODUCT_LANGUAGE.client.plural.toLowerCase()} yet. Activate a ${PRODUCT_LANGUAGE.prospect.singular.toLowerCase()} after discovery, contract, and payment.`
-                : "No companies yet."}
+        <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
+          <p className="text-sm text-slate-500">
+            {needsReviewFilter
+              ? "No discovery requests need review right now."
+              : statusFilter === "LEAD"
+                ? `No ${PRODUCT_LANGUAGE.prospect.plural.toLowerCase()} yet.`
+                : statusFilter === "ACTIVE"
+                  ? `No active ${PRODUCT_LANGUAGE.client.plural.toLowerCase()} yet. Activate a prospect after discovery to start delivery.`
+                  : "No companies yet."}
+          </p>
+        </div>
+      ) : isActiveClientsTab ? (
+        /* ── Active clients: card rows ──────────────────────────────────── */
+        <div className="space-y-2">
+          {clients.map((client, index) => {
+            const timeEntries = (client as { timeEntries?: { minutes: number; billableType: string; date: Date }[] }).timeEntries ?? [];
+            const opsRequests = (client as { opsRequests?: { id: string; title: string; needsInfo: boolean }[] }).opsRequests ?? [];
+            const topRequest = opsRequests[0] ?? null;
+            const hasNeedsInfo = topRequest?.needsInfo ?? false;
+
+            let health: ClientHealth = "Healthy";
+            let usageLabel = "Unlimited";
+
+            if (client.weeklyHours > 0 && timeEntries.length >= 0) {
+              const usage = calculateWeeklyUsage(
+                timeEntries as Parameters<typeof calculateWeeklyUsage>[0],
+                client.weeklyHours,
+              );
+              if (usage.isOverLimit) health = "Over limit";
+              else if (usage.isNearLimit) health = "Near limit";
+              else if (hasNeedsInfo) health = "Needs info";
+              usageLabel = `${(usage.includedMinutesThisWeek / 60).toFixed(1)} / ${client.weeklyHours}h`;
+            } else if (hasNeedsInfo) {
+              health = "Needs info";
+            }
+
+            const nextStep = topRequest?.title ?? (hasNeedsInfo ? "Awaiting client response" : "No open work");
+
+            return (
+              <Link
+                key={client.id}
+                href={`/admin/clients/${client.id}`}
+                className={cn(
+                  "grid gap-2 rounded-lg border border-slate-200 bg-white p-3 transition-all",
+                  "sm:grid-cols-[1.5fr_1fr_1fr_auto_auto] sm:items-center",
+                  adminBrandGlowHover,
+                  index === 0 && adminBrandGlow,
+                )}
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-slate-900">
+                    {client.companyName}
+                  </p>
+                  <p className="truncate text-xs text-slate-500">
+                    {client.contactName}
+                  </p>
+                </div>
+                <div className="min-w-0 text-xs text-slate-600">
+                  <p className="font-medium text-slate-700">Next</p>
+                  <p className="truncate">{nextStep}</p>
+                </div>
+                <p className="text-xs font-medium text-slate-600">{usageLabel}</p>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "w-fit text-[10px] font-medium",
+                    clientHealthBadgeClass(health),
+                  )}
+                >
+                  {health}
+                </Badge>
+                <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-400" />
+              </Link>
+            );
+          })}
         </div>
       ) : (
-        <div className="bg-white border rounded-lg overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Company</TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead>Pipeline</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Plan</TableHead>
-                <TableHead>Subscription</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+        /* ── Other tabs: styled table ───────────────────────────────────── */
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50/70">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Company
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Contact
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Pipeline
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Plan
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Subscription
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Created
+                </th>
+                <th className="w-24 px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
               {clients.map((client) => {
                 const latestRequest = client.requests[0];
                 const latestAppointment = latestRequest
@@ -164,7 +288,8 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
                     ? deriveDiscoveryPipelineStage({
                         clientStatus: client.status,
                         requestStatus: latestRequest.status,
-                        linkStatus: latestRequest.discoverySchedulingLink?.status ?? null,
+                        linkStatus:
+                          latestRequest.discoverySchedulingLink?.status ?? null,
                         appointmentStatus: latestAppointment?.status ?? null,
                         fitDecision: latestAppointment?.fitDecision ?? null,
                         recapSentAt: latestAppointment?.recapSentAt ?? null,
@@ -174,31 +299,60 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
                   latestRequest?.status === "NEW" &&
                   !latestAppointment &&
                   latestRequest.discoverySchedulingLink?.status !== "ACTIVE";
+
+                const clientHref = `/admin/clients/${client.id}${hasUnreviewedDiscovery ? "?tab=discovery" : ""}`;
+
                 return (
-                  <TableRow key={client.id}>
-                    <TableCell className="font-medium">{client.companyName}</TableCell>
-                    <TableCell>{client.contactName}</TableCell>
-                    <TableCell>
+                  <tr
+                    key={client.id}
+                    className="group cursor-pointer transition-colors hover:bg-slate-50/70"
+                  >
+                    <td className="px-4 py-3">
+                      <div className="relative">
+                        {/* Invisible overlay makes the whole row clickable */}
+                        <Link
+                          href={clientHref}
+                          className="absolute inset-0 z-0"
+                          aria-hidden="true"
+                          tabIndex={-1}
+                        />
+                        <p className="relative z-10 font-semibold text-slate-900">
+                          {client.companyName}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{client.contactName}</td>
+                    <td className="px-4 py-3">
                       {pipelineStage ? (
                         <Badge
                           variant={getDiscoveryPipelineStageBadgeVariant(pipelineStage)}
-                          className="text-[10px] px-1.5 py-0 whitespace-nowrap"
+                          className="text-[10px]"
                         >
                           {getDiscoveryPipelineStageLabel(pipelineStage)}
                         </Badge>
                       ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
+                        <span className="text-xs text-slate-400">—</span>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={client.status === ClientStatus.ACTIVE ? "default" : "secondary"}>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[10px] font-medium",
+                          client.status === ClientStatus.ACTIVE
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                            : "border-slate-200 bg-slate-50 text-slate-600",
+                        )}
+                      >
                         {client.status === ClientStatus.ACTIVE ? "Active" : "Prospect"}
                       </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{client.planType}</Badge>
-                    </TableCell>
-                    <TableCell>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant="secondary" className="text-[10px]">
+                        {client.planType}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
                       <BillingStatusBadge
                         engagementType={client.engagementType}
                         billingMode={client.billingMode}
@@ -211,30 +365,33 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
                         subscriptionStatus={client.subscriptionStatus}
                         subscriptionCurrentPeriodEnd={client.subscriptionCurrentPeriodEnd}
                       />
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-500">
                       {format(new Date(client.createdAt), "MMM d, yyyy")}
-                    </TableCell>
-                    <TableCell className="text-right">
+                    </td>
+                    <td className="px-4 py-3 text-right">
                       <Link
-                        href={`/admin/clients/${client.id}${hasUnreviewedDiscovery ? "?tab=discovery" : ""}`}
-                        className="text-primary hover:underline text-sm font-medium"
+                        href={clientHref}
+                        className={cn(
+                          buttonVariants({ size: "sm", variant: "outline" }),
+                          "relative z-10 border-slate-200 text-slate-700 hover:border-emerald-300 hover:text-emerald-700",
+                        )}
                       >
-                        Manage
+                        Open
                       </Link>
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 );
               })}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </div>
       )}
     </div>
   );
 }
 
-function FilterLink({
+function FilterTab({
   href,
   active,
   children,
@@ -247,10 +404,10 @@ function FilterLink({
     <Link
       href={href}
       className={cn(
-        "rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
+        "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
         active
-          ? "border-primary bg-primary/5 text-primary"
-          : "border-slate-200 text-slate-600 hover:bg-slate-50",
+          ? "border-slate-900 bg-slate-900 text-white"
+          : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900",
       )}
     >
       {children}

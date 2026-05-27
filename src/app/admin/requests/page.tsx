@@ -2,171 +2,360 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
 import {
   EngagementType,
   Urgency,
   OverflowStatus,
   SupportRequestKind,
+  RequestStatus,
 } from "@/generated/prisma/client";
 import { getEngagementLabel } from "@/lib/engagement";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { PriorityButtons } from "@/components/admin/PriorityButtons";
 import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import {
+  adminBtnPrimary,
+  adminPanelBorder,
+} from "@/lib/admin-ui/tokens";
+import {
+  requestStatusBadgeClass,
+  rankToPriorityLabel,
+  priorityRankBadgeClass,
+  formatAge,
+} from "@/lib/admin-ui/status-badges";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Wrench } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminRequests() {
-  const requests = await prisma.supportRequest.findMany({
-    where: { kind: SupportRequestKind.CLIENT_OPS },
-    include: {
-      client: true,
-      timeEntries: {
-        select: { minutes: true }
-      }
-    },
-    orderBy: [
-      { priorityRank: "asc" },
-      { createdAt: "desc" }
-    ],
-  });
+type FilterKey = "all" | "new" | "in_progress" | "needs_info";
+
+interface AdminRequestsPageProps {
+  searchParams: Promise<{ filter?: string }>;
+}
+
+function buildWhereClause(filter: FilterKey) {
+  const base = { kind: SupportRequestKind.CLIENT_OPS };
+  switch (filter) {
+    case "new":
+      return { ...base, status: RequestStatus.NEW };
+    case "in_progress":
+      return { ...base, status: RequestStatus.IN_PROGRESS };
+    case "needs_info":
+      return { ...base, needsInfo: true };
+    default:
+      return base;
+  }
+}
+
+function urgencyBadgeClass(urgency: Urgency): string {
+  switch (urgency) {
+    case Urgency.URGENT:
+      return "border-red-200 bg-red-50 text-red-800";
+    case Urgency.THIS_WEEK:
+      return "border-amber-200 bg-amber-50 text-amber-900";
+    case Urgency.NORMAL:
+      return "border-slate-200 bg-slate-50 text-slate-700";
+    case Urgency.ONGOING:
+      return "border-slate-200 bg-white text-slate-500";
+    default:
+      return "border-slate-200 bg-white text-slate-600";
+  }
+}
+
+export default async function AdminRequests({ searchParams }: AdminRequestsPageProps) {
+  const { filter: filterParam } = await searchParams;
+  const filter: FilterKey =
+    filterParam === "new" ||
+    filterParam === "in_progress" ||
+    filterParam === "needs_info"
+      ? filterParam
+      : "all";
+
+  const [requests, counts] = await Promise.all([
+    prisma.supportRequest.findMany({
+      where: buildWhereClause(filter),
+      include: {
+        client: true,
+        timeEntries: { select: { minutes: true } },
+      },
+      orderBy: [{ priorityRank: "asc" }, { createdAt: "desc" }],
+    }),
+    // Parallel count queries for filter tabs
+    Promise.all([
+      prisma.supportRequest.count({
+        where: { kind: SupportRequestKind.CLIENT_OPS },
+      }),
+      prisma.supportRequest.count({
+        where: { kind: SupportRequestKind.CLIENT_OPS, status: RequestStatus.NEW },
+      }),
+      prisma.supportRequest.count({
+        where: {
+          kind: SupportRequestKind.CLIENT_OPS,
+          status: RequestStatus.IN_PROGRESS,
+        },
+      }),
+      prisma.supportRequest.count({
+        where: { kind: SupportRequestKind.CLIENT_OPS, needsInfo: true },
+      }),
+    ]),
+  ]);
+
+  const [allCount, newCount, inProgressCount, needsInfoCount] = counts;
+
+  const filterTabs: { key: FilterKey; label: string; count: number; href: string }[] =
+    [
+      { key: "all", label: "All", count: allCount, href: "/admin/requests" },
+      {
+        key: "new",
+        label: "New",
+        count: newCount,
+        href: "/admin/requests?filter=new",
+      },
+      {
+        key: "in_progress",
+        label: "In progress",
+        count: inProgressCount,
+        href: "/admin/requests?filter=in_progress",
+      },
+      {
+        key: "needs_info",
+        label: "Needs info",
+        count: needsInfoCount,
+        href: "/admin/requests?filter=needs_info",
+      },
+    ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">{PRODUCT_LANGUAGE.workRequest.listTitle}</h1>
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">
+            {PRODUCT_LANGUAGE.workRequest.listTitle}
+          </h1>
+          <p className="mt-0.5 text-sm text-slate-600">
+            Prioritized delivery queue across all active clients.
+          </p>
+        </div>
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex flex-wrap gap-1.5">
+        {filterTabs.map((tab) => (
+          <Link
+            key={tab.key}
+            href={tab.href}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+              filter === tab.key
+                ? "border-slate-900 bg-slate-900 text-white"
+                : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+            )}
+          >
+            {tab.label}
+            <span
+              className={cn(
+                "rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none",
+                filter === tab.key
+                  ? "bg-white/20 text-white"
+                  : "bg-slate-100 text-slate-600",
+              )}
+            >
+              {tab.count}
+            </span>
+          </Link>
+        ))}
       </div>
 
       {requests.length === 0 ? (
-        <div className="bg-white border rounded-lg p-12 text-center text-muted-foreground">
-          No {PRODUCT_LANGUAGE.workRequest.plural.toLowerCase()} yet. Portal submissions and logged off-channel work will appear here.
-        </div>
+        <EmptyState
+          icon={Wrench}
+          title={`No ${filter === "all" ? "" : filter.replace("_", " ") + " "}requests`}
+          description={
+            filter === "all"
+              ? "Portal submissions and logged off-channel work will appear here."
+              : `No requests match this filter right now.`
+          }
+          action={{ label: "View All Requests", href: "/admin/requests" }}
+        />
       ) : (
-        <div className="bg-white border rounded-lg overflow-hidden shadow-sm">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-slate-50/50">
-                <TableHead className="w-[80px]">Priority</TableHead>
-                <TableHead>Company</TableHead>
-                <TableHead>Request Title</TableHead>
-                <TableHead>Urgency</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Time</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {requests.map((request) => (
-                <TableRow key={request.id} className="hover:bg-slate-50/50 transition-colors">
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600 shrink-0">
-                        {request.priorityRank ? `#${request.priorityRank}` : "—"}
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50/70">
+                <th className="w-[100px] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Priority
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Company
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Request
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Urgency
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Time
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Age
+                </th>
+                <th className="w-20 px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {requests.map((request) => {
+                const totalMinutes = request.timeEntries.reduce(
+                  (acc, curr) => acc + curr.minutes,
+                  0,
+                );
+                const priorityLabel = rankToPriorityLabel(request.priorityRank);
+                const priorityClass = priorityRankBadgeClass(request.priorityRank);
+                const statusClass = requestStatusBadgeClass(request.status);
+                const urg = urgencyBadgeClass(request.urgency);
+
+                return (
+                  <tr
+                    key={request.id}
+                    className="group cursor-pointer transition-colors hover:bg-slate-50/70"
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "w-fit text-[10px] font-semibold",
+                            priorityClass,
+                          )}
+                        >
+                          {priorityLabel}
+                        </Badge>
+                        <PriorityButtons
+                          requestId={request.id}
+                          currentPriority={request.priorityRank}
+                        />
                       </div>
-                      <PriorityButtons requestId={request.id} currentPriority={request.priorityRank} />
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    <div className="flex flex-col">
-                      <span className="text-sm">{request.client.companyName}</span>
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-tight">{request.client.contactName}</span>
-                      <Badge variant="outline" className="text-[9px] w-fit mt-0.5">
-                        {getEngagementLabel(request.client.engagementType)}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <div className="relative">
+                        <Link
+                          href={`/admin/requests/${request.id}`}
+                          className="absolute inset-0 z-0"
+                          aria-hidden="true"
+                          tabIndex={-1}
+                        />
+                        <p className="relative z-10 font-semibold text-slate-900">
+                          {request.client.companyName}
+                        </p>
+                        <p className="relative z-10 text-[10px] uppercase tracking-tight text-slate-400">
+                          {request.client.contactName}
+                        </p>
+                        <Badge
+                          variant="outline"
+                          className="relative z-10 mt-0.5 text-[9px]"
+                        >
+                          {getEngagementLabel(request.client.engagementType)}
+                        </Badge>
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <div className="flex items-start gap-1.5">
+                        <Link
+                          href={`/admin/requests/${request.id}`}
+                          className="relative z-10 max-w-[220px] truncate text-sm font-medium text-slate-900 hover:underline"
+                        >
+                          {request.title}
+                        </Link>
+                        {request.needsInfo && (
+                          <Badge
+                            variant="outline"
+                            className="shrink-0 border-amber-200 bg-amber-50 text-[9px] text-amber-900"
+                          >
+                            Needs Info
+                          </Badge>
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <Badge
+                        variant="outline"
+                        className={cn("text-[10px] font-medium uppercase", urg)}
+                      >
+                        {request.urgency.replace(/_/g, " ")}
                       </Badge>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Link href={`/admin/requests/${request.id}`} className="text-sm font-semibold hover:underline truncate max-w-[200px]">
-                        {request.title}
-                      </Link>
-                      {request.needsInfo && (
-                        <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4">
-                          Needs Info
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-1">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "w-fit text-[10px] font-medium",
+                            statusClass,
+                          )}
+                        >
+                          {request.status.replace(/_/g, " ")}
                         </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={getUrgencyVariant(request.urgency)} className="text-[10px] uppercase">
-                      {request.urgency.replace("_", " ")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <StatusBadge status={request.status} />
-                      {request.overflowStatus !== OverflowStatus.NOT_NEEDED && (
-                        <Badge variant={getOverflowVariant(request.overflowStatus)} className="text-[10px] px-1 py-0 w-fit">
-                          {request.overflowStatus.replace("_", " ")}
-                        </Badge>
-                      )}
-                      {request.client.engagementType === EngagementType.REQUEST_BASED && request.handoffTier && (
-                        <Badge variant="secondary" className="text-[10px] px-1 py-0 w-fit">
-                          {request.handoffTier}
-                        </Badge>
-                      )}
-                      {request.client.engagementType === EngagementType.REQUEST_BASED && request.pricingMode && (
-                        <Badge variant="outline" className="text-[10px] px-1 py-0 w-fit">
-                          {request.pricingMode.replace(/_/g, " ")}
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {request.timeEntries.length > 0 ? (
-                      <span className="text-sm font-bold text-slate-700">
-                        {request.timeEntries.reduce((acc, curr) => acc + curr.minutes, 0)}m
+                        {request.overflowStatus !== OverflowStatus.NOT_NEEDED && (
+                          <Badge
+                            variant="outline"
+                            className="w-fit text-[10px]"
+                          >
+                            {request.overflowStatus.replace(/_/g, " ")}
+                          </Badge>
+                        )}
+                        {request.client.engagementType ===
+                          EngagementType.REQUEST_BASED &&
+                          request.handoffTier && (
+                            <Badge variant="secondary" className="w-fit text-[10px]">
+                              {request.handoffTier}
+                            </Badge>
+                          )}
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <span
+                        className={cn(
+                          "text-sm font-semibold",
+                          totalMinutes > 0 ? "text-slate-900" : "text-slate-400",
+                        )}
+                      >
+                        {totalMinutes > 0 ? `${totalMinutes}m` : "0m"}
                       </span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground italic">0m</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {format(new Date(request.createdAt), "MMM d")}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Link 
-                      href={`/admin/requests/${request.id}`}
-                      className={buttonVariants({ variant: "ghost", size: "sm" })}
-                    >
-                      View
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                    </td>
+
+                    <td className="px-4 py-3 text-xs text-slate-500">
+                      {formatAge(request.createdAt)}
+                    </td>
+
+                    <td className="px-4 py-3 text-right">
+                      <Link
+                        href={`/admin/requests/${request.id}`}
+                        className={cn(
+                          buttonVariants({ size: "sm" }),
+                          adminBtnPrimary,
+                          "relative z-10 h-7 text-xs",
+                        )}
+                      >
+                        Open
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
   );
-}
-
-function getUrgencyVariant(urgency: Urgency) {
-  switch (urgency) {
-    case Urgency.URGENT: return "destructive";
-    case Urgency.THIS_WEEK: return "default";
-    case Urgency.NORMAL: return "secondary";
-    case Urgency.ONGOING: return "outline";
-    default: return "secondary";
-  }
-}
-
-function getOverflowVariant(status: OverflowStatus) {
-  switch (status) {
-    case OverflowStatus.NEEDS_APPROVAL: return "default";
-    case OverflowStatus.APPROVED: return "secondary";
-    case OverflowStatus.DECLINED: return "destructive";
-    case OverflowStatus.DEFERRED: return "outline";
-    default: return "outline";
-  }
 }
