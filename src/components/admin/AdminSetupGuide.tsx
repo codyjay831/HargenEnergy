@@ -16,7 +16,7 @@ import {
   ADMIN_NEXT_STEP_ORDER,
   ADMIN_SETUP_RAIL,
   computeRailNodes,
-  findNextStep,
+  findNextRequiredStep,
 } from "@/components/setup-guide/setup-guide-utils";
 
 function AdminSetupSummary({ readiness }: { readiness: ClientSetupReadiness }) {
@@ -66,7 +66,7 @@ type AdminSetupGuideProps = AdminSetupSheetPanelsProps & {
 export function AdminSetupGuide({ readiness, ...sheetProps }: AdminSetupGuideProps) {
   const router = useRouter();
   const railNodes = computeRailNodes(readiness.adminSteps, ADMIN_SETUP_RAIL);
-  const nextStep = findNextStep(readiness.adminSteps, ADMIN_NEXT_STEP_ORDER);
+  const nextStep = findNextRequiredStep(readiness.adminSteps, ADMIN_NEXT_STEP_ORDER);
   const allComplete = nextStep == null;
 
   const openDiscovery = () => {

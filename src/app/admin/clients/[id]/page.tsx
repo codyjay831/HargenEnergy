@@ -20,6 +20,7 @@ import {
   TimeEntry,
   ClientSystemAccess,
   EngagementType,
+  RequestStatus,
 } from "@/generated/prisma/client";
 import { ClientEngagementManager } from "@/components/admin/ClientEngagementManager";
 import { getEngagementLabel } from "@/lib/engagement";
@@ -28,10 +29,8 @@ import { calculateWeeklyUsage, type WeeklyUsage } from "@/lib/usage";
 import { DiscoveryClientPanel } from "@/components/onboarding/DiscoveryClientPanel";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { formatIntakePlanLabel } from "@/lib/intake-plan";
-import { AdminSetupGuide } from "@/components/admin/AdminSetupGuide";
 import { DiscoveryCommandCenter } from "@/components/admin/DiscoveryCommandCenter";
-import { AdminNextUpCard } from "@/components/admin/AdminNextUpCard";
-import { countPendingSystemAccess } from "@/lib/system-access-utils";
+import { ClientCommandBar } from "@/components/admin/ClientCommandBar";
 import { ClientDetailTabs } from "@/components/admin/ClientDetailTabs";
 import { ArchiveClientPanel } from "@/components/admin/ArchiveClientPanel";
 import { DeleteClientPanel } from "@/components/admin/DeleteClientPanel";
@@ -223,17 +222,15 @@ export default async function ClientDetailPage({
     client.status === ClientStatus.ACTIVE && client.activatedAt
       ? `Active since ${format(new Date(client.activatedAt), "MMMM d, yyyy")}`
       : `Prospect since ${format(new Date(client.createdAt), "MMMM d, yyyy")}`;
-  const portalLoggedInCount = await prisma.user.count({
+  const openRequestCount = await prisma.supportRequest.count({
     where: {
       clientId: client.id,
-      role: Role.CLIENT,
-      lastLoginAt: { not: null },
+      kind: SupportRequestKind.CLIENT_OPS,
+      status: {
+        notIn: [RequestStatus.COMPLETE, RequestStatus.CANCELLED],
+      },
     },
   });
-  const activeCatalogTaskCount = catalogCategories.reduce(
-    (sum, c) => sum + c.tasks.length,
-    0,
-  );
   let initialTab = resolveAdminClientTab(resolvedSearchParams.tab);
   if (initialTab === "discovery" && !showDiscoveryTab) {
     initialTab = "overview";
@@ -251,7 +248,7 @@ export default async function ClientDetailPage({
   );
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       <ClientDetailHeader
         clientId={client.id}
         companyName={client.companyName}
@@ -279,67 +276,49 @@ export default async function ClientDetailPage({
             clientVisibleUpdate={latestDiscovery.clientVisibleUpdate}
           />
         ) : (
-          <>
-            <AdminNextUpCard
-              clientId={client.id}
-              clientStatus={client.status}
-              engagementType={client.engagementType}
-              billingMode={client.billingMode}
-              billingOverrideReason={client.billingOverrideReason}
-              billingOverrideExpiresAt={client.billingOverrideExpiresAt}
-              billingOverrideCreatedAt={client.billingOverrideCreatedAt}
-              billingOverrideCreatedById={client.billingOverrideCreatedById}
-              stripeCustomerId={client.stripeCustomerId}
-              stripeSubscriptionId={client.stripeSubscriptionId}
-              subscriptionStatus={client.subscriptionStatus}
-              subscriptionCurrentPeriodEnd={client.subscriptionCurrentPeriodEnd}
-              activeApprovedWorkTaskCount={setupReadiness.scope.activeApprovedWorkTaskCount}
-              activeCatalogTaskCount={activeCatalogTaskCount}
-              portalUserCount={client.users.length}
-              portalLoggedInCount={portalLoggedInCount}
-              systemAccessPendingCount={countPendingSystemAccess(
-                client.systemAccesses.map((r) => r.status),
-              )}
-            />
-            <AdminSetupGuide
-              readiness={setupReadiness}
-              client={{
-            id: client.id,
-            companyName: client.companyName,
-            contactName: client.contactName,
-            email: client.email,
-            phone: client.phone,
-            role: client.role,
-            website: client.website,
-            serviceArea: client.serviceArea,
-            currentTools: client.currentTools,
-            status: client.status,
-            planType: client.planType,
-            engagementType: client.engagementType,
-            billingMode: client.billingMode,
-            billingOverrideReason: client.billingOverrideReason,
-            billingOverrideExpiresAt: client.billingOverrideExpiresAt,
-            billingOverrideCreatedAt: client.billingOverrideCreatedAt,
-            billingOverrideCreatedById: client.billingOverrideCreatedById,
-            billingOverrideCreatedByName: client.billingOverrideCreatedBy?.name ?? null,
-            billingOverrideCreatedByEmail: client.billingOverrideCreatedBy?.email ?? null,
-            subscriptionStatus: client.subscriptionStatus,
-            stripeCustomerId: client.stripeCustomerId,
-            stripeSubscriptionId: client.stripeSubscriptionId,
-            subscriptionCurrentPeriodEnd: client.subscriptionCurrentPeriodEnd,
-            approvedWorkTaskCount,
-            users: client.users,
-          }}
-          engagement={{
-            approvedWorkTaskIds: client.approvedWorkTasks.map((a) => a.workTaskId),
-            suggestedWorkTaskIds,
-            categories: catalogCategories,
-            discoveryPlanRequestBased,
-          }}
-          systemAccessRecords={decryptedSystemAccesses}
-          adminRequestsHref={`/admin/requests?clientId=${client.id}`}
-        />
-          </>
+          <ClientCommandBar
+            readiness={setupReadiness}
+            openRequestCount={openRequestCount}
+            hoursUsed={usage.includedMinutesThisWeek / 60}
+            hoursReserved={client.weeklyHours}
+            isNearLimit={usage.isNearLimit}
+            isOverLimit={usage.isOverLimit}
+            client={{
+              id: client.id,
+              companyName: client.companyName,
+              contactName: client.contactName,
+              email: client.email,
+              phone: client.phone,
+              role: client.role,
+              website: client.website,
+              serviceArea: client.serviceArea,
+              currentTools: client.currentTools,
+              status: client.status,
+              planType: client.planType,
+              engagementType: client.engagementType,
+              billingMode: client.billingMode,
+              billingOverrideReason: client.billingOverrideReason,
+              billingOverrideExpiresAt: client.billingOverrideExpiresAt,
+              billingOverrideCreatedAt: client.billingOverrideCreatedAt,
+              billingOverrideCreatedById: client.billingOverrideCreatedById,
+              billingOverrideCreatedByName: client.billingOverrideCreatedBy?.name ?? null,
+              billingOverrideCreatedByEmail: client.billingOverrideCreatedBy?.email ?? null,
+              subscriptionStatus: client.subscriptionStatus,
+              stripeCustomerId: client.stripeCustomerId,
+              stripeSubscriptionId: client.stripeSubscriptionId,
+              subscriptionCurrentPeriodEnd: client.subscriptionCurrentPeriodEnd,
+              approvedWorkTaskCount,
+              users: client.users,
+            }}
+            engagement={{
+              approvedWorkTaskIds: client.approvedWorkTasks.map((a) => a.workTaskId),
+              suggestedWorkTaskIds,
+              categories: catalogCategories,
+              discoveryPlanRequestBased,
+            }}
+            systemAccessRecords={decryptedSystemAccesses}
+            adminRequestsHref={`/admin/requests?clientId=${client.id}`}
+          />
         )}
       </div>
 
@@ -395,10 +374,10 @@ export default async function ClientDetailPage({
                 </Card>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-                <div className="lg:col-span-2 space-y-8">
-                  {renderCompanyDetailsCard(client)}
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <div className="lg:col-span-2 space-y-6">
                   {renderRecentRequests(client)}
+                  {renderCompanyDetailsCard(client)}
                   {client.notes && (
                     <Card>
                       <CardHeader>
@@ -410,7 +389,7 @@ export default async function ClientDetailPage({
                     </Card>
                   )}
                 </div>
-                <div className="space-y-8">
+                <div className="space-y-6">
                   {client.engagementType === EngagementType.SUPPORT_BLOCK &&
                     renderUsageCard(client, usage)}
                 </div>

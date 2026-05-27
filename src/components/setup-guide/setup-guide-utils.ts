@@ -120,6 +120,23 @@ export function findNextStep(
   return null;
 }
 
+export function findNextRequiredStep(
+  steps: ClientSetupStep[],
+  order: string[],
+): ClientSetupStep | null {
+  const stepMap = new Map(steps.map((step) => [step.id, step]));
+
+  for (const id of order) {
+    const step = stepMap.get(id);
+    if (!step) continue;
+    if (!step.required) continue;
+    if (step.status === "complete" || step.status === "not_required") continue;
+    return step;
+  }
+
+  return null;
+}
+
 export function ownerLabel(owner: SetupStepOwner, variant: "admin" | "customer"): string {
   if (variant === "customer") {
     if (owner === "admin" || owner === "system" || owner === "stripe") return "Hargen";
