@@ -1,18 +1,16 @@
-import { Suspense } from "react";
+import { type ComponentType, type ReactNode, Suspense } from "react";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, User, Mail, Phone, Globe, MapPin, CreditCard, Clock } from "lucide-react";
+import { User, Mail, Phone, Globe, MapPin, CreditCard, Clock } from "lucide-react";
 import { cn, safeExternalHref } from "@/lib/utils";
 import { ClientBillingManager } from "@/components/forms/ClientBillingManager";
 import { ClientBrandingManager } from "@/components/forms/ClientBrandingManager";
 import { ClientPortalAccessManager } from "@/components/forms/ClientPortalAccessManager";
 import { ClientSystemAccessManager } from "@/components/forms/ClientSystemAccessManager";
-import { LogTimeForm } from "@/components/forms/LogTimeForm";
 import {
   ClientStatus,
   Role,
@@ -26,7 +24,6 @@ import {
 import { ClientEngagementManager } from "@/components/admin/ClientEngagementManager";
 import { getEngagementLabel } from "@/lib/engagement";
 import { ActivateClientButton } from "@/components/forms/ActivateClientButton";
-import { LogClientOpsForm } from "@/components/forms/LogClientOpsForm";
 import { calculateWeeklyUsage, type WeeklyUsage } from "@/lib/usage";
 import { DiscoveryClientPanel } from "@/components/onboarding/DiscoveryClientPanel";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
@@ -38,6 +35,8 @@ import { countPendingSystemAccess } from "@/lib/system-access-utils";
 import { ClientDetailTabs } from "@/components/admin/ClientDetailTabs";
 import { ArchiveClientPanel } from "@/components/admin/ArchiveClientPanel";
 import { DeleteClientPanel } from "@/components/admin/DeleteClientPanel";
+import { ClientDetailHeader } from "@/components/admin/ClientDetailHeader";
+import { DangerZoneAccordion } from "@/components/admin/DangerZoneAccordion";
 import { getDiscoverySchedulingReadiness } from "@/lib/discovery-scheduling/scheduling-readiness";
 import { pickDiscoveryAppointmentForPipeline } from "@/lib/discovery-scheduling/pipeline";
 import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
@@ -220,6 +219,10 @@ export default async function ClientDetailPage({
 
   const setupReadiness = setupReadinessResult;
   const showDiscoveryTab = isProspect || setupReadiness.hasDiscoveryIntake;
+  const statusDateLabel =
+    client.status === ClientStatus.ACTIVE && client.activatedAt
+      ? `Active since ${format(new Date(client.activatedAt), "MMMM d, yyyy")}`
+      : `Prospect since ${format(new Date(client.createdAt), "MMMM d, yyyy")}`;
   const portalLoggedInCount = await prisma.user.count({
     where: {
       clientId: client.id,
@@ -249,30 +252,14 @@ export default async function ClientDetailPage({
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center gap-4">
-        <Link 
-          href="/admin/clients" 
-          className={cn(buttonVariants({ variant: "ghost", size: "icon" }))}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight">{client.companyName}</h1>
-            <Badge variant={client.status === ClientStatus.ACTIVE ? "default" : "secondary"}>
-              {client.status === ClientStatus.ACTIVE ? "Active client" : "Prospect"}
-            </Badge>
-            {client.status === ClientStatus.ACTIVE && (
-              <Badge variant="outline">{getEngagementLabel(client.engagementType)}</Badge>
-            )}
-          </div>
-          <p className="text-muted-foreground">
-            {client.status === ClientStatus.ACTIVE && client.activatedAt
-              ? `Active since ${format(new Date(client.activatedAt), "MMMM d, yyyy")}`
-              : `Prospect since ${format(new Date(client.createdAt), "MMMM d, yyyy")}`}
-          </p>
-        </div>
-      </div>
+      <ClientDetailHeader
+        clientId={client.id}
+        companyName={client.companyName}
+        status={client.status}
+        engagementType={client.engagementType}
+        engagementLabel={getEngagementLabel(client.engagementType)}
+        statusDateLabel={statusDateLabel}
+      />
 
       <div id="setup-guide" className="scroll-mt-8">
         {isProspect && latestDiscovery ? (
@@ -412,22 +399,20 @@ export default async function ClientDetailPage({
                 <div className="lg:col-span-2 space-y-8">
                   {renderCompanyDetailsCard(client)}
                   {renderRecentRequests(client)}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Internal Notes</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-slate-600 italic">
-                        {client.notes || "No internal notes for this client."}
-                      </p>
-                    </CardContent>
-                  </Card>
+                  {client.notes && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Internal Notes</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-slate-700 whitespace-pre-wrap">{client.notes}</p>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
                 <div className="space-y-8">
                   {client.engagementType === EngagementType.SUPPORT_BLOCK &&
                     renderUsageCard(client, usage)}
-                  {renderTimeLogging(client)}
-                  {renderClientOpsLogging(client)}
                 </div>
               </div>
             )
@@ -524,7 +509,7 @@ export default async function ClientDetailPage({
         />
       </Suspense>
 
-      <div className="max-w-3xl space-y-6">
+      <DangerZoneAccordion>
         <ArchiveClientPanel
           clientId={client.id}
           companyName={client.companyName}
@@ -537,73 +522,89 @@ export default async function ClientDetailPage({
           canDelete={isOwner}
           stripeSubscriptionId={client.stripeSubscriptionId}
         />
-      </div>
+      </DangerZoneAccordion>
     </div>
   );
 }
 
 // Helper render functions for active client view
 function renderCompanyDetails(client: Client) {
-  return (
-    <>
-      <div className="flex items-start gap-3">
-        <User className="h-4 w-4 text-muted-foreground mt-1" />
-        <div>
+  const details: Array<{ label: string; value: ReactNode; icon: ComponentType<{ className?: string }> }> = [
+    {
+      label: "Primary Contact",
+      value: (
+        <>
           <p className="text-sm font-medium">{client.contactName}</p>
           <p className="text-xs text-muted-foreground">{client.role || "Contact Person"}</p>
-        </div>
-      </div>
-      <div className="flex items-start gap-3">
-        <Mail className="h-4 w-4 text-muted-foreground mt-1" />
-        <div>
-          <p className="text-sm font-medium">{client.email}</p>
-          <p className="text-xs text-muted-foreground">Email</p>
-        </div>
-      </div>
-      {client.phone && (
-        <div className="flex items-start gap-3">
-          <Phone className="h-4 w-4 text-muted-foreground mt-1" />
-          <div>
-            <p className="text-sm font-medium">{client.phone}</p>
-            <p className="text-xs text-muted-foreground">Phone</p>
+        </>
+      ),
+      icon: User,
+    },
+    {
+      label: "Email",
+      value: <p className="text-sm font-medium">{client.email}</p>,
+      icon: Mail,
+    },
+  ];
+
+  if (client.phone) {
+    details.push({
+      label: "Phone",
+      value: <p className="text-sm font-medium">{client.phone}</p>,
+      icon: Phone,
+    });
+  }
+
+  if (client.website) {
+    details.push({
+      label: "Website",
+      value: (
+        <a
+          href={safeExternalHref(client.website) ?? undefined}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm font-medium text-primary hover:underline"
+        >
+          {client.website}
+        </a>
+      ),
+      icon: Globe,
+    });
+  }
+
+  if (client.serviceArea) {
+    details.push({
+      label: "Service Area",
+      value: <p className="text-sm font-medium">{client.serviceArea}</p>,
+      icon: MapPin,
+    });
+  }
+
+  if (client.currentTools) {
+    details.push({
+      label: "Current Tools",
+      value: <p className="text-sm font-medium whitespace-pre-wrap">{client.currentTools}</p>,
+      icon: Clock,
+    });
+  }
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {details.map((detail) => {
+        const Icon = detail.icon;
+        return (
+          <div key={detail.label} className="rounded-lg border border-slate-200 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {detail.label}
+            </p>
+            <div className="flex items-start gap-2">
+              <Icon className="mt-0.5 h-4 w-4 text-muted-foreground" />
+              <div>{detail.value}</div>
+            </div>
           </div>
-        </div>
-      )}
-      {client.website && (
-        <div className="flex items-start gap-3">
-          <Globe className="h-4 w-4 text-muted-foreground mt-1" />
-          <div>
-            <a
-              href={safeExternalHref(client.website) ?? undefined}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              {client.website}
-            </a>
-            <p className="text-xs text-muted-foreground">Website</p>
-          </div>
-        </div>
-      )}
-      {client.serviceArea && (
-        <div className="flex items-start gap-3">
-          <MapPin className="h-4 w-4 text-muted-foreground mt-1" />
-          <div>
-            <p className="text-sm font-medium">{client.serviceArea}</p>
-            <p className="text-xs text-muted-foreground">Service Area</p>
-          </div>
-        </div>
-      )}
-      {client.currentTools && (
-        <div className="flex items-start gap-3">
-          <Clock className="h-4 w-4 text-muted-foreground mt-1" />
-          <div>
-            <p className="text-sm font-medium whitespace-pre-wrap">{client.currentTools}</p>
-            <p className="text-xs text-muted-foreground">Current Tools</p>
-          </div>
-        </div>
-      )}
-    </>
+        );
+      })}
+    </div>
   );
 }
 
@@ -705,37 +706,6 @@ function renderUsageCard(client: Client, usage: WeeklyUsage) {
             <span className="font-medium">{(usage.nonBillableMinutesThisWeek / 60).toFixed(1)} hrs</span>
           </div>
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function renderTimeLogging(client: Client & { engagementType: EngagementType }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Log Time</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <LogTimeForm
-          clientId={client.id}
-          engagementType={client.engagementType}
-          supportRequestId={undefined}
-          isOverflowApproved={false}
-        />
-      </CardContent>
-    </Card>
-  );
-}
-
-function renderClientOpsLogging(client: Client) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Log {PRODUCT_LANGUAGE.workRequest.singular}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <LogClientOpsForm clientId={client.id} />
       </CardContent>
     </Card>
   );
