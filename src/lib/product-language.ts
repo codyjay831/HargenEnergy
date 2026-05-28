@@ -192,7 +192,7 @@ export const FORM_COPY = {
     phone: "Phone",
     phoneHelper: "Optional — digits, spaces, and + - ( ) . allowed",
     bottleneck: "What's your biggest bottleneck?",
-    bottleneckPlaceholder: "Tell us where your jobs are getting stuck...",
+    bottleneckPlaceholder: "Tell us where your jobs are waiting or need follow-up...",
     supportAreas: "Where do you need help?",
     supportAreasHelper:
       "Select all that apply — we'll discuss scope on the discovery call.",

@@ -20,7 +20,7 @@ export function Footer() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <p className="font-heading text-base font-semibold text-stone-900">
-              Ready to get stuck jobs moving again?
+              Ready to move your backlog forward?
             </p>
             <p className="mt-1 text-sm text-stone-600">
               Tell us where your solar operations need help. We reply within one business day.
@@ -52,7 +52,7 @@ export function Footer() {
             </Link>
             <p className="mt-2 text-xs text-stone-600 leading-relaxed max-w-[260px]">
               {BRAND.tagline} for residential solar companies. Permits, utilities, customer
-              updates, CRM cleanup, and stuck job follow-through.
+              updates, CRM cleanup, and backlog job follow-through.
             </p>
           </div>
 

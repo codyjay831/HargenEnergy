@@ -46,7 +46,7 @@ export function HomeServices() {
             </h2>
             <p className={cn(marketingLead, "mt-3 max-w-lg")}>
               Solar-specific back-office help for permits, utilities, customer updates,
-              proposals, equipment setup, and stuck job resolution.
+              proposals, equipment setup, and backlog job support.
             </p>
           </div>
           <Link

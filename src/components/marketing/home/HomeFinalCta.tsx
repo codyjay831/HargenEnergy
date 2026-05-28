@@ -26,7 +26,7 @@ export function HomeFinalCta() {
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_auto] lg:gap-16 items-start">
           <div className="max-w-lg">
             <h2 className={cn(marketingH2, "text-white leading-snug")}>
-              Tell us where your solar operations are stuck.
+              Tell us where your solar operations need support.
             </h2>
             <p className={cn(marketingLead, "mt-3 text-zinc-400")}>
               No long-term contracts. No hiring overhead. Just focused solar ops support

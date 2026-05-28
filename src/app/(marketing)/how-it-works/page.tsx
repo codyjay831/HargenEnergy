@@ -20,16 +20,16 @@ export const metadata: Metadata = howItWorksMetadata;
 
 const steps = [
   {
-    title: "Tell us where you are stuck",
+    title: "Tell us where you need support",
     icon: Search,
     description:
       "Send a request with your bottlenecks. Utility pile, messy CRM, permits going quiet. We read it like a handoff, not a sales form.",
   },
   {
-    title: "Choose a weekly support block",
+    title: "Choose a support level",
     icon: Layers,
     description:
-      "Pick 2, 5, or 10 hours per week. No long-term contract. When volume shifts, we adjust the plan with you.",
+      "Pick the operations support level that fits your workload. No long-term contract. When volume shifts, we adjust with you.",
   },
   {
     title: "We start with what moves jobs",
@@ -67,7 +67,7 @@ export default function HowItWorksPage() {
             <p className={cn(marketingLead, "mt-4")}>
               Built to be easy to start and easy to run. You do not learn new software to get help. You send work, we execute, you see status.{" "}
               <Link href="/pricing" className="font-medium text-stone-900 underline-offset-4 hover:underline">
-                Compare weekly support blocks
+                View support options
               </Link>{" "}
               or{" "}
               <Link href="/services" className="font-medium text-stone-900 underline-offset-4 hover:underline">
@@ -122,17 +122,17 @@ export default function HowItWorksPage() {
             <div className={cn(marketingCardBase, "p-6 md:p-8")}>
               <h2 className={marketingH2}>Capacity-based support</h2>
               <p className="mt-3 text-sm text-stone-600 leading-relaxed">
-                You reserve a weekly block of time, not unlimited hours. If the list is longer than the block, we start with what moves jobs the fastest. The rest can roll forward or go through overflow approval.
+                You reserve weekly operations capacity at your support level, not unlimited hours. If the list is longer than your level allows, we start with what moves jobs the fastest. The rest can roll forward or go through overflow approval.
               </p>
               <p className="mt-4 border-l-2 border-amber-200 pl-3 text-sm italic text-stone-600 leading-relaxed">
-                Clients reserve weekly solar operations support capacity, not unlimited help. If requested work exceeds the block, we help prioritize the highest-impact items first.
+                Clients choose a support level based on workload, not unlimited help. If requested work exceeds your level, we help prioritize the highest-impact items first.
               </p>
             </div>
             <div className="flex flex-col justify-between rounded-xl border border-stone-800 bg-zinc-950 p-6 text-white shadow-[0_8px_40px_rgba(0,0,0,0.12)] md:p-8">
               <div>
                 <h3 className="font-heading text-lg font-semibold text-white">Ready to start?</h3>
                 <p className="mt-2 text-sm text-zinc-400 leading-relaxed">
-                  Send what is stuck. We will reply with next steps and the right weekly block for your volume.
+                  Share your backlog. We will reply with next steps and the right support level for your workload.
                 </p>
               </div>
               <Link

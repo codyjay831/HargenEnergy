@@ -12,12 +12,12 @@ export type SupportPlan = {
 export const supportPlans: SupportPlan[] = [
   {
     id: "light",
-    name: "Light Support",
+    name: "Light Operations Support",
     hours: "2 hours per week",
     label: "For cleanup",
     labelClass: "text-stone-600 bg-stone-100 border-stone-200",
     description:
-      "Small backlogs, a few stuck jobs, or occasional permit and utility follow-up.",
+      "For a few stuck items, follow-ups, or small cleanup requests.",
     items: [
       "1-2 stuck jobs per week",
       "Occasional follow-up calls",
@@ -28,12 +28,12 @@ export const supportPlans: SupportPlan[] = [
   },
   {
     id: "core",
-    name: "Core Support",
+    name: "Steady Operations Support",
     hours: "5 hours per week",
     label: "Most common",
     labelClass: "text-amber-800 bg-amber-50 border-amber-200",
     description:
-      "Steady weekly help for companies with active pipelines and regular paperwork.",
+      "For recurring weekly help keeping permits, utility follow-up, customer updates, PTO, and active jobs moving.",
     items: [
       "Ongoing permit and utility tracking",
       "Customer communication on schedule",
@@ -44,12 +44,12 @@ export const supportPlans: SupportPlan[] = [
   },
   {
     id: "priority",
-    name: "Priority Support",
+    name: "Heavy Operations Support",
     hours: "10 hours per week",
     label: "For active pipelines",
     labelClass: "text-stone-600 bg-stone-100 border-stone-200",
     description:
-      "Multiple crews and jobs moving at once. More room for daily follow-up and deeper cleanup.",
+      "For contractors with multiple active jobs, backlog cleanup, or ongoing operations coordination needs.",
     items: [
       "Multiple job pipelines at once",
       "More time for calls and resubmittals",
@@ -62,5 +62,5 @@ export const supportPlans: SupportPlan[] = [
 
 export const capacityNote = {
   title: "How capacity works",
-  body: "Blocks reserve time each week, not unlimited hours. If work exceeds your block, we prioritize what moves revenue and schedules first. Remaining items can roll to the next week or be approved as overflow.",
+  body: "Support levels reserve weekly operations capacity, not unlimited hours. If work exceeds your level, we prioritize what moves revenue and schedules first. Remaining items can roll to the next week or be approved as overflow.",
 };

@@ -9,7 +9,7 @@ export function MarketingJsonLd() {
     url: SITE_URL,
     logo: `${SITE_URL}${BRAND.iconSrc}`,
     description:
-      "Solar operations support desk for residential solar companies. Permits, utilities, customer updates, CRM cleanup, and stuck job follow-through.",
+      "Solar operations support desk for residential solar companies. Permits, utilities, customer updates, CRM cleanup, and backlog job follow-through.",
     areaServed: {
       "@type": "Country",
       name: "United States",
@@ -40,7 +40,7 @@ export function MarketingJsonLd() {
     },
     serviceType: "Solar back-office operations support",
     description:
-      "Weekly capacity blocks for permit follow-up, utility applications, customer communication, CRM cleanup, and stuck job resolution.",
+      "Weekly capacity blocks for permit follow-up, utility applications, customer communication, CRM cleanup, and backlog job support.",
   };
 
   return (

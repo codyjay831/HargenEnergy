@@ -76,7 +76,7 @@ export const howItWorksMetadata = createMarketingMetadata({
   keywords: [
     PAGE_INTENTS.howItWorks.primaryKeyword,
     "solar ops onboarding",
-    "weekly solar support blocks",
+    "flexible solar operations support levels",
   ],
 });
 

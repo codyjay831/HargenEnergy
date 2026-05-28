@@ -1,45 +1,18 @@
-export const takeOffYourPlate = [
-  {
-    title: "Permit follow-up",
-    line: "AHJ calls, status checks, and resubmissions so permits do not sit idle.",
-  },
-  {
-    title: "Utility application support",
-    line: "Interconnection paperwork, missing docs, and utility follow-through.",
-  },
-  {
-    title: "Customer updates",
-    line: "Clear, timely messages to homeowners so they know what happens next.",
-  },
-  {
-    title: "CRM cleanup",
-    line: "Accurate job stages and notes so your team sees a truthful pipeline.",
-  },
-  {
-    title: "Enphase & equipment setup",
-    line: "Monitoring, activation, and post-install configuration support.",
-  },
-  {
-    title: "Quote & proposal support",
-    line: "Turn survey and equipment details into clean proposals your reps can send.",
-  },
-];
-
 export const problems = [
   {
     title: "Permit and utility delays",
     symptom: "Application went in. Then nothing.",
-    body: "No dedicated follow-up means AHJ deadlines slip. Jobs wait weeks for responses that should take days.",
+    body: "Without consistent follow-up, permit and utility timelines extend. Responses that could take days often wait weeks.",
   },
   {
     title: "Customer communication gaps",
     symptom: "Customer hasn't heard back in days",
-    body: "That silence turns into calls to your sales rep, bad reviews, and cancellations. Someone has to own the update cadence.",
+    body: "Gaps in updates pull sales and project leads back into status questions. A clear update cadence keeps everyone aligned.",
   },
   {
     title: "Messy job status and CRM data",
     symptom: "No one knows the next step",
-    body: "When records aren't kept current, no one knows what's stuck, done, or needs action. Decisions get made from incomplete information.",
+    body: "When records aren't kept current, teams lose clarity on status and next actions. Decisions get made from incomplete information.",
   },
 ];
 
@@ -76,8 +49,8 @@ export const services = [
   },
   {
     icon: "Users" as const,
-    title: "Stuck Job Resolution",
-    desc: "Identify exactly why a job is stalled, gather what is missing, and move it forward.",
+    title: "Backlog Job Support",
+    desc: "Identify why a job is waiting, gather what is missing, and move it forward.",
     example: "Diagnose permit rejection, gather corrected docs, resubmit",
   },
 ];
@@ -85,13 +58,13 @@ export const services = [
 export const steps = [
   {
     n: "1",
-    title: "Tell us what is stuck",
-    desc: "Send the jobs, tasks, or backlog that need attention. Takes two minutes.",
+    title: "Share what needs attention",
+    desc: "Send the jobs, tasks, or backlog you want help with. Takes two minutes.",
   },
   {
     n: "2",
     title: "We organize the work",
-    desc: "We identify priorities, missing info, and next actions against your support block.",
+    desc: "We identify priorities, missing info, and next actions for your support level.",
   },
   {
     n: "3",

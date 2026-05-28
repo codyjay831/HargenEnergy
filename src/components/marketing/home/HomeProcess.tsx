@@ -22,8 +22,8 @@ export function HomeProcess() {
         <div className={cn(marketingSectionIntro, marketingSectionHeaderMb)}>
           <h2 className={marketingH2}>Simple support process.</h2>
           <p className={cn(marketingLead, "mt-3")}>
-            You send what is stuck. We line up priorities and follow through so permit,
-            utility, and customer work does not sit in limbo.
+            You share the backlog. We line up priorities and follow through so permit,
+            utility, and customer work keeps moving.
           </p>
         </div>
 

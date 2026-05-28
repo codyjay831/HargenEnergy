@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { PRIMARY_CTA } from "@/lib/marketing/constants";
 import { pricingMetadata } from "@/lib/marketing/metadata";
 import { capacityNote, supportPlans } from "@/lib/marketing/plans";
-import { PricingCards } from "@/components/marketing/PricingCards";
+import { SupportPlanBlocks } from "@/components/marketing/SupportPlanBlocks";
 import {
   marketingShell,
   marketingSectionY,
@@ -27,17 +27,17 @@ export default function PricingPage() {
         }}
       >
         <div className={cn(marketingShell, "text-center")}>
-          <h1 className={marketingH1}>Weekly support blocks</h1>
+          <h1 className={marketingH1}>Operations support levels</h1>
           <p className={cn(marketingLead, "mx-auto mt-4 max-w-2xl")}>
-            Simple capacity pricing. Pick the hours that match your volume. Adjust when
-            things change.
+            Choose a support level that fits your current workload. Scope and rate are
+            confirmed during discovery. Adjust when things change.
           </p>
         </div>
       </section>
 
       <section className={cn(marketingSectionY, "border-b border-stone-200/80 bg-white")}>
         <div className={marketingShell}>
-          <PricingCards plans={supportPlans} />
+          <SupportPlanBlocks plans={supportPlans} />
 
           <div className="mt-10 max-w-2xl rounded-xl border border-stone-200 bg-stone-50/90 px-5 py-4 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
             <p className="font-heading text-sm font-semibold text-stone-900">

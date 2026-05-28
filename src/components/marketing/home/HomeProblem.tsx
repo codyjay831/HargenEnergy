@@ -23,9 +23,9 @@ export function HomeProblem() {
       <div className={cn(marketingSectionY, marketingShell)}>
         <div className={cn(marketingSectionIntro, marketingSectionHeaderMb)}>
           <h2 className={cn(marketingH2, "leading-snug")}>
-            Solar jobs rarely get stuck in the field.
+            Field work keeps moving.
             <br className="hidden sm:block" />
-            They get stuck between steps.
+            Between steps is where timelines extend.
           </h2>
           <p className={cn(marketingLead, "mt-3")}>
             Permits, utilities, customer updates, and CRM hygiene are where residential
@@ -52,7 +52,7 @@ export function HomeProblem() {
 
         <div className="mt-10 flex flex-col sm:flex-row sm:items-center gap-4">
           <p className="text-sm text-stone-600">
-            Sound familiar? Tell us what is stuck on your pipeline.
+            Recognize the pattern? Tell us where your pipeline needs attention.
           </p>
           <Link
             href="/request-help"

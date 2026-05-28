@@ -37,7 +37,7 @@ export default async function RequestHelpPage() {
             <div>
               <h1 className={marketingH1}>{PRODUCT_LANGUAGE.discoveryRequest.action}</h1>
               <p className={cn(marketingLead, "mt-4 max-w-xl")}>
-                Tell us where you are stuck. We start with a discovery call and activation conversation, not a support ticket.
+                Tell us where you need support. We start with a discovery call and activation conversation, not a support ticket.
                 {schedulingEnabled
                   ? " Submit your request, then choose a time for your discovery call."
                   : " Most companies hear back within one business day."}

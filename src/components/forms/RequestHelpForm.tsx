@@ -24,6 +24,7 @@ import type { DiscoveryCatalogCategory } from "@/lib/discovery-catalog";
 import { cn } from "@/lib/utils";
 import { marketingAmberCta } from "@/components/marketing/marketing-styles";
 import { FORM_COPY } from "@/lib/product-language";
+import { formatIntakePlanLabel } from "@/lib/intake-plan";
 
 const COPY = FORM_COPY.discoveryRequest;
 
@@ -616,12 +617,12 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
               <Label htmlFor="plan">{COPY.plan}</Label>
               <Select value={plan} onValueChange={(v) => setPlan(v as RequestHelpInput["plan"])}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a support block" />
+                  <SelectValue placeholder="Select a support level" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="light">Light Support (2 hours per week)</SelectItem>
-                  <SelectItem value="core">Core Support (5 hours per week)</SelectItem>
-                  <SelectItem value="priority">Priority Support (10 hours per week)</SelectItem>
+                  <SelectItem value="light">{formatIntakePlanLabel("light")}</SelectItem>
+                  <SelectItem value="core">{formatIntakePlanLabel("core")}</SelectItem>
+                  <SelectItem value="priority">{formatIntakePlanLabel("priority")}</SelectItem>
                   <SelectItem value="not-sure">Not sure yet</SelectItem>
                   <SelectItem value="request-based">Request-based work</SelectItem>
                 </SelectContent>
