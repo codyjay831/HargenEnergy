@@ -2,17 +2,19 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   FileText,
-  Calendar,
+  Clock,
   MessageSquare,
-  ClipboardCheck,
-  Settings,
-  Database,
+  LayoutGrid,
+  Zap,
+  Users,
   ArrowRight,
+  type LucideIcon,
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PRIMARY_CTA } from "@/lib/marketing/constants";
 import { servicesMetadata } from "@/lib/marketing/metadata";
+import { services } from "@/components/marketing/home/home-data";
 import {
   marketingShell,
   marketingSectionY,
@@ -26,80 +28,14 @@ import {
 
 export const metadata: Metadata = servicesMetadata;
 
-const services = [
-  {
-    title: "Quote and proposal support",
-    icon: FileText,
-    description:
-      "We build quotes and proposals in the office so your reps can stay in the field. Aurora, Solo, or the tools you already use.",
-    items: [
-      "Proposals in your design tool of choice",
-      "Initial layout drafts from survey notes",
-      "Price sheet checks before send",
-      "Financing packet prep when you need it",
-    ],
-  },
-  {
-    title: "Scheduling and job coordination",
-    icon: Calendar,
-    description:
-      "Crews and inspections only work if someone owns the calendar. We handle the phone tag and the back-and-forth with jurisdictions.",
-    items: [
-      "Site assessment scheduling",
-      "Install crew coordination",
-      "Inspection scheduling with AHJs",
-      "Service call coordination",
-    ],
-  },
-  {
-    title: "Customer communication",
-    icon: MessageSquare,
-    description:
-      "Homeowners call less when they get clear updates. We write and send professional status notes on your timeline.",
-    items: [
-      "Weekly or milestone project updates",
-      "Post-install check-ins",
-      "Chasing missing homeowner documents",
-      "Basic inbound project questions",
-    ],
-  },
-  {
-    title: "Permit, utility, and application follow-up",
-    icon: ClipboardCheck,
-    description:
-      "Permits and interconnection are where jobs stall. We stay on the paperwork and the follow-ups so files do not go quiet.",
-    items: [
-      "Interconnection application support",
-      "Permit tracking and AHJ follow-up",
-      "Utility deficiency letters and resubmittals",
-      "Incentive and rebate paperwork where applicable",
-    ],
-  },
-  {
-    title: "Equipment Warranty, Records & Support Coordination",
-    icon: Settings,
-    description:
-      "Support with equipment paperwork, serial numbers, warranty records, manufacturer follow-up, RMA coordination, proof checklists, and remote troubleshooting notes for solar and battery projects.",
-    items: [
-      "Equipment warranty registration and record cleanup",
-      "Serial number, model, and proof-of-install documentation",
-      "Manufacturer support ticket and RMA coordination",
-      "Remote troubleshooting notes and next-step checklists",
-    ],
-  },
-  {
-    title: "Project Records & Pipeline Cleanup",
-    icon: Database,
-    description:
-      "Help keeping active job records, stages, notes, documents, and follow-ups aligned so your team can see what needs attention.",
-    items: [
-      "Active job status review and cleanup",
-      "Open follow-up and missing item lists",
-      "Project document organization and naming consistency",
-      "Simple pipeline visibility when your team needs it",
-    ],
-  },
-];
+const iconMap: Record<(typeof services)[number]["icon"], LucideIcon> = {
+  FileText,
+  Clock,
+  MessageSquare,
+  LayoutGrid,
+  Zap,
+  Users,
+};
 
 export default function ServicesPage() {
   return (
@@ -115,12 +51,33 @@ export default function ServicesPage() {
           <div className="max-w-2xl">
             <h1 className={marketingH1}>Solar operations services</h1>
             <p className={cn(marketingLead, "mt-4")}>
-              Back-office work for residential solar contractors. We focus on permits, utilities, customer updates, CRM hygiene, proposals, and equipment paperwork. Not a generic VA shop. Solar-specific follow-through.{" "}
+              Back-office work for residential solar contractors. We focus on permits, utilities, customer updates, CRM hygiene, proposals, and equipment paperwork.
+            </p>
+            <p className={cn(marketingLead, "mt-3")}>
+              Not a generic VA shop. Solar-specific follow-through.{" "}
               <Link href="/pricing" className="font-medium text-stone-900 underline-offset-4 hover:underline">
                 See weekly capacity options
               </Link>
               .
             </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Link
+                href="/request-help"
+                className={cn(buttonVariants({ size: "lg" }), marketingAmberCta, "gap-2 justify-center")}
+              >
+                {PRIMARY_CTA}
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </Link>
+              <Link
+                href="/pricing"
+                className={cn(
+                  buttonVariants({ size: "lg", variant: "outline" }),
+                  "justify-center border-stone-200 text-stone-700 hover:text-stone-900"
+                )}
+              >
+                View pricing
+              </Link>
+            </div>
           </div>
         </div>
       </section>
@@ -128,9 +85,11 @@ export default function ServicesPage() {
       <section className={cn(marketingSectionY)}>
         <div className={cn(marketingShell)}>
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            {services.map((service, i) => (
+            {services.map((service) => {
+              const Icon = iconMap[service.icon];
+              return (
               <div
-                key={i}
+                key={service.title}
                 className={cn(
                   marketingCardBase,
                   marketingCardHover,
@@ -139,18 +98,21 @@ export default function ServicesPage() {
               >
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="rounded-lg border border-stone-200 bg-stone-50 p-2.5 text-amber-800 transition-colors group-hover:border-amber-200/70 group-hover:bg-amber-50/50">
-                    <service.icon className="h-5 w-5" strokeWidth={1.75} />
+                    <Icon className="h-5 w-5" strokeWidth={1.75} aria-hidden />
                   </div>
                 </div>
                 <h2 className={cn(marketingH2, "text-xl sm:text-[1.35rem] mb-2")}>
                   {service.title}
                 </h2>
                 <p className="mb-5 text-sm text-stone-600 leading-relaxed">
-                  {service.description}
+                  {service.desc}
+                </p>
+                <p className="text-[0.72rem] font-semibold uppercase tracking-[0.08em] text-stone-500">
+                  Common outcomes
                 </p>
                 <ul className="mt-auto flex flex-col gap-2.5 border-t border-stone-100 pt-4">
-                  {service.items.map((item, j) => (
-                    <li key={j} className="flex items-start gap-2.5 text-sm text-stone-700">
+                  {service.details.map((item) => (
+                    <li key={item} className="flex items-start gap-2.5 text-sm text-stone-700">
                       <span
                         className="mt-2 h-1 w-1 shrink-0 rounded-full bg-amber-400/90"
                         aria-hidden
@@ -160,7 +122,8 @@ export default function ServicesPage() {
                   ))}
                 </ul>
               </div>
-            ))}
+            );
+            })}
           </div>
 
           <div
@@ -178,7 +141,7 @@ export default function ServicesPage() {
               className={cn(buttonVariants({ size: "lg" }), marketingAmberCta, "gap-2")}
             >
               {PRIMARY_CTA}
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
           </div>
         </div>
