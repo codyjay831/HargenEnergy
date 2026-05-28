@@ -76,27 +76,27 @@ const services = [
     ],
   },
   {
-    title: "Enphase, plan set, and equipment coordination",
+    title: "Equipment Warranty, Records & Support Coordination",
     icon: Settings,
     description:
-      "Technical back-office tasks that need someone who knows the platforms and the order of operations.",
+      "Support with equipment paperwork, serial numbers, warranty records, manufacturer follow-up, RMA coordination, proof checklists, and remote troubleshooting notes for solar and battery projects.",
     items: [
-      "Enphase Enlighten and monitoring setup",
-      "Plan set coordination with engineers or designers",
-      "Equipment ordering and tracking",
-      "RMA coordination for failed hardware",
+      "Equipment warranty registration and record cleanup",
+      "Serial number, model, and proof-of-install documentation",
+      "Manufacturer support ticket and RMA coordination",
+      "Remote troubleshooting notes and next-step checklists",
     ],
   },
   {
-    title: "CRM cleanup and back-office organization",
+    title: "Project Records & Pipeline Cleanup",
     icon: Database,
     description:
-      "If the pipeline in your CRM does not match reality, decisions get made blind. We clean stages, notes, and attachments.",
+      "Help keeping active job records, stages, notes, documents, and follow-ups aligned so your team can see what needs attention.",
     items: [
-      "Stuck job follow-up and status updates",
-      "CRM data entry and audits",
-      "Document filing and naming consistency",
-      "Simple cycle-time views when you want them",
+      "Active job status review and cleanup",
+      "Open follow-up and missing item lists",
+      "Project document organization and naming consistency",
+      "Simple pipeline visibility when your team needs it",
     ],
   },
 ];

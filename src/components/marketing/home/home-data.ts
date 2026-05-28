@@ -37,15 +37,15 @@ export const services = [
   },
   {
     icon: "LayoutGrid" as const,
-    title: "CRM Cleanup & Management",
-    desc: "Audit and update job records so you always know exactly where every project stands.",
-    example: "Reconcile 12 stale job records with current status",
+    title: "Project Records & Pipeline Cleanup",
+    desc: "Help keeping active job records, stages, notes, documents, and follow-ups aligned so your team can see what needs attention.",
+    example: "Review active job status and build open follow-up and missing item lists",
   },
   {
     icon: "Zap" as const,
-    title: "Enphase & Equipment Setup",
-    desc: "Post-install configuration, monitoring activation, and commissioning support.",
-    example: "Configure Enphase system and activate monitoring portal",
+    title: "Equipment Warranty, Records & Support Coordination",
+    desc: "Support with equipment paperwork, serial numbers, warranty records, manufacturer follow-up, RMA coordination, proof checklists, and remote troubleshooting notes for solar and battery projects.",
+    example: "Register equipment warranty and coordinate manufacturer RMA with proof-of-install documentation",
   },
   {
     icon: "Users" as const,
