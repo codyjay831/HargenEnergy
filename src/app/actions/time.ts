@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { isBillableTypeValue } from "@/lib/ui-enums";
 import { writeAuditLog } from "@/lib/audit-log";
 import { revalidateAdminClientPage } from "@/lib/revalidate-paths";
+import { checkClientCanStartWork } from "@/lib/client-work-eligibility-guard";
 
 export async function createTimeEntry(data: {
   clientId: string;
@@ -36,6 +37,15 @@ export async function createTimeEntry(data: {
 
   if (!data.description) {
     return { error: "Description is required." };
+  }
+
+  const workGate = await checkClientCanStartWork(data.clientId, {
+    entryPoint: "admin_create_time_entry",
+    actorId: session.user.id,
+    requestId: data.supportRequestId,
+  });
+  if (!workGate.ok) {
+    return { error: workGate.message };
   }
 
   try {
@@ -146,6 +156,24 @@ export async function confirmTimeEntry(id: string) {
   }
 
   try {
+    const existing = await prisma.timeEntry.findUnique({
+      where: { id },
+      select: { clientId: true, supportRequestId: true },
+    });
+
+    if (!existing) {
+      return { error: "Time entry not found." };
+    }
+
+    const workGate = await checkClientCanStartWork(existing.clientId, {
+      entryPoint: "admin_update_time_entry",
+      actorId: session.user.id,
+      requestId: existing.supportRequestId ?? undefined,
+    });
+    if (!workGate.ok) {
+      return { error: workGate.message };
+    }
+
     const timeEntry = await prisma.timeEntry.update({
       where: { id },
       data: { status: TimeEntryStatus.CONFIRMED },
@@ -207,6 +235,20 @@ export async function updateTimeEntry(id: string, data: {
 
     if (!existing) {
       return { error: "Time entry not found." };
+    }
+
+    const advancesBillableWork =
+      data.minutes !== undefined || data.billableType !== undefined;
+
+    if (advancesBillableWork) {
+      const workGate = await checkClientCanStartWork(existing.clientId, {
+        entryPoint: "admin_update_time_entry",
+        actorId: session.user.id,
+        requestId: existing.supportRequestId ?? undefined,
+      });
+      if (!workGate.ok) {
+        return { error: workGate.message };
+      }
     }
 
     const nextBillableType = (data.billableType ?? existing.billableType) as BillableType;

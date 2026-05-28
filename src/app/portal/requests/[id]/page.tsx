@@ -16,6 +16,8 @@ import {
   formatFlatPrice,
   formatHandoffTier,
   formatPricingMode,
+  getRequestPricingState,
+  getRequestPricingStateLabel,
   isRequestBasedPricingComplete,
 } from "@/lib/engagement";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
@@ -80,6 +82,7 @@ export default async function PortalRequestDetailPage({ params }: PortalRequestD
   const isRequestBased =
     clientRecord?.engagementType === EngagementType.REQUEST_BASED;
   const pricingSet = isRequestBasedPricingComplete(request);
+  const pricingState = isRequestBased ? getRequestPricingState(request) : null;
 
   return (
     <div className="space-y-8">
@@ -117,12 +120,15 @@ export default async function PortalRequestDetailPage({ params }: PortalRequestD
               {isRequestBased && (
                 <div className="p-4 rounded-lg border border-slate-200 bg-slate-50">
                   <Label className="text-muted-foreground text-xs uppercase tracking-wider">Pricing</Label>
+                  <p className="mt-2 text-sm font-medium">
+                    {getRequestPricingStateLabel(pricingState ?? "pending_review")}
+                  </p>
                   {pricingSet ? (
                     <div className="mt-2 space-y-1 text-sm">
                       <p><span className="text-muted-foreground">Handoff:</span> {formatHandoffTier(request.handoffTier)}</p>
                       <p><span className="text-muted-foreground">Billing:</span> {formatPricingMode(request.pricingMode)}</p>
                       {request.pricingMode === "FLAT" && request.flatPriceCents && (
-                        <p><span className="text-muted-foreground">Agreed price:</span> {formatFlatPrice(request.flatPriceCents)}</p>
+                        <p><span className="text-muted-foreground">Approved fixed fee:</span> {formatFlatPrice(request.flatPriceCents)}</p>
                       )}
                     </div>
                   ) : (

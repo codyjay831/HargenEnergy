@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
+  AgreementStatus,
   BillingMode,
   ClientStatus,
   EngagementType,
@@ -18,6 +19,7 @@ import { getPortalWorkSubmitEligibility } from "@/lib/portal-submit-eligibility"
 type AdminNextUpCardProps = {
   clientId: string;
   clientStatus: ClientStatus;
+  agreementStatus: AgreementStatus;
   engagementType: EngagementType;
   billingMode: Parameters<typeof isPaymentMadeForSubmit>[0]["billingMode"];
   billingOverrideReason?: string | null;
@@ -46,6 +48,7 @@ function statusBadge(done: boolean, label: string) {
 export function AdminNextUpCard({
   clientId,
   clientStatus,
+  agreementStatus,
   engagementType,
   billingMode,
   billingOverrideReason,
@@ -80,6 +83,7 @@ export function AdminNextUpCard({
 
   const submitEligibility = getPortalWorkSubmitEligibility({
     status: clientStatus,
+    agreementStatus,
     engagementType,
     billingMode: resolvedBillingMode,
     billingOverrideReason: billingOverrideReason ?? null,

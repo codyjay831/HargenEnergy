@@ -5,15 +5,18 @@ import { format } from "date-fns";
 import { CreditCard, Globe, Mail, MapPin, Phone, User } from "lucide-react";
 import { ActivateClientButton } from "@/components/forms/ActivateClientButton";
 import { ClientBillingManager } from "@/components/forms/ClientBillingManager";
+import { ClientAgreementManager } from "@/components/admin/ClientAgreementManager";
 import { ClientEngagementManager } from "@/components/admin/ClientEngagementManager";
 import { ClientPortalAccessManager } from "@/components/forms/ClientPortalAccessManager";
 import { ClientSystemAccessManager } from "@/components/forms/ClientSystemAccessManager";
 import { buttonVariants } from "@/components/ui/button";
 import {
+  AgreementStatus,
   ClientStatus,
   ClientSystemAccess,
   EngagementType,
 } from "@/generated/prisma/client";
+import type { ServiceModelTypeValue } from "@/lib/client-service-model";
 import { ClientPlanType } from "@/lib/billing-options";
 import { BillingMode } from "@/generated/prisma/client";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
@@ -40,6 +43,7 @@ export type AdminSetupSheetPanelsProps = {
     status: ClientStatus;
     planType: string;
     engagementType: EngagementType;
+    serviceModels?: ServiceModelTypeValue[];
     billingMode?: BillingMode | null;
     billingOverrideReason?: string | null;
     billingOverrideExpiresAt?: Date | null;
@@ -51,6 +55,12 @@ export type AdminSetupSheetPanelsProps = {
     stripeCustomerId?: string | null;
     stripeSubscriptionId?: string | null;
     subscriptionCurrentPeriodEnd?: Date | null;
+    agreementStatus: AgreementStatus;
+    agreementSentAt?: Date | null;
+    agreementSignedAt?: Date | null;
+    agreementUrl?: string | null;
+    agreementNotes?: string | null;
+    agreementOverrideReason?: string | null;
     approvedWorkTaskCount: number;
     users: { id: string; email: string; name: string | null }[];
   };
@@ -92,11 +102,25 @@ export function AdminSetupSheetPanels({
         </div>
       );
 
+    case "agreement":
+      return (
+        <ClientAgreementManager
+          clientId={client.id}
+          agreementStatus={client.agreementStatus}
+          agreementSentAt={client.agreementSentAt ?? null}
+          agreementSignedAt={client.agreementSignedAt ?? null}
+          agreementUrl={client.agreementUrl ?? null}
+          agreementNotes={client.agreementNotes ?? null}
+          agreementOverrideReason={client.agreementOverrideReason ?? null}
+        />
+      );
+
     case "engagement":
       return (
         <ClientEngagementManager
           clientId={client.id}
           engagementType={client.engagementType}
+          serviceModels={client.serviceModels ?? []}
           approvedWorkTaskIds={engagement.approvedWorkTaskIds}
           suggestedWorkTaskIds={engagement.suggestedWorkTaskIds}
           categories={engagement.categories}

@@ -51,7 +51,7 @@ export default async function PortalLayout({
   const navItems = [
     { name: "Dashboard", href: "/portal", icon: LayoutDashboard },
     { name: NAV_LABELS.portalWork, href: "/portal/requests", icon: ClipboardList },
-    { name: "Submit Request", href: "/portal/requests/new", icon: PlusCircle },
+    { name: NAV_LABELS.portalSubmit, href: "/portal/requests/new", icon: PlusCircle },
     { name: "System Access", href: "/portal/access", icon: KeyRound },
     { name: "Team", href: "/portal/team", icon: Users },
     { name: "Account", href: "/portal/account", icon: UserCircle },

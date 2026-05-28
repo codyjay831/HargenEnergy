@@ -102,6 +102,18 @@ enum EngagementType {
   REQUEST_BASED
 }
 
+enum ServiceModelType {
+  SUPPORT_BLOCK
+  REQUEST_BASED
+}
+
+enum AgreementStatus {
+  NOT_SENT
+  SENT
+  SIGNED
+  WAIVED
+}
+
 enum HandoffTier {
   CLEAN
   MESSY
@@ -305,6 +317,12 @@ model Client {
   logoUrl            String?
   brandAccent        String?
   activatedAt        DateTime?
+  agreementStatus    AgreementStatus  @default(NOT_SENT)
+  agreementSentAt    DateTime?
+  agreementSignedAt  DateTime?
+  agreementUrl       String?
+  agreementNotes     String?
+  agreementOverrideReason String?
   notes              String?
   users              User[]
   requests           SupportRequest[]
@@ -314,12 +332,27 @@ model Client {
   disbursements      DisbursementRequest[]
   recurringTasks     RecurringTask[]
   approvedWorkTasks  ClientApprovedWorkTask[]
+  serviceModels      ClientServiceModel[]
   discoverySchedulingLinks DiscoverySchedulingLink[]
   discoveryAppointments DiscoveryAppointment[]
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
   @@index([billingMode])
+}
+
+model ClientServiceModel {
+  clientId       String
+  modelType      ServiceModelType
+  isActive       Boolean   @default(true)
+  activatedAt    DateTime  @default(now())
+  deactivatedAt  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  client         Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([clientId, modelType])
+  @@index([modelType, isActive])
 }
 
 model ClientApprovedWorkTask {

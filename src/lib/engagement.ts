@@ -10,13 +10,20 @@ import {
   HandoffTier,
   PricingMode,
   type Client,
+  type ClientServiceModel,
   type SupportRequest,
   type WorkTask,
 } from "@/generated/prisma/client";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
+import {
+  getActiveServiceModelTypes,
+  hasServiceModel,
+} from "@/lib/client-service-model";
+import { assertWorkTaskEligibleForClient } from "@/lib/client-catalog-eligibility";
 
 export type ClientWithApprovals = Client & {
   approvedWorkTasks?: { workTaskId: string }[];
+  serviceModels?: Array<Pick<ClientServiceModel, "modelType" | "isActive">>;
 };
 
 export function getApprovedWorkTaskIds(client: ClientWithApprovals): string[] {
@@ -43,33 +50,7 @@ export function assertWorkTaskAllowedForClient(params: {
   workTaskId: string;
   allowAdminOverride?: boolean;
 }): { ok: true } | { ok: false; error: string } {
-  const { client, workTaskId, allowAdminOverride } = params;
-
-  if (allowAdminOverride) {
-    return { ok: true };
-  }
-
-  if (client.engagementType === EngagementType.REQUEST_BASED) {
-    return { ok: true };
-  }
-
-  const approvedIds = getApprovedWorkTaskIds(client);
-  if (approvedIds.length === 0) {
-    return {
-      ok: false,
-      error:
-        "Your support areas are still being configured. Contact Hargen before sending work.",
-    };
-  }
-
-  if (!approvedIds.includes(workTaskId)) {
-    return {
-      ok: false,
-      error: "That work type is not in your approved support areas.",
-    };
-  }
-
-  return { ok: true };
+  return assertWorkTaskEligibleForClient(params);
 }
 
 export function isRequestBasedPricingComplete(
@@ -82,6 +63,47 @@ export function isRequestBasedPricingComplete(
     return typeof request.flatPriceCents === "number" && request.flatPriceCents > 0;
   }
   return true;
+}
+
+export type RequestPricingState =
+  | "pending_review"
+  | "fixed_fee_ready"
+  | "hourly_ready"
+  | "invalid";
+
+export function getRequestPricingState(
+  request: Pick<SupportRequest, "handoffTier" | "pricingMode" | "flatPriceCents">,
+): RequestPricingState {
+  if (!request.handoffTier || !request.pricingMode) {
+    return "pending_review";
+  }
+  if (request.pricingMode === PricingMode.FLAT) {
+    return typeof request.flatPriceCents === "number" && request.flatPriceCents > 0
+      ? "fixed_fee_ready"
+      : "invalid";
+  }
+  if (
+    request.pricingMode === PricingMode.HOURLY ||
+    request.pricingMode === PricingMode.REVIEW_THEN_HOURLY
+  ) {
+    return "hourly_ready";
+  }
+  return "invalid";
+}
+
+export function getRequestPricingStateLabel(state: RequestPricingState): string {
+  switch (state) {
+    case "fixed_fee_ready":
+      return PRODUCT_LANGUAGE.engagement.fixedFeeApproved;
+    case "hourly_ready":
+      return PRODUCT_LANGUAGE.engagement.hourlyApproved;
+    case "pending_review":
+      return PRODUCT_LANGUAGE.engagement.pricingPending;
+    case "invalid":
+      return PRODUCT_LANGUAGE.engagement.pricingNeedsFix;
+    default:
+      return PRODUCT_LANGUAGE.engagement.pricingPending;
+  }
 }
 
 export function formatHandoffTier(tier: HandoffTier | null | undefined): string {
@@ -134,6 +156,13 @@ export type PortalInviteReadinessResult =
 export function checkPortalInviteReadiness(
   client: ClientWithApprovals,
 ): PortalInviteReadinessResult {
+  const activeModels = getActiveServiceModelTypes({
+    serviceModels: client.serviceModels,
+    engagementType: client.engagementType,
+  });
+  if (hasServiceModel(activeModels, "REQUEST_BASED")) {
+    return { ready: true };
+  }
   return checkPortalInviteReadinessByCount(
     client.engagementType,
     getApprovedWorkTaskIds(client).length,
@@ -159,7 +188,11 @@ export function canSubmitPortalWork(client: ClientWithApprovals): {
   canSubmit: boolean;
   blockMessage?: string;
 } {
-  if (client.engagementType === EngagementType.REQUEST_BASED) {
+  const activeModels = getActiveServiceModelTypes({
+    serviceModels: client.serviceModels,
+    engagementType: client.engagementType,
+  });
+  if (hasServiceModel(activeModels, "REQUEST_BASED")) {
     return { canSubmit: true };
   }
 

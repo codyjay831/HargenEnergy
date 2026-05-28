@@ -6,6 +6,13 @@ import {
 import { getEngagementLabel } from "@/lib/engagement";
 import { getPortalWorkSubmitEligibility } from "@/lib/portal-submit-eligibility";
 import type { PortalSubmitBlockReason } from "@/lib/portal-submit-eligibility";
+import { deriveSubmitBlockerSummary } from "@/lib/submit-blockers";
+import type { ServiceModelTypeValue } from "@/lib/client-service-model";
+import { getClientCatalogEligibility } from "@/lib/client-catalog-eligibility";
+import {
+  loadCatalogTaskCounts,
+  loadPortalCatalogCategories,
+} from "@/lib/client-catalog-loader";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { assertClientScope } from "@/lib/auth-guards";
@@ -30,6 +37,7 @@ export type PortalSupportArea = {
 
 export type ClientPortalSupportSetup = {
   engagementType: EngagementType;
+  activeServiceModels?: ServiceModelTypeValue[];
   engagementLabel: string;
   isSupportBlock: boolean;
   isRequestBased: boolean;
@@ -48,33 +56,14 @@ export type ClientPortalSupportSetup = {
   canSubmit: boolean;
   blockReasonCode?: PortalSubmitBlockReason;
   blockMessage?: string;
+  allSubmitBlockers?: Array<{ reasonCode: PortalSubmitBlockReason; message: string }>;
 };
-
-const TASK_SELECT = {
-  id: true,
-  name: true,
-  description: true,
-  requiredFields: true,
-  requiredDocs: true,
-} as const;
 
 function deriveSupportAreas(categories: PortalSubmitCategory[]): PortalSupportArea[] {
   return categories.map((c) => ({
     categoryName: c.name,
     tasks: c.tasks.map((t) => ({ id: t.id, name: t.name })),
   }));
-}
-
-function toPortalCategories(
-  categories: Array<{
-    id: string;
-    name: string;
-    tasks: PortalSubmitCategory["tasks"];
-  }>,
-): PortalSubmitCategory[] {
-  return categories
-    .map((c) => ({ id: c.id, name: c.name, tasks: c.tasks }))
-    .filter((c) => c.tasks.length > 0);
 }
 
 export async function getClientPortalSupportSetup(
@@ -84,6 +73,7 @@ export async function getClientPortalSupportSetup(
     where: { id: clientId },
     include: {
       approvedWorkTasks: { select: { workTaskId: true } },
+      serviceModels: { select: { modelType: true, isActive: true } },
     },
   });
 
@@ -91,23 +81,23 @@ export async function getClientPortalSupportSetup(
     return { error: "Client not found." };
   }
 
-  const isRequestBased = client.engagementType === EngagementType.REQUEST_BASED;
-  const isSupportBlock = client.engagementType === EngagementType.SUPPORT_BLOCK;
-  const activeCatalogTaskCount = await prisma.workTask.count({
-    where: { isActive: true },
+  const approvedIds = client.approvedWorkTasks.map((a) => a.workTaskId);
+  const activeServiceModels = client.serviceModels
+    .filter((item) => item.isActive)
+    .map((item) => item.modelType);
+  const catalogCounts = await loadCatalogTaskCounts(approvedIds);
+  const catalogEligibility = getClientCatalogEligibility({
+    engagementType: client.engagementType,
+    activeServiceModels,
+    activeCatalogTaskCount: catalogCounts.activeCatalogTaskCount,
+    activeApprovedWorkTaskCount: catalogCounts.activeApprovedWorkTaskCount,
   });
 
-  const approvedIds = client.approvedWorkTasks.map((a) => a.workTaskId);
-  const activeApprovedWorkTaskCount =
-    approvedIds.length === 0
-      ? 0
-      : await prisma.workTask.count({
-          where: { isActive: true, id: { in: approvedIds } },
-        });
-
-  const submitEligibility = getPortalWorkSubmitEligibility({
+  const submitBlockerInput = {
     status: client.status,
+    agreementStatus: client.agreementStatus,
     engagementType: client.engagementType,
+    activeServiceModels,
     billingMode: client.billingMode,
     billingOverrideReason: client.billingOverrideReason,
     billingOverrideExpiresAt: client.billingOverrideExpiresAt,
@@ -117,15 +107,24 @@ export async function getClientPortalSupportSetup(
     stripeSubscriptionId: client.stripeSubscriptionId,
     subscriptionStatus: client.subscriptionStatus,
     subscriptionCurrentPeriodEnd: client.subscriptionCurrentPeriodEnd,
-    approvedWorkTaskCount: activeApprovedWorkTaskCount,
-    activeCatalogTaskCount,
+    approvedWorkTaskCount: catalogCounts.activeApprovedWorkTaskCount,
+    activeCatalogTaskCount: catalogCounts.activeCatalogTaskCount,
+  };
+
+  const submitBlockers = deriveSubmitBlockerSummary(submitBlockerInput);
+  const submitEligibility = getPortalWorkSubmitEligibility(submitBlockerInput);
+
+  const categories = await loadPortalCatalogCategories({
+    mode: catalogEligibility.portalCategoryMode,
+    approvedWorkTaskIds: approvedIds,
   });
 
   const base = {
     engagementType: client.engagementType,
+    activeServiceModels,
     engagementLabel: getEngagementLabel(client.engagementType),
-    isSupportBlock,
-    isRequestBased,
+    isSupportBlock: catalogEligibility.hasSupportBlock,
+    isRequestBased: catalogEligibility.hasRequestBased,
     billingMode: client.billingMode,
     billingOverrideReason: client.billingOverrideReason,
     billingOverrideExpiresAt: client.billingOverrideExpiresAt,
@@ -141,56 +140,16 @@ export async function getClientPortalSupportSetup(
       ? undefined
       : submitEligibility.reasonCode,
     blockMessage: submitEligibility.canSubmit ? undefined : submitEligibility.message,
+    allSubmitBlockers: submitBlockers.all.map((blocker) => ({
+      reasonCode: blocker.reasonCode,
+      message: blocker.portalMessage,
+    })),
   };
-
-  if (isRequestBased) {
-    const rawCategories = await prisma.serviceCategory.findMany({
-      where: { isActive: true },
-      include: {
-        tasks: {
-          where: { isActive: true },
-          orderBy: { basePriority: "asc" },
-          select: TASK_SELECT,
-        },
-      },
-      orderBy: { name: "asc" },
-    });
-
-    const categories = toPortalCategories(rawCategories);
-
-    return {
-      ...base,
-      categories,
-      supportAreas: [],
-    };
-  }
-
-  if (approvedIds.length === 0) {
-    return {
-      ...base,
-      categories: [],
-      supportAreas: [],
-    };
-  }
-
-  const rawCategories = await prisma.serviceCategory.findMany({
-    where: { isActive: true },
-    include: {
-      tasks: {
-        where: { id: { in: approvedIds }, isActive: true },
-        orderBy: { basePriority: "asc" },
-        select: TASK_SELECT,
-      },
-    },
-    orderBy: { name: "asc" },
-  });
-
-  const categories = toPortalCategories(rawCategories);
 
   return {
     ...base,
     categories,
-    supportAreas: deriveSupportAreas(categories),
+    supportAreas: catalogEligibility.hasSupportBlock ? deriveSupportAreas(categories) : [],
   };
 }
 

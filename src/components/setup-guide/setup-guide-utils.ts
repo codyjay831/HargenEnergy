@@ -22,6 +22,7 @@ export type SetupRailConfig = {
 export const ADMIN_SETUP_RAIL: SetupRailConfig[] = [
   { id: "client", label: "Client", stepIds: ["lifecycle-active"] },
   { id: "scope", label: "Scope", stepIds: ["approved-work", "capacity"] },
+  { id: "agreement", label: "Agreement", stepIds: ["service-agreement"] },
   { id: "billing", label: "Billing", stepIds: ["billing"] },
   { id: "access", label: "Access", stepIds: ["system-access-admin", "customer-system-access"] },
   { id: "invite", label: "Invite", stepIds: ["portal-invite", "portal-access"] },
@@ -31,6 +32,7 @@ export const ADMIN_SETUP_RAIL: SetupRailConfig[] = [
 export const ADMIN_NEXT_STEP_ORDER = [
   "lifecycle-active",
   "approved-work",
+  "service-agreement",
   "billing",
   "system-access-admin",
   "portal-invite",
@@ -43,6 +45,7 @@ export const ADMIN_NEXT_STEP_ORDER = [
 
 export const CUSTOMER_SETUP_RAIL: SetupRailConfig[] = [
   { id: "portal", label: "Portal", stepIds: ["portal-access-ready"] },
+  { id: "agreement", label: "Agreement", stepIds: ["customer-agreement"] },
   { id: "billing", label: "Billing", stepIds: ["customer-billing"] },
   { id: "access", label: "Access", stepIds: ["customer-system-access"] },
   { id: "support", label: "Support areas", stepIds: ["support-areas-visible"] },
@@ -51,6 +54,7 @@ export const CUSTOMER_SETUP_RAIL: SetupRailConfig[] = [
 
 export const CUSTOMER_NEXT_STEP_ORDER = [
   "portal-access-ready",
+  "customer-agreement",
   "customer-billing",
   "customer-system-access",
   "support-areas-visible",

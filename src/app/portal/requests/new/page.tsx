@@ -49,6 +49,8 @@ export default async function NewPortalRequest() {
         <CardContent>
           <PortalRequestForm
             engagementType={options.engagementType}
+            isRequestBased={options.isRequestBased}
+            isSupportBlock={options.isSupportBlock}
             categories={options.categories}
             canSubmit={options.canSubmit}
             blockMessage={options.blockMessage}

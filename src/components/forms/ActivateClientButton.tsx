@@ -8,15 +8,29 @@ import { Loader2 } from "lucide-react";
 
 interface ActivateClientButtonProps {
   clientId: string;
+  buttonLabel?: string;
+  isLoadingLabel?: string;
+  successMessage?: string;
+  confirmMessage?: string;
 }
 
-export function ActivateClientButton({ clientId }: ActivateClientButtonProps) {
+export function ActivateClientButton({
+  clientId,
+  buttonLabel = "Activate client",
+  isLoadingLabel = "Activating...",
+  successMessage = "Client marked active. Set up billing and send a portal invite when ready.",
+  confirmMessage,
+}: ActivateClientButtonProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleActivate = async () => {
+    if (confirmMessage && !window.confirm(confirmMessage)) {
+      return;
+    }
+
     setIsLoading(true);
     setMessage(null);
     setError(null);
@@ -26,7 +40,7 @@ export function ActivateClientButton({ clientId }: ActivateClientButtonProps) {
       if ("error" in result && result.error) {
         setError(result.error);
       } else {
-        setMessage("Client marked active. Set up billing and send a portal invite when ready.");
+        setMessage(successMessage);
         router.refresh();
       }
     } catch (activateError: unknown) {
@@ -46,10 +60,10 @@ export function ActivateClientButton({ clientId }: ActivateClientButtonProps) {
         {isLoading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Activating...
+            {isLoadingLabel}
           </>
         ) : (
-          "Activate client"
+          buttonLabel
         )}
       </Button>
       {message && <p className="text-sm text-green-700">{message}</p>}

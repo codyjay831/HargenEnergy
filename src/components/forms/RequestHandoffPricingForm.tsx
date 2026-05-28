@@ -77,6 +77,9 @@ export function RequestHandoffPricingForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Set handoff + pricing before moving Request-Based work into execution.
+      </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Handoff tier</Label>
@@ -133,7 +136,7 @@ export function RequestHandoffPricingForm({
             Saving...
           </>
         ) : (
-          "Save handoff & pricing"
+          "Approve pricing"
         )}
       </Button>
     </form>

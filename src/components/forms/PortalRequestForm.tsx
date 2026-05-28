@@ -39,6 +39,8 @@ interface Category {
 
 interface PortalRequestFormProps {
   engagementType: EngagementType;
+  isRequestBased?: boolean;
+  isSupportBlock?: boolean;
   categories: Category[];
   canSubmit: boolean;
   blockMessage?: string;
@@ -47,6 +49,8 @@ interface PortalRequestFormProps {
 
 export function PortalRequestForm({
   engagementType,
+  isRequestBased: isRequestBasedProp,
+  isSupportBlock: isSupportBlockProp,
   categories,
   canSubmit,
   blockMessage,
@@ -62,7 +66,11 @@ export function PortalRequestForm({
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [selectedTaskId, setSelectedTaskId] = useState<string>("");
 
-  const isRequestBased = engagementType === EngagementType.REQUEST_BASED;
+  const isRequestBased =
+    isRequestBasedProp ?? engagementType === EngagementType.REQUEST_BASED;
+  const isSupportBlock =
+    isSupportBlockProp ?? engagementType === EngagementType.SUPPORT_BLOCK;
+  const isHybrid = isRequestBased && isSupportBlock;
 
   const selectedCategory = useMemo(
     () => categories.find((c) => c.id === selectedCategoryId),
@@ -136,9 +144,9 @@ export function PortalRequestForm({
   };
 
   if (!canSubmit) {
-    const isSupportBlock = engagementType === EngagementType.SUPPORT_BLOCK;
     const paymentBlocked = isSupportBlock && blockReasonCode === "payment_not_made";
     const scopeBlocked = isSupportBlock && blockReasonCode === "scope_not_configured";
+    const agreementBlocked = blockReasonCode === "agreement_pending";
 
     return (
       <div className="p-6 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-sm">
@@ -157,6 +165,11 @@ export function PortalRequestForm({
               : PRODUCT_LANGUAGE.supportSetup.viewSetupLink}
           </Link>
         )}
+        {agreementBlocked && (
+          <p className="mt-4 text-xs text-amber-800/90">
+            {PRODUCT_LANGUAGE.supportSetup.agreementContactPrompt}
+          </p>
+        )}
         {scopeBlocked && (
           <p className="mt-4 text-xs text-amber-800/90">
             {PRODUCT_LANGUAGE.supportSetup.changeScopePrompt}
@@ -169,10 +182,22 @@ export function PortalRequestForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       <p className="text-sm text-muted-foreground">
-        {isRequestBased
-          ? "Send a work request. Hargen will review the handoff and confirm pricing before work continues."
-          : "Send work inside your approved support areas."}
+        {isHybrid
+          ? "Send work from your approved support areas or the request-based catalog. Per-request pricing applies to catalog work."
+          : isRequestBased
+            ? "Send a work request. Hargen will review the handoff and confirm pricing before work continues."
+            : "Send work inside your approved support areas."}
       </p>
+
+      {categories.length === 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-medium">No work types available</p>
+          <p className="mt-1">
+            {blockMessage ??
+              "Your account is still being configured. Contact Hargen if you need help."}
+          </p>
+        </div>
+      )}
 
       {error && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-md flex items-center gap-3 text-red-800 text-sm">

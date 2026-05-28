@@ -9,14 +9,12 @@ import {
   SupportRequestKind,
   SupportRequestSource,
 } from "@/generated/prisma/client";
+import { canRequestScopeChange } from "@/lib/portal-submit-eligibility";
 import {
-  assertWorkTaskAllowedForClient,
-  resolveActiveWorkTask,
-} from "@/lib/engagement";
-import {
-  canRequestScopeChange,
-  getPortalWorkSubmitEligibility,
-} from "@/lib/portal-submit-eligibility";
+  checkClientWorkTaskSubmit,
+  checkPortalWorkSubmit,
+  loadClientCatalogContext,
+} from "@/lib/client-work-eligibility-guard";
 import { getClientPortalSupportSetupForSession } from "@/lib/portal-support";
 import { revalidatePath } from "next/cache";
 import {
@@ -50,6 +48,8 @@ export async function getPortalSubmitOptions(clientId: string) {
 
   return {
     engagementType: setup.engagementType,
+    isRequestBased: setup.isRequestBased,
+    isSupportBlock: setup.isSupportBlock,
     categories: setup.categories,
     canSubmit: setup.canSubmit,
     blockMessage: setup.blockMessage,
@@ -211,67 +211,39 @@ export async function submitPortalRequest(data: {
   const urgencyEnum = urgency as Urgency;
 
   try {
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-      include: { approvedWorkTasks: { select: { workTaskId: true } } },
+    const submitGate = await checkPortalWorkSubmit(clientId, {
+      entryPoint: "portal_submit",
+      actorId: session.user.id,
+      workTaskId,
     });
-
-    if (!client) {
-      return { error: "Client record not found." };
-    }
-
-    const activeCatalogTaskCount = await prisma.workTask.count({
-      where: { isActive: true },
-    });
-
-    const approvedIds = client.approvedWorkTasks.map((a) => a.workTaskId);
-    const activeApprovedWorkTaskCount =
-      approvedIds.length === 0
-        ? 0
-        : await prisma.workTask.count({
-            where: { isActive: true, id: { in: approvedIds } },
-          });
-
-    const submitEligibility = getPortalWorkSubmitEligibility({
-      status: client.status,
-      engagementType: client.engagementType,
-      billingMode: client.billingMode,
-      billingOverrideReason: client.billingOverrideReason,
-      billingOverrideExpiresAt: client.billingOverrideExpiresAt,
-      billingOverrideCreatedAt: client.billingOverrideCreatedAt,
-      billingOverrideCreatedById: client.billingOverrideCreatedById,
-      stripeCustomerId: client.stripeCustomerId,
-      stripeSubscriptionId: client.stripeSubscriptionId,
-      subscriptionStatus: client.subscriptionStatus,
-      subscriptionCurrentPeriodEnd: client.subscriptionCurrentPeriodEnd,
-      approvedWorkTaskCount: activeApprovedWorkTaskCount,
-      activeCatalogTaskCount,
-    });
-
-    if (!submitEligibility.canSubmit) {
-      return { error: submitEligibility.message };
+    if (!submitGate.ok) {
+      return { error: submitGate.error };
     }
 
     if (!workTaskId) {
       return { error: "Please select a work type." };
     }
 
-    const taskResult = await resolveActiveWorkTask(workTaskId, (id) =>
-      prisma.workTask.findUnique({ where: { id } }),
-    );
-    if (!taskResult.ok) {
-      return { error: taskResult.error };
+    const catalogClient = await loadClientCatalogContext(clientId);
+    if (!catalogClient) {
+      return { error: "Client record not found." };
     }
 
-    const allowed = assertWorkTaskAllowedForClient({
-      client,
+    const taskGate = await checkClientWorkTaskSubmit({
+      clientId,
+      client: catalogClient,
       workTaskId,
+      options: {
+        entryPoint: "portal_submit",
+        actorId: session.user.id,
+        workTaskId,
+      },
     });
-    if (!allowed.ok) {
-      return { error: allowed.error };
+    if (!taskGate.ok) {
+      return { error: taskGate.error };
     }
 
-    const resolvedSupportNeeded = taskResult.workTask.name;
+    const resolvedSupportNeeded = taskGate.workTask.name;
 
     let fullDescription = description;
 
@@ -335,14 +307,25 @@ ${metadataEntries.join("\n")}`;
       },
     });
 
+    const clientProfile = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: {
+        companyName: true,
+        contactName: true,
+        email: true,
+        phone: true,
+        planType: true,
+      },
+    });
+
     try {
       await sendInternalRequestAlert({
-        companyName: client.companyName,
-        contactName: client.contactName,
-        email: client.email,
-        phone: client.phone,
+        companyName: clientProfile?.companyName ?? "Unknown",
+        contactName: clientProfile?.contactName ?? "Unknown",
+        email: clientProfile?.email ?? "",
+        phone: clientProfile?.phone ?? null,
         supportNeeded: resolvedSupportNeeded,
-        plan: client.planType,
+        plan: clientProfile?.planType,
         urgency: urgencyEnum,
         description: fullDescription,
         requestId: supportRequest.id,

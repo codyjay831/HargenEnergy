@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { User, Mail, Phone, Globe, MapPin, CreditCard, Clock } from "lucide-react";
 import { cn, safeExternalHref } from "@/lib/utils";
+import { buttonVariants } from "@/components/ui/button";
 import { ClientBillingManager } from "@/components/forms/ClientBillingManager";
 import { ClientBrandingManager } from "@/components/forms/ClientBrandingManager";
 import { ClientPortalAccessManager } from "@/components/forms/ClientPortalAccessManager";
@@ -22,6 +23,7 @@ import {
   EngagementType,
   RequestStatus,
 } from "@/generated/prisma/client";
+import type { ServiceModelTypeValue } from "@/lib/client-service-model";
 import { ClientEngagementManager } from "@/components/admin/ClientEngagementManager";
 import { getEngagementLabel } from "@/lib/engagement";
 import { ActivateClientButton } from "@/components/forms/ActivateClientButton";
@@ -37,7 +39,12 @@ import { DeleteClientPanel } from "@/components/admin/DeleteClientPanel";
 import { ClientDetailHeader } from "@/components/admin/ClientDetailHeader";
 import { DangerZoneAccordion } from "@/components/admin/DangerZoneAccordion";
 import { getDiscoverySchedulingReadiness } from "@/lib/discovery-scheduling/scheduling-readiness";
-import { pickDiscoveryAppointmentForPipeline } from "@/lib/discovery-scheduling/pipeline";
+import {
+  deriveDiscoveryPipelineStage,
+  getDiscoveryPipelineStageBadgeVariant,
+  getDiscoveryPipelineStageLabel,
+  pickDiscoveryAppointmentForPipeline,
+} from "@/lib/discovery-scheduling/pipeline";
 import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
 import { getClientSystemAccessForAdmin } from "@/app/actions/system-access";
 import { resolveAdminClientTab } from "@/lib/admin-client-tabs";
@@ -58,6 +65,7 @@ type ClientWithRelations = Client & {
   requests: SupportRequest[];
   timeEntries: TimeEntry[];
   approvedWorkTasks?: { workTaskId: string }[];
+  serviceModels?: { modelType: ServiceModelTypeValue; isActive: boolean }[];
 };
 
 function mapDiscoveryRequestedTasks(
@@ -107,6 +115,9 @@ export default async function ClientDetailPage({
         select: { id: true, email: true, name: true },
       },
       approvedWorkTasks: { select: { workTaskId: true } },
+      serviceModels: {
+        select: { modelType: true, isActive: true },
+      },
       systemAccesses: {
         orderBy: { createdAt: "asc" },
       },
@@ -218,6 +229,17 @@ export default async function ClientDetailPage({
 
   const setupReadiness = setupReadinessResult;
   const showDiscoveryTab = isProspect || setupReadiness.hasDiscoveryIntake;
+  const discoveryStage =
+    latestDiscovery == null
+      ? null
+      : deriveDiscoveryPipelineStage({
+          clientStatus: client.status,
+          requestStatus: latestDiscovery.status,
+          linkStatus: schedulingLink?.status ?? null,
+          appointmentStatus: latestAppointment?.status ?? null,
+          fitDecision: latestAppointment?.fitDecision ?? null,
+          recapSentAt: latestAppointment?.recapSentAt ?? null,
+        });
   const statusDateLabel =
     client.status === ClientStatus.ACTIVE && client.activatedAt
       ? `Active since ${format(new Date(client.activatedAt), "MMMM d, yyyy")}`
@@ -232,6 +254,9 @@ export default async function ClientDetailPage({
     },
   });
   let initialTab = resolveAdminClientTab(resolvedSearchParams.tab);
+  if (isProspect && showDiscoveryTab && !resolvedSearchParams.tab) {
+    initialTab = "discovery";
+  }
   if (initialTab === "discovery" && !showDiscoveryTab) {
     initialTab = "overview";
   }
@@ -240,6 +265,7 @@ export default async function ClientDetailPage({
     <ClientEngagementManager
       clientId={client.id}
       engagementType={client.engagementType}
+      serviceModels={client.serviceModels?.filter((m) => m.isActive).map((m) => m.modelType) ?? []}
       approvedWorkTaskIds={client.approvedWorkTasks.map((a) => a.workTaskId)}
       suggestedWorkTaskIds={suggestedWorkTaskIds}
       categories={catalogCategories}
@@ -296,6 +322,8 @@ export default async function ClientDetailPage({
               status: client.status,
               planType: client.planType,
               engagementType: client.engagementType,
+              serviceModels:
+                client.serviceModels?.filter((m) => m.isActive).map((m) => m.modelType) ?? [],
               billingMode: client.billingMode,
               billingOverrideReason: client.billingOverrideReason,
               billingOverrideExpiresAt: client.billingOverrideExpiresAt,
@@ -307,6 +335,12 @@ export default async function ClientDetailPage({
               stripeCustomerId: client.stripeCustomerId,
               stripeSubscriptionId: client.stripeSubscriptionId,
               subscriptionCurrentPeriodEnd: client.subscriptionCurrentPeriodEnd,
+              agreementStatus: client.agreementStatus,
+              agreementSentAt: client.agreementSentAt,
+              agreementSignedAt: client.agreementSignedAt,
+              agreementUrl: client.agreementUrl,
+              agreementNotes: client.agreementNotes,
+              agreementOverrideReason: client.agreementOverrideReason,
               approvedWorkTaskCount,
               users: client.users,
             }}
@@ -331,47 +365,20 @@ export default async function ClientDetailPage({
           clientId={client.id}
           initialTab={initialTab}
           showDiscoveryTab={showDiscoveryTab}
+          discoveryTabLabel={isProspect ? "Prospect onboarding" : "Discovery call"}
+          showSetupTab={!isProspect}
+          showBillingTab={!isProspect}
           overview={
             isProspect ? (
-              <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-                <div className="lg:col-span-2 space-y-8">
-                  {renderCompanyDetailsCard(client)}
-                  {client.notes && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Internal Notes</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm text-slate-700 whitespace-pre-wrap">{client.notes}</p>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Quick Info</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                        Status
-                      </p>
-                      <Badge variant="secondary">{PRODUCT_LANGUAGE.prospect.badge}</Badge>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                        Plan Interest
-                      </p>
-                      <p className="text-sm">{planInterestLabel}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                        Created
-                      </p>
-                      <p className="text-sm">{format(new Date(client.createdAt), "MMM d, yyyy")}</p>
-                    </div>
-                  </CardContent>
-                </Card>
+              <div className="space-y-6">
+                {renderProspectOnboardingOverview({
+                  client,
+                  discoveryRequestForDrawer,
+                  discoveryPlanRequestBased,
+                  planInterestLabel,
+                  latestAppointment,
+                  discoveryStage,
+                })}
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -462,21 +469,7 @@ export default async function ClientDetailPage({
               )}
               {engagementPanel}
               {renderSystemAccess(client.id, decryptedSystemAccesses)}
-              {!isProspect && renderBranding(client)}
-              {isProspect && (
-                <Card className="border-amber-200 bg-amber-50/40">
-                  <CardHeader>
-                    <CardTitle>Activation</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <p className="text-sm text-muted-foreground">
-                      Mark the company active after discovery, contract, and payment. Then set
-                      up billing and send a portal invite from the Billing tab.
-                    </p>
-                    <ActivateClientButton clientId={client.id} />
-                  </CardContent>
-                </Card>
-              )}
+              {renderBranding(client)}
             </div>
           }
           billing={
@@ -595,6 +588,219 @@ function renderCompanyDetailsCard(client: Client) {
       </CardHeader>
       <CardContent className="space-y-6">{renderCompanyDetails(client)}</CardContent>
     </Card>
+  );
+}
+
+function renderProspectOnboardingOverview({
+  client,
+  discoveryRequestForDrawer,
+  discoveryPlanRequestBased,
+  planInterestLabel,
+  latestAppointment,
+  discoveryStage,
+}: {
+  client: Client;
+  discoveryRequestForDrawer: {
+    id: string;
+    supportNeeded: string | null;
+    description: string;
+    mostHelpful: string | null;
+    urgency: string;
+    requestedTasks: Array<{ name: string; description?: string | null }>;
+  } | null;
+  discoveryPlanRequestBased: boolean;
+  planInterestLabel: string;
+  latestAppointment: {
+    status: string;
+    fitDecision: "GOOD_FIT" | "MAYBE_FIT" | "NOT_A_FIT" | null;
+    fitDecisionReason: string | null;
+    recapContent: string | null;
+    recapSentAt: Date | null;
+    scheduledStartUtc: Date;
+    timezone: string;
+  } | null;
+  discoveryStage:
+    | "new_request"
+    | "awaiting_info"
+    | "qualified"
+    | "link_sent"
+    | "booking_canceled"
+    | "scheduled"
+    | "completed"
+    | "recap"
+    | "proposal_setup"
+    | "active_client"
+    | "not_a_fit"
+    | null;
+}) {
+  const discoveryTabHref = `/admin/clients/${client.id}?tab=discovery`;
+  const fitDecisionLabel =
+    latestAppointment?.fitDecision === "GOOD_FIT"
+      ? "Good fit"
+      : latestAppointment?.fitDecision === "MAYBE_FIT"
+        ? "Needs follow-up"
+        : latestAppointment?.fitDecision === "NOT_A_FIT"
+          ? "Not a fit"
+          : "Not recorded yet";
+  const stageLabel = discoveryStage
+    ? getDiscoveryPipelineStageLabel(discoveryStage)
+    : "Needs review";
+  const stageVariant = discoveryStage
+    ? getDiscoveryPipelineStageBadgeVariant(discoveryStage)
+    : "secondary";
+  const primaryActionLabel =
+    discoveryStage === "qualified" || discoveryStage === "link_sent"
+      ? "Send or confirm scheduling link"
+      : discoveryStage === "scheduled" || discoveryStage === "completed" || discoveryStage === "recap"
+        ? "Record fit decision"
+        : "Review discovery request";
+
+  return (
+    <>
+      <Card className="border-sky-200/80">
+        <CardHeader>
+          <CardTitle>Prospect onboarding</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="secondary">{PRODUCT_LANGUAGE.prospect.badge}</Badge>
+            <Badge variant={stageVariant}>{stageLabel}</Badge>
+            {discoveryPlanRequestBased && <Badge variant="outline">Request-based plan interest</Badge>}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Discovery and fit review happen here before approval. Full client setup, billing, and
+            portal management are available only after approval.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Link href={discoveryTabHref} className={cn(buttonVariants(), "justify-center")}>
+              {primaryActionLabel}
+            </Link>
+            <ActivateClientButton
+              clientId={client.id}
+              buttonLabel="Approve as Client"
+              isLoadingLabel="Approving..."
+              successMessage="Company approved as active client. Continue setup in active client view."
+              confirmMessage={
+                latestAppointment?.fitDecision
+                  ? undefined
+                  : "No fit decision has been recorded yet. Approve this company as a client anyway?"
+              }
+            />
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <Link href={discoveryTabHref} className="text-primary hover:underline">
+              Record fit decision
+            </Link>
+            <Link href={discoveryTabHref} className="text-primary hover:underline">
+              Mark Needs follow-up
+            </Link>
+            <Link href={discoveryTabHref} className="text-primary hover:underline">
+              Mark Not a Fit
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+
+      {renderCompanyDetailsCard(client)}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Discovery request summary</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Plan interest
+            </p>
+            <p className="text-sm mt-1">{planInterestLabel}</p>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Selected tasks
+            </p>
+            {discoveryRequestForDrawer?.requestedTasks?.length ? (
+              <ul className="mt-2 list-disc pl-5 space-y-1 text-sm text-slate-700">
+                {discoveryRequestForDrawer.requestedTasks.map((task) => (
+                  <li key={task.name}>
+                    <span className="font-medium">{task.name}</span>
+                    {task.description ? ` — ${task.description}` : ""}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground mt-1">No catalog tasks selected.</p>
+            )}
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Bottleneck
+              </p>
+              <p className="text-sm whitespace-pre-wrap mt-1">
+                {discoveryRequestForDrawer?.description ?? "Not provided"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Urgency
+              </p>
+              <p className="text-sm mt-1">{discoveryRequestForDrawer?.urgency ?? "Not specified"}</p>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Submitted notes
+            </p>
+            <p className="text-sm whitespace-pre-wrap mt-1">
+              {discoveryRequestForDrawer?.mostHelpful ?? "No additional notes submitted."}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Meeting and decision</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Scheduling status
+              </p>
+              <p className="text-sm mt-1">{latestAppointment?.status ?? "Not scheduled yet"}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Fit decision
+              </p>
+              <p className="text-sm mt-1">{fitDecisionLabel}</p>
+              {latestAppointment?.fitDecisionReason && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Reason: {latestAppointment.fitDecisionReason}
+                </p>
+              )}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Recap notes
+            </p>
+            <p className="text-sm whitespace-pre-wrap mt-1">
+              {latestAppointment?.recapContent ?? "No recap notes yet."}
+            </p>
+            {latestAppointment?.recapSentAt && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Recap sent {format(new Date(latestAppointment.recapSentAt), "MMM d, yyyy")}
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </>
   );
 }
 

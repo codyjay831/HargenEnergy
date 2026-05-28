@@ -43,7 +43,14 @@ export const PRODUCT_LANGUAGE = {
     plural: "Work requests",
     action: "Send work",
     listTitle: "Work",
-    listSubtitle: "Jobs and tasks you have sent to Hargen.",
+    listSubtitle: "Track work you have sent to Hargen.",
+    listPageTitle: "My work",
+    emptyTitle: "No work yet",
+    emptyBody:
+      "Send your first work item to get started with your Solar Ops Desk.",
+    tableTitleColumn: "Work title",
+    recentSectionTitle: "Recent work",
+    viewAllLabel: "View all",
     detailTitle: "Work details",
     statusLabel: "Status",
     newTitle: "Send work",
@@ -54,6 +61,9 @@ export const PRODUCT_LANGUAGE = {
     supportBlock: "Support Block",
     requestBased: "Request-Based Work",
     pricingPending: "Pricing pending review",
+    fixedFeeApproved: "Fixed fee approved",
+    hourlyApproved: "Hourly billing approved",
+    pricingNeedsFix: "Pricing needs review",
   },
 
   supportSetup: {
@@ -68,6 +78,10 @@ export const PRODUCT_LANGUAGE = {
     changeScopePrompt:
       "To add or remove support areas, contact your Hargen account manager.",
     blockedSubmitTitle: "Cannot send work yet",
+    agreementPending:
+      "Your service agreement is being finalized. Hargen will notify you when you can send work.",
+    agreementContactPrompt:
+      "Contact your Hargen account manager if you need help with your agreement.",
     viewSetupLink: "View your support setup",
     inviteScopeBlocked:
       "Configure approved support areas in Engagement & approved work before sending a portal invite.",
@@ -119,8 +133,7 @@ export const NAV_LABELS = {
   adminClients: "Clients",
   adminOutreach: "Outreach",
   portalSubmit: PRODUCT_LANGUAGE.workRequest.action,
-  portalWork: "My work",
-  portalRequests: "My Requests",
+  portalWork: PRODUCT_LANGUAGE.workRequest.listPageTitle,
   publicCTA: PRODUCT_LANGUAGE.discoveryRequest.action,
 } as const;
 

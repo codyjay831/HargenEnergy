@@ -11,6 +11,10 @@ import {
   TimeEntryStatus,
 } from "@/generated/prisma/client";
 import { isRequestBasedPricingComplete } from "@/lib/engagement";
+import {
+  assertClientCanStartWork,
+  checkClientCanStartWork,
+} from "@/lib/client-work-eligibility-guard";
 
 type TimerRequestContext = {
   timerStartedAt: Date | null;
@@ -42,11 +46,29 @@ function billableTypeForTimerEntry(request: TimerRequestContext): BillableType {
   return BillableType.INCLUDED;
 }
 
+async function assertWorkAllowedForRequest(requestId: string) {
+  const request = await prisma.supportRequest.findUnique({
+    where: { id: requestId },
+    select: { clientId: true },
+  });
+
+  if (!request) {
+    throw new Error("Support request not found.");
+  }
+
+  await assertClientCanStartWork(request.clientId, {
+    entryPoint: "admin_start_timer",
+    requestId,
+  });
+}
+
 export async function startTimer(requestId: string) {
   const session = await auth();
   if (!session?.user || session.user.role !== "ADMIN") {
     throw new Error("Unauthorized");
   }
+
+  await assertWorkAllowedForRequest(requestId);
 
   await prisma.supportRequest.update({
     where: { id: requestId },
@@ -77,30 +99,52 @@ export async function pauseTimer(requestId: string, reason: string) {
     (now.getTime() - request.timerStartedAt.getTime()) / 60000,
   );
 
+  let blockedMessage: string | null = null;
   if (elapsedMinutes > 0) {
-    await prisma.timeEntry.create({
-      data: {
-        clientId: request.clientId,
-        supportRequestId: requestId,
-        date: now,
-        minutes: elapsedMinutes,
-        description: `Timer paused: ${reason}`,
-        billableType: billableTypeForTimerEntry(request),
-        status: TimeEntryStatus.STAGED,
-        createdById: session.user.id,
-      },
+    const workGate = await checkClientCanStartWork(request.clientId, {
+      entryPoint: "admin_pause_timer",
+      requestId,
+      actorId: session.user.id,
     });
+    if (!workGate.ok) {
+      blockedMessage = workGate.message;
+    } else {
+      await prisma.timeEntry.create({
+        data: {
+          clientId: request.clientId,
+          supportRequestId: requestId,
+          date: now,
+          minutes: elapsedMinutes,
+          description: `Timer paused: ${reason}`,
+          billableType: billableTypeForTimerEntry(request),
+          status: TimeEntryStatus.STAGED,
+          createdById: session.user.id,
+        },
+      });
+    }
   }
+
+  const resolvedBlockerReason = blockedMessage
+    ? `${reason} (work blocked: ${blockedMessage})`
+    : reason;
 
   await prisma.supportRequest.update({
     where: { id: requestId },
     data: {
       timerStartedAt: null,
-      blockerReason: reason,
+      blockerReason: resolvedBlockerReason,
     },
   });
 
   revalidatePath(`/admin/requests/${requestId}`);
+  if (blockedMessage) {
+    return {
+      blocked: true,
+      message: blockedMessage,
+      elapsedMinutes: 0,
+      timeEntryId: null,
+    };
+  }
 }
 
 export async function stopTimer(requestId: string) {
@@ -121,31 +165,44 @@ export async function stopTimer(requestId: string) {
     (now.getTime() - request.timerStartedAt.getTime()) / 60000,
   );
 
+  let blockedMessage: string | null = null;
   let timeEntryId = null;
   if (elapsedMinutes > 0) {
-    const entry = await prisma.timeEntry.create({
-      data: {
-        clientId: request.clientId,
-        supportRequestId: requestId,
-        date: now,
-        minutes: elapsedMinutes,
-        description: "Timer session",
-        billableType: billableTypeForTimerEntry(request),
-        status: TimeEntryStatus.STAGED,
-        createdById: session.user.id,
-      },
+    const workGate = await checkClientCanStartWork(request.clientId, {
+      entryPoint: "admin_stop_timer",
+      requestId,
+      actorId: session.user.id,
     });
-    timeEntryId = entry.id;
+    if (!workGate.ok) {
+      blockedMessage = workGate.message;
+    } else {
+      const entry = await prisma.timeEntry.create({
+        data: {
+          clientId: request.clientId,
+          supportRequestId: requestId,
+          date: now,
+          minutes: elapsedMinutes,
+          description: "Timer session",
+          billableType: billableTypeForTimerEntry(request),
+          status: TimeEntryStatus.STAGED,
+          createdById: session.user.id,
+        },
+      });
+      timeEntryId = entry.id;
+    }
   }
 
   await prisma.supportRequest.update({
     where: { id: requestId },
     data: {
       timerStartedAt: null,
-      blockerReason: null,
+      blockerReason: blockedMessage,
     },
   });
 
   revalidatePath(`/admin/requests/${requestId}`);
+  if (blockedMessage) {
+    return { blocked: true, message: blockedMessage, elapsedMinutes: 0, timeEntryId: null };
+  }
   return { elapsedMinutes, timeEntryId };
 }

@@ -6,6 +6,7 @@ import {
   isUrgencyValue,
   isEngagementTypeValue,
 } from "@/lib/ui-enums";
+import { SERVICE_MODEL_TYPES } from "@/lib/client-service-model";
 import {
   ALLOWED_ATTACHMENT_TYPES,
   MAX_FILE_SIZE_ATTACHMENT,
@@ -157,6 +158,7 @@ export const updateClientEngagementSchema = z.object({
   engagementType: z.string().refine(isEngagementTypeValue, {
     message: "Invalid engagement type.",
   }),
+  serviceModels: z.array(z.enum(SERVICE_MODEL_TYPES)).max(2).optional(),
   approvedWorkTaskIds: z.array(z.string().min(1).max(128)).max(50),
 });
 

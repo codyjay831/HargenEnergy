@@ -130,9 +130,19 @@ function CommandBarBody({
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
         <StatusPill label="Invite" ok={readiness.canInvitePortal} />
+        <StatusPill label="Agreement" ok={readiness.agreementReady} />
         <StatusPill label="Submit" ok={readiness.canSubmitPortalWork} />
+        <StatusPill label="Catalog" ok={readiness.catalogReady} />
         <StatusPill label="Billing" ok={readiness.billingReady} detail={billingLabel} />
       </div>
+
+      {!readiness.canSubmitPortalWork && readiness.primarySubmitBlockReason && (
+        <p className="text-sm text-amber-900">
+          <span className="font-medium">Primary blocker:</span>{" "}
+          {readiness.submitBlockers.primary?.adminMessage ??
+            readiness.primarySubmitBlockMessage}
+        </p>
+      )}
 
       {readiness.blockingMessages.length > 0 && (
         <div className="space-y-1 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-sm text-amber-900">

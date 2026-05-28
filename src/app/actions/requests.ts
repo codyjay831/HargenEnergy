@@ -32,6 +32,8 @@ import { formatUrgencyLabel } from "@/lib/ui-enums";
 import { writeAuditLog } from "@/lib/audit-log";
 import { ensureDiscoverySchedulingLink } from "@/lib/discovery-scheduling/ensure-scheduling-link";
 import { getDiscoverySchedulingReadiness } from "@/lib/discovery-scheduling/scheduling-readiness";
+import { checkClientCanStartWork } from "@/lib/client-work-eligibility-guard";
+import { logRequestPricingEvent } from "@/lib/request-pricing-events";
 
 export type DiscoverySubmissionSummary = {
   requestId: string;
@@ -222,13 +224,24 @@ export async function updateRequest(
       return { error: "Request not found." };
     }
 
-    if (
+    const transitionsToInProgress =
       updateData.status === RequestStatus.IN_PROGRESS &&
-      existing.client.engagementType === EngagementType.REQUEST_BASED
-    ) {
-      const merged = { ...existing, ...updateData };
-      if (!isRequestBasedPricingComplete(merged)) {
-        return { error: REQUEST_BASED_PRICING_REQUIRED_ERROR };
+      existing.status !== RequestStatus.IN_PROGRESS;
+    if (transitionsToInProgress) {
+      if (existing.client.engagementType === EngagementType.REQUEST_BASED) {
+        const merged = { ...existing, ...updateData };
+        if (!isRequestBasedPricingComplete(merged)) {
+          return { error: REQUEST_BASED_PRICING_REQUIRED_ERROR };
+        }
+      }
+
+      const workGate = await checkClientCanStartWork(existing.clientId, {
+        entryPoint: "admin_request_in_progress",
+        actorId: session.user.id,
+        requestId: id,
+      });
+      if (!workGate.ok) {
+        return { error: workGate.message };
       }
     }
 
@@ -355,6 +368,25 @@ export async function updateRequestHandoffPricing(data: {
     pricingMode === PricingMode.FLAT ? parsed.data.flatPriceCents : null;
 
   try {
+    const existing = await prisma.supportRequest.findUnique({
+      where: { id: requestId },
+      select: {
+        id: true,
+        clientId: true,
+        client: { select: { engagementType: true } },
+        handoffTier: true,
+        pricingMode: true,
+        flatPriceCents: true,
+      },
+    });
+
+    if (!existing) {
+      return { error: "Request not found." };
+    }
+    if (existing.client.engagementType !== EngagementType.REQUEST_BASED) {
+      return { error: "Handoff and pricing are only required for Request-Based work." };
+    }
+
     const request = await prisma.supportRequest.update({
       where: { id: requestId },
       data: {
@@ -363,6 +395,39 @@ export async function updateRequestHandoffPricing(data: {
         flatPriceCents,
       },
       include: { client: true },
+    });
+
+    await writeAuditLog({
+      actorUserId: session.user.id,
+      action: "request.pricing.update",
+      entityType: "SupportRequest",
+      entityId: requestId,
+      metadata: {
+        clientId: request.clientId,
+        handoffTierBefore: existing.handoffTier,
+        handoffTierAfter: request.handoffTier,
+        pricingModeBefore: existing.pricingMode,
+        pricingModeAfter: request.pricingMode,
+        flatPriceCentsBefore: existing.flatPriceCents,
+        flatPriceCentsAfter: request.flatPriceCents,
+      },
+    });
+
+    const hadPricingBefore =
+      existing.handoffTier !== null && existing.pricingMode !== null;
+    const hasPricingAfter = request.handoffTier !== null && request.pricingMode !== null;
+    const eventType = !hasPricingAfter
+      ? "request_pricing_cleared"
+      : hadPricingBefore
+        ? "request_pricing_updated"
+        : "request_pricing_set";
+    logRequestPricingEvent({
+      type: eventType,
+      requestId: request.id,
+      clientId: request.clientId,
+      actorId: session.user.id,
+      pricingMode: request.pricingMode,
+      flatPriceCents: request.flatPriceCents,
     });
 
     revalidatePath(`/admin/requests/${requestId}`);

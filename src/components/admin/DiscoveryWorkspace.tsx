@@ -97,7 +97,7 @@ interface DiscoveryWorkspaceProps {
 
 const FIT_DECISION_OPTIONS: { value: DiscoveryFitDecisionValue; label: string }[] = [
   { value: "GOOD_FIT", label: "Good fit" },
-  { value: "MAYBE_FIT", label: "Maybe fit" },
+  { value: "MAYBE_FIT", label: "Needs follow-up" },
   { value: "NOT_A_FIT", label: "Not a fit" },
 ];
 

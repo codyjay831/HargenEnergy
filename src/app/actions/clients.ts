@@ -17,15 +17,23 @@ import {
 import { requireStaff } from "@/lib/auth-guards";
 import { validateClientBillingModeUpdate } from "@/lib/client-billing-mode";
 import { prisma } from "@/lib/prisma";
-import {
-  assertWorkTaskAllowedForClient,
-  resolveActiveWorkTask,
-} from "@/lib/engagement";
 import { isUrgencyValue, isEngagementTypeValue } from "@/lib/ui-enums";
 import { updateClientEngagementSchema } from "@/lib/validations";
 import { applyIntakeWorkTasksToClient } from "@/lib/intake-engagement";
 import { sendInternalRequestAlert } from "@/lib/email";
 import { writeAuditLog } from "@/lib/audit-log";
+import {
+  checkClientCanStartWork,
+  checkClientWorkTaskSubmit,
+  loadClientCatalogContext,
+} from "@/lib/client-work-eligibility-guard";
+import {
+  DEFAULT_SERVICE_MODELS,
+  normalizeRequestedServiceModels,
+  pickPrimaryEngagementType,
+  type ServiceModelTypeValue,
+  toServiceModelType,
+} from "@/lib/client-service-model";
 import {
   revalidateAdminClientPage,
   revalidatePortalClientSurfaces,
@@ -183,6 +191,7 @@ const logOpsRequestSchema = z.object({
 export async function updateClientEngagement(data: {
   clientId: string;
   engagementType: string;
+  serviceModels?: ServiceModelTypeValue[];
   approvedWorkTaskIds: string[];
 }) {
   await requireStaff();
@@ -203,7 +212,12 @@ export async function updateClientEngagement(data: {
     return { error: "Client not found." };
   }
 
-  if (engagementType === EngagementType.SUPPORT_BLOCK && approvedWorkTaskIds.length > 0) {
+  const requestedModels = normalizeRequestedServiceModels(
+    parsed.data.serviceModels ?? [toServiceModelType(engagementType)],
+  );
+  const hasSupportBlock = requestedModels.includes("SUPPORT_BLOCK");
+
+  if (hasSupportBlock && approvedWorkTaskIds.length > 0) {
     const activeCount = await prisma.workTask.count({
       where: { id: { in: approvedWorkTaskIds }, isActive: true },
     });
@@ -216,18 +230,39 @@ export async function updateClientEngagement(data: {
     await prisma.$transaction(async (tx) => {
       await tx.clientApprovedWorkTask.deleteMany({ where: { clientId } });
 
-      if (engagementType === EngagementType.SUPPORT_BLOCK && approvedWorkTaskIds.length > 0) {
+      if (hasSupportBlock && approvedWorkTaskIds.length > 0) {
         await tx.clientApprovedWorkTask.createMany({
           data: approvedWorkTaskIds.map((workTaskId) => ({ clientId, workTaskId })),
         });
       }
 
+      for (const modelType of DEFAULT_SERVICE_MODELS) {
+        const isActive = requestedModels.includes(modelType);
+        await tx.clientServiceModel.upsert({
+          where: { clientId_modelType: { clientId, modelType } },
+          create: {
+            clientId,
+            modelType,
+            isActive,
+            activatedAt: new Date(),
+            deactivatedAt: isActive ? null : new Date(),
+          },
+          update: {
+            isActive,
+            activatedAt: isActive ? new Date() : undefined,
+            deactivatedAt: isActive ? null : new Date(),
+          },
+        });
+      }
+
+      const primaryEngagement = pickPrimaryEngagementType(requestedModels);
+
       await tx.client.update({
         where: { id: clientId },
         data: {
-          engagementType,
+          engagementType: primaryEngagement,
           weeklyHours:
-            engagementType === EngagementType.REQUEST_BASED ? 0 : client.weeklyHours,
+            hasSupportBlock ? client.weeklyHours : 0,
         },
       });
     });
@@ -237,16 +272,15 @@ export async function updateClientEngagement(data: {
 
     return {
       success: true,
-      engagementType,
-      approvedCount:
-        engagementType === EngagementType.SUPPORT_BLOCK
-          ? approvedWorkTaskIds.length
-          : 0,
+      engagementType: pickPrimaryEngagementType(requestedModels),
+      serviceModels: requestedModels,
+      approvedCount: hasSupportBlock ? approvedWorkTaskIds.length : 0,
       warnings:
-        engagementType === EngagementType.SUPPORT_BLOCK &&
-        approvedWorkTaskIds.length === 0
-          ? ["No approved work types yet. Portal submit will be blocked."]
-          : [],
+        hasSupportBlock && approvedWorkTaskIds.length === 0
+          ? ["No approved work types yet. Portal submit will be blocked for Support Block work."]
+          : !hasSupportBlock
+            ? ["Support Block is disabled. Weekly hours were reset to 0."]
+            : [],
     };
   } catch (error) {
     console.error("Error updating client engagement:", error);
@@ -260,7 +294,10 @@ export async function getClientEngagementConfig(clientId: string) {
   const [client, categories] = await Promise.all([
     prisma.client.findUnique({
       where: { id: clientId },
-      include: { approvedWorkTasks: { select: { workTaskId: true } } },
+      include: {
+        approvedWorkTasks: { select: { workTaskId: true } },
+        serviceModels: { select: { modelType: true, isActive: true } },
+      },
     }),
     prisma.serviceCategory.findMany({
       where: { isActive: true },
@@ -279,6 +316,9 @@ export async function getClientEngagementConfig(clientId: string) {
     client: {
       id: client.id,
       engagementType: client.engagementType,
+      serviceModels: client.serviceModels
+        .filter((item) => item.isActive)
+        .map((item) => item.modelType),
       approvedWorkTaskIds: client.approvedWorkTasks.map((a) => a.workTaskId),
     },
     categories,
@@ -296,7 +336,7 @@ export async function logClientOpsRequest(data: {
   adminOverride?: boolean;
   overrideReason?: string;
 }) {
-  await requireStaff();
+  const session = await requireStaff();
 
   const parsed = logOpsRequestSchema.safeParse(data);
   if (!parsed.success) {
@@ -319,41 +359,50 @@ export async function logClientOpsRequest(data: {
 
   const client = await prisma.client.findUnique({
     where: { id: clientId },
-    include: { approvedWorkTasks: { select: { workTaskId: true } } },
+    select: { companyName: true, contactName: true, email: true, phone: true, planType: true },
   });
   if (!client) {
     return { error: "Client not found." };
   }
 
-  if (client.status !== ClientStatus.ACTIVE) {
-    return { error: "Log client ops requests only for active clients." };
+  const workGate = await checkClientCanStartWork(clientId, {
+    entryPoint: "admin_log_ops_request",
+    actorId: session.user.id,
+    workTaskId,
+  });
+  if (!workGate.ok) {
+    return { error: workGate.message };
   }
 
   let resolvedSupportNeeded = supportNeeded || null;
   let finalDescription = description;
 
   if (workTaskId) {
-    const taskResult = await resolveActiveWorkTask(workTaskId, (id) =>
-      prisma.workTask.findUnique({ where: { id } }),
-    );
-    if (!taskResult.ok) {
-      return { error: taskResult.error };
+    const catalogClient = await loadClientCatalogContext(clientId);
+    if (!catalogClient) {
+      return { error: "Client not found." };
     }
 
-    const allowed = assertWorkTaskAllowedForClient({
-      client,
+    const taskGate = await checkClientWorkTaskSubmit({
+      clientId,
+      client: catalogClient,
       workTaskId,
       allowAdminOverride: adminOverride,
+      options: {
+        entryPoint: "admin_log_ops_request",
+        actorId: session.user.id,
+        workTaskId,
+      },
     });
-    if (!allowed.ok) {
-      return { error: allowed.error };
+    if (!taskGate.ok) {
+      return { error: taskGate.error };
     }
 
     if (adminOverride && overrideReason) {
       finalDescription += `\n\n---\nAdmin override: ${overrideReason}`;
     }
 
-    resolvedSupportNeeded = taskResult.workTask.name;
+    resolvedSupportNeeded = taskGate.workTask.name;
   }
 
   try {

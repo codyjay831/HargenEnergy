@@ -22,7 +22,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EngagementType, SystemAccessStatus } from "@/generated/prisma/client";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
-import { isRequestBasedPricingComplete } from "@/lib/engagement";
+import { getRequestPricingState } from "@/lib/engagement";
 import { getClientPortalSupportSetup } from "@/lib/portal-support";
 import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
 import { PortalSetupGuide } from "@/components/portal/PortalSetupGuide";
@@ -93,20 +93,24 @@ export default async function PortalDashboard() {
   const needsInfoCount = needsInfoRequests.length;
 
   const pendingPricingRequests = isRequestBased
-    ? client.requests.filter((r) => !isRequestBasedPricingComplete(r))
+    ? client.requests.filter((r) => {
+        const state = getRequestPricingState(r);
+        return state === "pending_review" || state === "invalid";
+      })
     : [];
 
   const supportSetupOk = !("error" in supportSetup);
   const blockReasonCode =
     supportSetupOk && !supportSetup.canSubmit ? supportSetup.blockReasonCode : undefined;
   const paymentBlocked = isSupportBlock && blockReasonCode === "payment_not_made";
+  const agreementBlocked = blockReasonCode === "agreement_pending";
   const primaryHref = paymentBlocked
     ? "/portal/account#support-setup"
     : "/portal/requests/new";
   const primaryLabel = paymentBlocked
     ? "Set up payment"
     : PRODUCT_LANGUAGE.workRequest.action;
-  const primaryDisabled = setupBlocked && !paymentBlocked;
+  const primaryDisabled = setupBlocked && !paymentBlocked && !agreementBlocked;
 
   const pendingAccessCount = await prisma.clientSystemAccess.count({
     where: {
@@ -200,11 +204,26 @@ export default async function PortalDashboard() {
                 : PRODUCT_LANGUAGE.supportSetup.viewSetupLink}
             </Link>
           )}
+          {agreementBlocked && (
+            <p className="mt-4 text-xs text-amber-800/90">
+              {PRODUCT_LANGUAGE.supportSetup.agreementContactPrompt}
+            </p>
+          )}
           {!isRequestBased && blockReasonCode === "scope_not_configured" && (
             <p className="mt-4 text-xs text-amber-800/90">
               {PRODUCT_LANGUAGE.supportSetup.changeScopePrompt}
             </p>
           )}
+          {supportSetupOk &&
+            !supportSetup.canSubmit &&
+            supportSetup.allSubmitBlockers &&
+            supportSetup.allSubmitBlockers.length > 1 && (
+              <ul className="mt-3 list-disc pl-5 text-xs text-amber-800/90 space-y-1">
+                {supportSetup.allSubmitBlockers.slice(1).map((blocker) => (
+                  <li key={blocker.reasonCode}>{blocker.message}</li>
+                ))}
+              </ul>
+            )}
         </div>
       )}
 
@@ -373,18 +392,18 @@ export default async function PortalDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Recent Activity</CardTitle>
-            <Link href="/portal/requests" className="text-xs text-primary hover:underline font-medium">View All</Link>
+            <CardTitle>{PRODUCT_LANGUAGE.workRequest.recentSectionTitle}</CardTitle>
+            <Link href="/portal/requests" className="text-xs text-primary hover:underline font-medium">{PRODUCT_LANGUAGE.workRequest.viewAllLabel}</Link>
           </CardHeader>
           <CardContent>
             {client.requests.length === 0 ? (
               <EmptyState
                 icon={Inbox}
-                title="No requests yet"
+                title={PRODUCT_LANGUAGE.workRequest.emptyTitle}
                 description={
                   primaryDisabled
                     ? "Your account is still being set up. You can send work once activation is complete."
-                    : "Submit your first work request to get started with your Solar Ops Desk support."
+                    : PRODUCT_LANGUAGE.workRequest.emptyBody
                 }
                 action={
                   primaryDisabled

@@ -9,7 +9,11 @@ import {
   SupportRequestKind,
   RequestStatus,
 } from "@/generated/prisma/client";
-import { getEngagementLabel } from "@/lib/engagement";
+import {
+  getEngagementLabel,
+  getRequestPricingState,
+  getRequestPricingStateLabel,
+} from "@/lib/engagement";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { PriorityButtons } from "@/components/admin/PriorityButtons";
 import { buttonVariants } from "@/components/ui/button";
@@ -218,6 +222,10 @@ export default async function AdminRequests({ searchParams }: AdminRequestsPageP
                 const priorityClass = priorityRankBadgeClass(request.priorityRank);
                 const statusClass = requestStatusBadgeClass(request.status);
                 const urg = urgencyBadgeClass(request.urgency);
+                const pricingState =
+                  request.client.engagementType === EngagementType.REQUEST_BASED
+                    ? getRequestPricingState(request)
+                    : null;
 
                 return (
                   <tr
@@ -319,6 +327,14 @@ export default async function AdminRequests({ searchParams }: AdminRequestsPageP
                               {request.handoffTier}
                             </Badge>
                           )}
+                        {request.client.engagementType === EngagementType.REQUEST_BASED && (
+                          <Badge
+                            variant={pricingState === "fixed_fee_ready" ? "default" : "outline"}
+                            className="w-fit text-[10px]"
+                          >
+                            {getRequestPricingStateLabel(pricingState ?? "pending_review")}
+                          </Badge>
+                        )}
                       </div>
                     </td>
 

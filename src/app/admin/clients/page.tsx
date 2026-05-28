@@ -3,7 +3,13 @@ import { format } from "date-fns";
 import { startOfWeek } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { ClientStatus, DiscoverySchedulingLinkStatus, RequestStatus, SupportRequestKind } from "@/generated/prisma/client";
+import {
+  AgreementStatus,
+  ClientStatus,
+  DiscoverySchedulingLinkStatus,
+  RequestStatus,
+  SupportRequestKind,
+} from "@/generated/prisma/client";
 import { cn } from "@/lib/utils";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { BillingStatusBadge } from "@/components/admin/BillingStatusBadge";
@@ -36,7 +42,7 @@ const PROSPECT_NEEDS_ATTENTION_STATUSES = [
 ] as const;
 
 interface AdminClientsPageProps {
-  searchParams: Promise<{ status?: string; needsReview?: string }>;
+  searchParams: Promise<{ status?: string; needsReview?: string; agreementPending?: string }>;
 }
 
 type ActiveClientTopRequest = {
@@ -54,8 +60,9 @@ type ProspectIntakeRequest = {
 };
 
 export default async function AdminClients({ searchParams }: AdminClientsPageProps) {
-  const { status, needsReview } = await searchParams;
+  const { status, needsReview, agreementPending } = await searchParams;
   const needsReviewFilter = needsReview === "1";
+  const agreementPendingFilter = agreementPending === "1";
   const statusFilter =
     status === "LEAD" || status === "ACTIVE" || status === "ALL"
       ? status
@@ -64,16 +71,28 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
         : "LEAD";
 
   const isOnboardingActive =
-    !needsReviewFilter && (status === undefined || status === "LEAD");
+    !needsReviewFilter &&
+    !agreementPendingFilter &&
+    (status === undefined || status === "LEAD");
   const isNeedsReviewActive = needsReviewFilter;
-  const isActiveClientsTab = !needsReviewFilter && statusFilter === "ACTIVE";
-  const isAllCompaniesActive = !needsReviewFilter && statusFilter === "ALL";
+  const isActiveClientsTab =
+    !needsReviewFilter && !agreementPendingFilter && statusFilter === "ACTIVE";
+  const isAgreementPendingTab = agreementPendingFilter;
+  const showActiveClientCards = isActiveClientsTab || isAgreementPendingTab;
+  const isAllCompaniesActive =
+    !needsReviewFilter && !agreementPendingFilter && statusFilter === "ALL";
 
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
 
   const clients = await prisma.client.findMany({
-    where:
-      statusFilter === "ALL"
+    where: isAgreementPendingTab
+      ? {
+          status: ClientStatus.ACTIVE,
+          agreementStatus: {
+            notIn: [AgreementStatus.SIGNED, AgreementStatus.WAIVED],
+          },
+        }
+      : statusFilter === "ALL"
         ? needsReviewFilter
           ? {
               requests: {
@@ -96,7 +115,7 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
             }
           : { status: statusFilter as ClientStatus },
     include: {
-      requests: isActiveClientsTab
+      requests: showActiveClientCards
         ? {
             where: {
               kind: SupportRequestKind.CLIENT_OPS,
@@ -134,14 +153,16 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
             },
           },
       // For active clients, load time entries for health derivation
-      timeEntries: isActiveClientsTab
+      timeEntries: showActiveClientCards
         ? { where: { date: { gte: weekStart } } }
         : false,
     },
     orderBy: { updatedAt: "desc" },
   });
 
-  const pageSubtitle = needsReviewFilter
+  const pageSubtitle = isAgreementPendingTab
+    ? "Active clients blocked by unsigned service agreement."
+    : needsReviewFilter
     ? "Discovery requests needing review or awaiting prospect response."
     : isActiveClientsTab
       ? "Your current active clients and their delivery status."
@@ -154,7 +175,7 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
           <h1 className="text-2xl font-semibold text-slate-900">Clients</h1>
           <p className="mt-0.5 text-sm text-slate-600">{pageSubtitle}</p>
         </div>
-        {isActiveClientsTab && (
+        {showActiveClientCards && (
           <Link
             href="/admin/requests"
             className={cn(buttonVariants({ size: "sm" }), adminBtnPrimary)}
@@ -175,6 +196,12 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
         <FilterTab href="/admin/clients?status=ACTIVE" active={isActiveClientsTab}>
           Active {PRODUCT_LANGUAGE.client.plural}
         </FilterTab>
+        <FilterTab
+          href="/admin/clients?status=ACTIVE&agreementPending=1"
+          active={isAgreementPendingTab}
+        >
+          Agreement pending
+        </FilterTab>
         <FilterTab href="/admin/clients?status=ALL" active={isAllCompaniesActive}>
           All Companies
         </FilterTab>
@@ -183,7 +210,9 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
       {clients.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
           <p className="text-sm text-slate-500">
-            {needsReviewFilter
+            {isAgreementPendingTab
+              ? "No active clients are blocked by agreement status."
+              : needsReviewFilter
               ? "No discovery requests need review right now."
               : statusFilter === "LEAD"
                 ? `No ${PRODUCT_LANGUAGE.prospect.plural.toLowerCase()} yet.`
@@ -192,7 +221,7 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
                   : "No companies yet."}
           </p>
         </div>
-      ) : isActiveClientsTab ? (
+      ) : showActiveClientCards ? (
         /* ── Active clients: card rows ──────────────────────────────────── */
         <div className="space-y-2">
           {clients.map((client, index) => {

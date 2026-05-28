@@ -5,7 +5,7 @@ import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { PortalBillingPortalButton } from "@/components/forms/PortalBillingPortalButton";
-import { BillingMode } from "@/generated/prisma/client";
+import { AgreementStatus, BillingMode } from "@/generated/prisma/client";
 import type { ClientSetupReadiness } from "@/lib/client-setup-readiness";
 import {
   getBillingBadgeVariant,
@@ -62,6 +62,27 @@ export function PortalSetupSheetPanels({
         </div>
       );
 
+    case "agreement": {
+      const agreement = readiness.agreement;
+      return (
+        <div className="space-y-4">
+          <p className="text-sm font-medium text-slate-900">{agreement.statusLabel}</p>
+          <p className="text-sm text-muted-foreground">
+            {agreement.ready
+              ? agreement.status === AgreementStatus.SIGNED
+                ? "Your service agreement is complete."
+                : "Agreement requirement has been waived for your account."
+              : agreement.portalMessage}
+          </p>
+          {!agreement.ready && (
+            <p className="text-xs text-amber-800">
+              {PRODUCT_LANGUAGE.supportSetup.agreementContactPrompt}
+            </p>
+          )}
+        </div>
+      );
+    }
+
     case "billing":
       return (
         <div className="space-y-4">
@@ -112,8 +133,16 @@ export function PortalSetupSheetPanels({
           <p className="text-sm text-muted-foreground">
             {readiness.canSubmitPortalWork
               ? "You can submit work requests whenever you are ready."
-              : "Send work is blocked until Hargen completes your setup."}
+              : (readiness.primarySubmitBlockMessage ??
+                "Send work is blocked until Hargen completes your setup.")}
           </p>
+          {!readiness.canSubmitPortalWork && readiness.allSubmitBlockers.length > 1 && (
+            <ul className="list-disc pl-5 text-xs text-muted-foreground space-y-1">
+              {readiness.allSubmitBlockers.slice(1).map((blocker) => (
+                <li key={blocker.reasonCode}>{blocker.portalMessage}</li>
+              ))}
+            </ul>
+          )}
           <Link
             href="/portal/requests/new"
             className={cn(

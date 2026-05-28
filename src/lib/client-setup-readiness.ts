@@ -1,4 +1,5 @@
 import {
+  AgreementStatus,
   BillingMode,
   ClientStatus,
   EngagementType,
@@ -21,8 +22,20 @@ import {
   enrichSetupSteps,
   type SetupSheetKey,
 } from "@/lib/setup-sheet-keys";
-import { getPortalWorkSubmitEligibility } from "@/lib/portal-submit-eligibility";
+import type { PortalSubmitBlockReason } from "@/lib/portal-submit-eligibility";
+import {
+  deriveSubmitBlockerSummary,
+  type SubmitBlocker,
+  type SubmitBlockerSummary,
+} from "@/lib/submit-blockers";
+import type { ServiceModelTypeValue } from "@/lib/client-service-model";
+import {
+  getClientAgreementReadiness,
+  type AgreementReadiness,
+} from "@/lib/client-agreement";
 import { countPortalLoggedInUsers } from "@/lib/portal-user-login";
+import { getClientCatalogEligibility } from "@/lib/client-catalog-eligibility";
+import { loadCatalogTaskCounts } from "@/lib/client-catalog-loader";
 
 export type SetupStepOwner = "admin" | "customer" | "system" | "stripe";
 export type SetupStepStatus =
@@ -74,6 +87,14 @@ export type ScopeReadiness = {
   description: string;
 };
 
+export type CatalogReadiness = {
+  globalCatalogReady: boolean;
+  discoveryCatalogReady: boolean;
+  activeCatalogTaskCount: number;
+  discoveryActiveTaskCount: number;
+  description: string;
+};
+
 export type ClientSetupReadiness = {
   clientId: string;
   clientStatus: ClientStatus;
@@ -82,11 +103,19 @@ export type ClientSetupReadiness = {
   weeklyHours: number;
   canInvitePortal: boolean;
   canSubmitPortalWork: boolean;
+  primarySubmitBlockReason?: PortalSubmitBlockReason;
+  primarySubmitBlockMessage?: string;
+  submitBlockers: SubmitBlockerSummary;
+  allSubmitBlockers: SubmitBlocker[];
+  agreementReady: boolean;
+  agreement: AgreementReadiness;
   billingReady: boolean;
   systemAccessReady: boolean;
   portalAccessReady: boolean;
   firstWorkSubmitted: boolean;
   scopeReady: boolean;
+  catalogReady: boolean;
+  catalog: CatalogReadiness;
   hasDiscoveryIntake: boolean;
   billing: ClientBillingReadiness;
   systemAccess: SystemAccessReadiness;
@@ -100,7 +129,12 @@ export type ClientSetupReadiness = {
 export type DeriveClientSetupReadinessInput = {
   clientId: string;
   status: ClientStatus;
+  agreementStatus: AgreementStatus;
+  agreementSentAt?: Date | null;
+  agreementSignedAt?: Date | null;
+  agreementUrl?: string | null;
   engagementType: EngagementType;
+  activeServiceModels?: ServiceModelTypeValue[];
   planType: PlanType;
   weeklyHours: number;
   billingMode?: BillingMode | null;
@@ -115,6 +149,7 @@ export type DeriveClientSetupReadinessInput = {
   approvedWorkTaskCount: number;
   activeApprovedWorkTaskCount: number;
   activeCatalogTaskCount: number;
+  discoveryActiveTaskCount: number;
   clientPortalUserCount: number;
   clientPortalLoggedInCount: number;
   clientOpsRequestCount: number;
@@ -131,6 +166,7 @@ export type SetupGuideHrefs = {
   engagement: string;
   approvedWork: string;
   billing: string;
+  agreement: string;
   systemAccess: string;
   portalAccessAdmin: string;
   workRequests: string;
@@ -151,6 +187,7 @@ export function buildSetupGuideHrefs(clientId: string): SetupGuideHrefs {
     engagement: `${adminBase}?tab=setup`,
     approvedWork: `${adminBase}?tab=setup`,
     billing: `${adminBase}?tab=billing`,
+    agreement: `${adminBase}?tab=setup`,
     systemAccess: `${adminBase}?tab=setup`,
     portalAccessAdmin: `${adminBase}?tab=billing`,
     workRequests: adminBase,
@@ -231,59 +268,97 @@ function describeSystemAccess(
 }
 
 function getScopeReadiness(input: {
-  engagementType: EngagementType;
+  activeServiceModels: ServiceModelTypeValue[];
   approvedWorkTaskCount: number;
   activeApprovedWorkTaskCount: number;
   activeCatalogTaskCount: number;
+  catalogEligibility: ReturnType<typeof getClientCatalogEligibility>;
 }): ScopeReadiness {
-  if (input.engagementType === EngagementType.REQUEST_BASED) {
+  const { catalogEligibility } = input;
+  const scopeRequired = catalogEligibility.hasSupportBlock;
+  const catalogRequired = catalogEligibility.hasRequestBased;
+
+  if (!scopeRequired && catalogRequired) {
     return {
       required: false,
-      ready: input.activeCatalogTaskCount > 0,
+      ready: catalogEligibility.requestBasedPathReady,
       approvedWorkTaskCount: input.approvedWorkTaskCount,
       activeApprovedWorkTaskCount: input.activeApprovedWorkTaskCount,
       activeCatalogTaskCount: input.activeCatalogTaskCount,
-      description:
-        input.activeCatalogTaskCount > 0
-          ? "Request-Based clients can use the active work catalog."
-          : "No active work types are available in the catalog right now.",
+      description: catalogEligibility.requestBasedPathReady
+        ? "Request-Based clients can use the active work catalog."
+        : "No active work types are available in the catalog right now.",
+    };
+  }
+
+  if (scopeRequired && catalogRequired) {
+    const ready = catalogEligibility.catalogPathReady;
+    return {
+      required: true,
+      ready,
+      approvedWorkTaskCount: input.approvedWorkTaskCount,
+      activeApprovedWorkTaskCount: input.activeApprovedWorkTaskCount,
+      activeCatalogTaskCount: input.activeCatalogTaskCount,
+      description: ready
+        ? "Hybrid engagement has at least one eligible catalog path (approved scope or request-based catalog)."
+        : "Configure approved support scope and/or seed active work types for Request-Based paths.",
     };
   }
 
   return {
     required: true,
-    ready: input.activeApprovedWorkTaskCount > 0,
+    ready: catalogEligibility.supportBlockPathReady,
     approvedWorkTaskCount: input.approvedWorkTaskCount,
     activeApprovedWorkTaskCount: input.activeApprovedWorkTaskCount,
     activeCatalogTaskCount: input.activeCatalogTaskCount,
-    description:
-      input.activeApprovedWorkTaskCount > 0
-        ? "Approved support scope is configured for Support Block work."
-        : "Support Block clients need at least one approved active work type.",
+    description: catalogEligibility.supportBlockPathReady
+      ? "Approved support scope is configured for Support Block work."
+      : "Support Block clients need at least one approved active work type.",
+  };
+}
+
+function getCatalogReadiness(input: {
+  activeCatalogTaskCount: number;
+  discoveryActiveTaskCount: number;
+  hasRequestBased: boolean;
+}): CatalogReadiness {
+  const globalCatalogReady = input.activeCatalogTaskCount > 0;
+  const discoveryCatalogReady = input.discoveryActiveTaskCount > 0;
+
+  let description = `${input.activeCatalogTaskCount} active work type(s) in the global catalog.`;
+  if (!globalCatalogReady && input.hasRequestBased) {
+    description = "No active work types in the catalog. Request-Based and hybrid clients cannot submit work until tasks are seeded.";
+  } else if (!discoveryCatalogReady) {
+    description += " Discovery intake has no active discovery-flagged tasks.";
+  }
+
+  return {
+    globalCatalogReady,
+    discoveryCatalogReady,
+    activeCatalogTaskCount: input.activeCatalogTaskCount,
+    discoveryActiveTaskCount: input.discoveryActiveTaskCount,
+    description,
   };
 }
 
 function buildBlockingMessages(params: {
-  canInvitePortal: boolean;
-  canSubmitPortalWork: boolean;
-  submitBlockMessage?: string;
-  scope: ScopeReadiness;
-  lifecycleReady: boolean;
+  submitBlockers: SubmitBlockerSummary;
   billing: ClientBillingReadiness;
 }): string[] {
   const messages: string[] = [];
 
-  if (!params.lifecycleReady) {
-    messages.push("Activate the client before portal invite or portal work submission.");
+  for (const blocker of params.submitBlockers.all) {
+    if (!messages.includes(blocker.adminMessage)) {
+      messages.push(blocker.adminMessage);
+    }
   }
-  if (!params.scope.ready && params.scope.required) {
-    messages.push("Configure approved support work before customers can submit work.");
-  }
-  if (!params.canSubmitPortalWork && params.submitBlockMessage) {
-    messages.push(params.submitBlockMessage);
-  }
+
   if (!params.billing.ready && params.billing.required) {
-    messages.push("Note: Billing setup is still incomplete for this Support Block account.");
+    const billingNote =
+      "Note: Billing setup is still incomplete for this Support Block account.";
+    if (!messages.includes(billingNote)) {
+      messages.push(billingNote);
+    }
   }
   if (params.billing.status === "attention") {
     messages.push("Billing status needs review.");
@@ -296,11 +371,23 @@ export function deriveClientSetupReadiness(
   input: DeriveClientSetupReadinessInput,
 ): ClientSetupReadiness {
   const lifecycleReady = input.status === ClientStatus.ACTIVE;
-  const scope = getScopeReadiness({
+  const catalogEligibility = getClientCatalogEligibility({
     engagementType: input.engagementType,
+    activeServiceModels: input.activeServiceModels,
+    activeCatalogTaskCount: input.activeCatalogTaskCount,
+    activeApprovedWorkTaskCount: input.activeApprovedWorkTaskCount,
+  });
+  const scope = getScopeReadiness({
+    activeServiceModels: catalogEligibility.activeServiceModels,
     approvedWorkTaskCount: input.approvedWorkTaskCount,
     activeApprovedWorkTaskCount: input.activeApprovedWorkTaskCount,
     activeCatalogTaskCount: input.activeCatalogTaskCount,
+    catalogEligibility,
+  });
+  const catalog = getCatalogReadiness({
+    activeCatalogTaskCount: input.activeCatalogTaskCount,
+    discoveryActiveTaskCount: input.discoveryActiveTaskCount,
+    hasRequestBased: catalogEligibility.hasRequestBased,
   });
   const billing = getClientBillingReadiness({
     engagementType: input.engagementType,
@@ -315,10 +402,18 @@ export function deriveClientSetupReadiness(
     subscriptionCurrentPeriodEnd: input.subscriptionCurrentPeriodEnd,
   });
   const systemAccess = describeSystemAccess(input.systemAccessStatuses);
+  const agreement = getClientAgreementReadiness({
+    agreementStatus: input.agreementStatus,
+    agreementSentAt: input.agreementSentAt ?? null,
+    agreementSignedAt: input.agreementSignedAt ?? null,
+    agreementUrl: input.agreementUrl ?? null,
+  });
 
-  const submitEligibility = getPortalWorkSubmitEligibility({
+  const submitBlockerInput = {
     status: input.status,
+    agreementStatus: input.agreementStatus,
     engagementType: input.engagementType,
+    activeServiceModels: input.activeServiceModels,
     billingMode: input.billingMode,
     billingOverrideReason: input.billingOverrideReason,
     billingOverrideExpiresAt: input.billingOverrideExpiresAt,
@@ -330,27 +425,22 @@ export function deriveClientSetupReadiness(
     subscriptionCurrentPeriodEnd: input.subscriptionCurrentPeriodEnd,
     approvedWorkTaskCount: input.activeApprovedWorkTaskCount,
     activeCatalogTaskCount: input.activeCatalogTaskCount,
-  });
+  };
+
+  const submitBlockers = deriveSubmitBlockerSummary(submitBlockerInput);
 
   const canInvitePortal = lifecycleReady;
-  const canSubmitPortalWork = submitEligibility.canSubmit;
-  const submitBlockMessage = submitEligibility.canSubmit
-    ? undefined
-    : submitEligibility.message;
+  const canSubmitPortalWork = submitBlockers.canSubmit;
+  const primarySubmitBlockReason = submitBlockers.primary?.reasonCode;
+  const primarySubmitBlockMessage = submitBlockers.primary?.portalMessage;
   const portalAccessReady = input.clientPortalLoggedInCount > 0;
   const portalInviteSent = input.clientPortalUserCount > 0;
   const firstWorkSubmitted = input.clientOpsRequestCount > 0;
-  const supportAreasVisible =
-    input.engagementType === EngagementType.REQUEST_BASED
-      ? input.activeCatalogTaskCount > 0
-      : scope.ready;
+  const supportAreasVisible = catalogEligibility.portalVisibleTaskCount > 0;
+  const catalogReady = !catalogEligibility.hasRequestBased || catalog.globalCatalogReady;
 
   const blockingMessages = buildBlockingMessages({
-    canInvitePortal,
-    canSubmitPortalWork,
-    submitBlockMessage,
-    scope,
-    lifecycleReady,
+    submitBlockers,
     billing,
   });
 
@@ -404,9 +494,11 @@ export function deriveClientSetupReadiness(
       id: "engagement-selected",
       title: "Engagement selected",
       description:
-        input.engagementType === EngagementType.SUPPORT_BLOCK
-          ? "Support Block engagement is selected."
-          : "Request-Based engagement is selected.",
+        catalogEligibility.hasSupportBlock && catalogEligibility.hasRequestBased
+          ? "Hybrid engagement: Support Block and Request-Based models are active."
+          : catalogEligibility.hasSupportBlock
+            ? "Support Block engagement is selected."
+            : "Request-Based engagement is selected.",
       owner: "admin",
       status: "complete",
       blockers: ["informational"],
@@ -417,21 +509,36 @@ export function deriveClientSetupReadiness(
       customerVisible: false,
     },
     {
+      id: "work-catalog",
+      title: "Work catalog health",
+      description: catalog.description,
+      owner: "admin",
+      status: catalog.globalCatalogReady
+        ? "complete"
+        : catalogEligibility.hasRequestBased
+          ? "blocked"
+          : "attention",
+      blockers: catalogEligibility.hasRequestBased ? ["blocks_submit"] : ["informational"],
+      required: catalogEligibility.hasRequestBased,
+      actionLabel: "Manage work catalog",
+      actionHref: "/admin/services",
+      adminOnly: true,
+      customerVisible: false,
+    },
+    {
       id: "approved-work",
       title: "Approved support scope",
       description: scope.description,
       owner: "admin",
-      status:
-        input.engagementType === EngagementType.REQUEST_BASED
-          ? "not_required"
-          : scope.ready
-            ? "complete"
-            : "blocked",
-      blockers:
-        input.engagementType === EngagementType.REQUEST_BASED
-          ? ["informational"]
-          : ["blocks_invite", "blocks_submit"],
-      required: input.engagementType === EngagementType.SUPPORT_BLOCK,
+      status: !catalogEligibility.hasSupportBlock
+        ? "not_required"
+        : scope.ready
+          ? "complete"
+          : "blocked",
+      blockers: !catalogEligibility.hasSupportBlock
+        ? ["informational"]
+        : ["blocks_invite", "blocks_submit"],
+      required: catalogEligibility.hasSupportBlock,
       actionLabel: "Configure approved work",
       actionHref: input.hrefs.approvedWork,
       adminOnly: true,
@@ -459,6 +566,34 @@ export function deriveClientSetupReadiness(
       actionHref: input.hrefs.billing,
       adminOnly: true,
       customerVisible: false,
+    },
+    {
+      id: "service-agreement",
+      title: "Service agreement",
+      description:
+        agreement.status === AgreementStatus.SIGNED
+          ? input.agreementSignedAt
+            ? `Signed ${input.agreementSignedAt.toLocaleDateString()}.`
+            : "Agreement is signed."
+          : agreement.status === AgreementStatus.WAIVED
+            ? "Agreement requirement waived by admin."
+            : agreement.status === AgreementStatus.SENT
+              ? input.agreementSentAt
+                ? `Sent ${input.agreementSentAt.toLocaleDateString()}. Waiting for signature.`
+                : "Agreement sent. Waiting for signature."
+              : "Agreement has not been sent yet.",
+      owner: "admin",
+      status: agreement.ready
+        ? "complete"
+        : lifecycleReady
+          ? "blocked"
+          : "incomplete",
+      blockers: ["blocks_submit"],
+      required: true,
+      actionLabel: "Manage agreement",
+      actionHref: input.hrefs.agreement,
+      adminOnly: true,
+      customerVisible: true,
     },
     {
       id: "billing",
@@ -605,6 +740,27 @@ export function deriveClientSetupReadiness(
       customerVisible: true,
     },
     {
+      id: "customer-agreement",
+      title: "Service agreement",
+      description: agreement.ready
+        ? agreement.status === AgreementStatus.WAIVED
+          ? "Agreement requirement waived for your account."
+          : "Your service agreement is complete."
+        : agreement.status === AgreementStatus.SENT
+          ? input.agreementUrl
+            ? "Review and sign your agreement using the link from Hargen."
+            : "Hargen sent your agreement. Contact your account manager if you need the link."
+          : "Hargen is preparing your service agreement.",
+      owner: agreement.ready ? "customer" : "admin",
+      status: agreement.ready ? "complete" : "blocked",
+      blockers: ["blocks_submit"],
+      required: true,
+      actionLabel: input.agreementUrl ? "Open agreement" : "Contact Hargen",
+      actionHref: input.agreementUrl ?? input.hrefs.portalAccount,
+      adminOnly: false,
+      customerVisible: true,
+    },
+    {
       id: "customer-billing",
       title: "Billing setup",
       description:
@@ -659,19 +815,20 @@ export function deriveClientSetupReadiness(
       id: "support-areas-visible",
       title: "Approved support areas",
       description: supportAreasVisible
-        ? "Your supported work areas are visible."
-        : input.engagementType === EngagementType.SUPPORT_BLOCK
+        ? catalogEligibility.hasRequestBased && catalogEligibility.hasSupportBlock
+          ? "Your work types include request-based catalog options and approved support areas."
+          : "Your supported work areas are visible."
+        : catalogEligibility.hasSupportBlock
           ? "Hargen is still configuring your approved support areas."
           : "No active work types are available right now.",
       owner: supportAreasVisible ? "customer" : "admin",
-      status:
-        supportAreasVisible
-          ? "complete"
-          : input.engagementType === EngagementType.SUPPORT_BLOCK
-            ? "blocked"
-            : "incomplete",
+      status: supportAreasVisible
+        ? "complete"
+        : catalogEligibility.hasSupportBlock
+          ? "blocked"
+          : "incomplete",
       blockers:
-        input.engagementType === EngagementType.SUPPORT_BLOCK && !supportAreasVisible
+        !supportAreasVisible && catalogEligibility.hasSupportBlock
           ? ["blocks_submit"]
           : ["informational"],
       required: true,
@@ -715,8 +872,10 @@ export function deriveClientSetupReadiness(
   const postDiscoveryStepIds = new Set([
     "lifecycle-active",
     "engagement-selected",
+    "work-catalog",
     "approved-work",
     "capacity",
+    "service-agreement",
     "billing",
     "system-access-admin",
     "portal-invite",
@@ -754,11 +913,19 @@ export function deriveClientSetupReadiness(
     weeklyHours: input.weeklyHours,
     canInvitePortal,
     canSubmitPortalWork,
+    primarySubmitBlockReason,
+    primarySubmitBlockMessage,
+    submitBlockers,
+    allSubmitBlockers: submitBlockers.all,
+    agreementReady: agreement.ready,
+    agreement,
     billingReady: billing.ready,
     systemAccessReady: systemAccess.ready,
     portalAccessReady,
     firstWorkSubmitted,
     scopeReady: scope.ready,
+    catalogReady,
+    catalog,
     hasDiscoveryIntake: input.hasDiscoveryIntake,
     billing,
     systemAccess,
@@ -778,7 +945,12 @@ export async function getClientSetupReadiness(
     select: {
       id: true,
       status: true,
+      agreementStatus: true,
+      agreementSentAt: true,
+      agreementSignedAt: true,
+      agreementUrl: true,
       engagementType: true,
+      serviceModels: { select: { modelType: true, isActive: true } },
       planType: true,
       weeklyHours: true,
       billingMode: true,
@@ -807,15 +979,9 @@ export async function getClientSetupReadiness(
 
   const approvedIds = client.approvedWorkTasks.map((entry) => entry.workTaskId);
 
-  const [activeCatalogTaskCount, activeApprovedWorkTaskCount, clientOpsRequestCount, hasDiscovery, latestIntake] =
-    await Promise.all([
-      prisma.workTask.count({ where: { isActive: true } }),
-      approvedIds.length === 0
-        ? Promise.resolve(0)
-        : prisma.workTask.count({
-            where: { isActive: true, id: { in: approvedIds } },
-          }),
-      prisma.supportRequest.count({
+  const [catalogCounts, clientOpsRequestCount, hasDiscovery, latestIntake] = await Promise.all([
+    loadCatalogTaskCounts(approvedIds),
+    prisma.supportRequest.count({
         where: { clientId, kind: SupportRequestKind.CLIENT_OPS },
       }),
       prisma.supportRequest.count({
@@ -847,7 +1013,14 @@ export async function getClientSetupReadiness(
   return deriveClientSetupReadiness({
     clientId: client.id,
     status: client.status,
+    agreementStatus: client.agreementStatus,
+    agreementSentAt: client.agreementSentAt,
+    agreementSignedAt: client.agreementSignedAt,
+    agreementUrl: client.agreementUrl,
     engagementType: client.engagementType,
+    activeServiceModels: client.serviceModels
+      .filter((item) => item.isActive)
+      .map((item) => item.modelType),
     planType: client.planType,
     weeklyHours: client.weeklyHours,
     billingMode: client.billingMode,
@@ -860,8 +1033,9 @@ export async function getClientSetupReadiness(
     subscriptionStatus: client.subscriptionStatus,
     subscriptionCurrentPeriodEnd: client.subscriptionCurrentPeriodEnd,
     approvedWorkTaskCount: approvedIds.length,
-    activeApprovedWorkTaskCount,
-    activeCatalogTaskCount,
+    activeApprovedWorkTaskCount: catalogCounts.activeApprovedWorkTaskCount,
+    activeCatalogTaskCount: catalogCounts.activeCatalogTaskCount,
+    discoveryActiveTaskCount: catalogCounts.discoveryActiveTaskCount,
     clientPortalUserCount: client.users.length,
     clientPortalLoggedInCount: countPortalLoggedInUsers(client.users),
     clientOpsRequestCount,

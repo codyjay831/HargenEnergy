@@ -3,6 +3,7 @@ import { LogoutButton } from "@/components/layout/LogoutButton";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { AdminNav } from "@/components/admin/AdminNav";
+import { CatalogHealthBanner } from "@/components/admin/CatalogHealthBanner";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +68,10 @@ export default async function AdminLayout({
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+          <CatalogHealthBanner />
+          {children}
+        </main>
       </div>
     </div>
   );

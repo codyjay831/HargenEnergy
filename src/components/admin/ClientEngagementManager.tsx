@@ -5,17 +5,14 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { applyIntakeToApprovedWork, updateClientEngagement } from "@/app/actions/clients";
 import { EngagementType } from "@/generated/prisma/client";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
+import {
+  pickPrimaryEngagementType,
+  type ServiceModelTypeValue,
+} from "@/lib/client-service-model";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,6 +25,7 @@ type Category = {
 interface ClientEngagementManagerProps {
   clientId: string;
   engagementType: EngagementType;
+  serviceModels?: ServiceModelTypeValue[];
   approvedWorkTaskIds: string[];
   suggestedWorkTaskIds?: string[];
   categories: Category[];
@@ -37,6 +35,7 @@ interface ClientEngagementManagerProps {
 export function ClientEngagementManager({
   clientId,
   engagementType: initialEngagement,
+  serviceModels: initialServiceModels = [],
   approvedWorkTaskIds: initialApproved,
   suggestedWorkTaskIds = [],
   categories,
@@ -45,11 +44,16 @@ export function ClientEngagementManager({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isApplying, startApplyTransition] = useTransition();
-  const [engagementType, setEngagementType] = useState<EngagementType>(
-    discoveryPlanRequestBased && initialEngagement === EngagementType.SUPPORT_BLOCK
-      ? EngagementType.REQUEST_BASED
-      : initialEngagement,
-  );
+  const [serviceModels, setServiceModels] = useState<Set<ServiceModelTypeValue>>(() => {
+    if (initialServiceModels.length > 0) {
+      return new Set(initialServiceModels);
+    }
+    const inferred: ServiceModelTypeValue[] =
+      discoveryPlanRequestBased && initialEngagement === EngagementType.SUPPORT_BLOCK
+        ? ["REQUEST_BASED"]
+        : [initialEngagement as unknown as ServiceModelTypeValue];
+    return new Set(inferred);
+  });
 
   const initialApprovedSet = useMemo(
     () => new Set(initialApproved),
@@ -83,6 +87,23 @@ export function ClientEngagementManager({
     initialApproved.length > 0;
   const hasUnsavedIntakeSuggestions = pendingFromIntake.some((id) => approved.has(id));
 
+  const isSupportBlockEnabled = serviceModels.has("SUPPORT_BLOCK");
+
+  const toggleServiceModel = (modelType: ServiceModelTypeValue, checked: boolean) => {
+    setServiceModels((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(modelType);
+      } else {
+        next.delete(modelType);
+      }
+      if (next.size === 0) {
+        next.add("SUPPORT_BLOCK");
+      }
+      return next;
+    });
+  };
+
   const toggleApproved = (taskId: string, checked: boolean) => {
     setApproved((prev) => {
       const next = new Set(prev);
@@ -97,9 +118,12 @@ export function ClientEngagementManager({
       try {
         const result = await updateClientEngagement({
           clientId,
-          engagementType,
+          engagementType: pickPrimaryEngagementType(
+            Array.from(serviceModels),
+          ),
+          serviceModels: Array.from(serviceModels),
           approvedWorkTaskIds:
-            engagementType === EngagementType.SUPPORT_BLOCK
+            isSupportBlockEnabled
               ? Array.from(approved)
               : [],
         });
@@ -202,27 +226,47 @@ export function ClientEngagementManager({
           </div>
         )}
 
-        <div className="space-y-2">
-          <Label>Engagement type</Label>
-          <Select
-            value={engagementType}
-            onValueChange={(v) => setEngagementType(v as EngagementType)}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={EngagementType.SUPPORT_BLOCK}>
-                {PRODUCT_LANGUAGE.engagement.supportBlock}
-              </SelectItem>
-              <SelectItem value={EngagementType.REQUEST_BASED}>
-                {PRODUCT_LANGUAGE.engagement.requestBased}
-              </SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="space-y-3">
+          <Label>Active service models</Label>
+          <div className="space-y-2 rounded-md border p-3">
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="service-model-support-block"
+                checked={isSupportBlockEnabled}
+                onCheckedChange={(checked) =>
+                  toggleServiceModel("SUPPORT_BLOCK", !!checked)
+                }
+              />
+              <div>
+                <Label htmlFor="service-model-support-block" className="font-normal">
+                  {PRODUCT_LANGUAGE.engagement.supportBlock}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Reserved support with approved work scope.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="service-model-request-based"
+                checked={serviceModels.has("REQUEST_BASED")}
+                onCheckedChange={(checked) =>
+                  toggleServiceModel("REQUEST_BASED", !!checked)
+                }
+              />
+              <div>
+                <Label htmlFor="service-model-request-based" className="font-normal">
+                  {PRODUCT_LANGUAGE.engagement.requestBased}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Per-request review and pricing controls.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {engagementType === EngagementType.SUPPORT_BLOCK ? (
+        {isSupportBlockEnabled ? (
           <div id="approved-work" className="space-y-4 max-h-[360px] overflow-y-auto border rounded-md p-4 scroll-mt-8">
             {categories.length === 0 ? (
               <p className="text-sm text-muted-foreground italic">
@@ -261,8 +305,7 @@ export function ClientEngagementManager({
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Request-based clients use the full active catalog per request. Pricing is set per
-            request after review.
+            Support Block is disabled. Work will follow Request-Based pricing and review.
           </p>
         )}
 

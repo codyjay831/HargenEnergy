@@ -15,6 +15,7 @@ import { PlusCircle } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { OverflowStatus } from "@/generated/prisma/client";
+import { NAV_LABELS, PRODUCT_LANGUAGE } from "@/lib/product-language";
 
 export const dynamic = "force-dynamic";
 
@@ -35,15 +36,15 @@ export default async function PortalRequests() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Your requests</h1>
-          <p className="text-muted-foreground">Track and manage your solar operations requests.</p>
+          <h1 className="text-2xl font-bold tracking-tight">{NAV_LABELS.portalWork}</h1>
+          <p className="text-muted-foreground">{PRODUCT_LANGUAGE.workRequest.listSubtitle}</p>
         </div>
         <Link 
           href="/portal/requests/new" 
           className={cn(buttonVariants({ variant: "default" }), "flex items-center gap-2")}
         >
           <PlusCircle className="h-4 w-4" />
-          New request
+          {NAV_LABELS.portalSubmit}
         </Link>
       </div>
 
@@ -52,11 +53,11 @@ export default async function PortalRequests() {
           <div className="mx-auto w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 mb-4">
             <ClipboardList className="h-6 w-6" />
           </div>
-          <h3 className="text-lg font-medium text-slate-900">No requests yet</h3>
-          <p className="text-muted-foreground mt-1 max-w-xs mx-auto">Submit your first solar operations support request to get started.</p>
+          <h3 className="text-lg font-medium text-slate-900">{PRODUCT_LANGUAGE.workRequest.emptyTitle}</h3>
+          <p className="text-muted-foreground mt-1 max-w-xs mx-auto">{PRODUCT_LANGUAGE.workRequest.emptyBody}</p>
           <div className="mt-6">
             <Link href="/portal/requests/new" className={buttonVariants({ variant: "outline" })}>
-              Submit First Request
+              {NAV_LABELS.portalSubmit}
             </Link>
           </div>
         </div>
@@ -65,7 +66,7 @@ export default async function PortalRequests() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Request Title</TableHead>
+                <TableHead>{PRODUCT_LANGUAGE.workRequest.tableTitleColumn}</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Urgency</TableHead>
                 <TableHead>Last Updated</TableHead>

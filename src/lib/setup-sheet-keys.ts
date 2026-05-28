@@ -1,6 +1,7 @@
 export type SetupSheetKey =
   | "activation"
   | "engagement"
+  | "agreement"
   | "billing"
   | "system-access"
   | "portal-invite"
@@ -15,6 +16,7 @@ export const ADMIN_RAIL_SHEET: Record<string, SetupSheetKey> = {
   client: "activation",
   scope: "engagement",
   billing: "billing",
+  agreement: "agreement",
   access: "system-access",
   invite: "portal-invite",
   "first-work": "work-requests",
@@ -33,8 +35,10 @@ export const ADMIN_STEP_SHEET: Partial<Record<string, SetupSheetKey>> = {
   "discovery-reviewed": "discovery",
   "lifecycle-active": "activation",
   "engagement-selected": "engagement",
+  "work-catalog": "engagement",
   "approved-work": "engagement",
   capacity: "billing",
+  "service-agreement": "agreement",
   billing: "billing",
   "system-access-admin": "system-access",
   "portal-invite": "portal-invite",
@@ -44,6 +48,7 @@ export const ADMIN_STEP_SHEET: Partial<Record<string, SetupSheetKey>> = {
 
 export const CUSTOMER_STEP_SHEET: Partial<Record<string, SetupSheetKey>> = {
   "portal-access-ready": "portal-account",
+  "customer-agreement": "agreement",
   "customer-billing": "billing",
   "customer-system-access": "system-access",
   "support-areas-visible": "support-areas",
@@ -51,11 +56,12 @@ export const CUSTOMER_STEP_SHEET: Partial<Record<string, SetupSheetKey>> = {
   "first-work-submitted": "send-work",
 };
 
-const NAVIGATE_ONLY_STEP_IDS = new Set(["portal-access"]);
+const NAVIGATE_ONLY_STEP_IDS = new Set(["portal-access", "work-catalog"]);
 
 const SHEET_TITLES: Record<SetupSheetKey, { admin: string; customer: string }> = {
   activation: { admin: "Activation", customer: "Activation" },
   engagement: { admin: "Engagement & approved work", customer: "Engagement" },
+  agreement: { admin: "Service agreement", customer: "Service agreement" },
   billing: { admin: "Billing", customer: "Billing setup" },
   "system-access": { admin: "System access", customer: "System access" },
   "portal-invite": { admin: "Portal invite", customer: "Portal invite" },

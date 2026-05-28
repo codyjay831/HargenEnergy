@@ -66,8 +66,8 @@ export function RequestTimer({
       try {
         await startTimer(requestId);
         toast.success("Timer started");
-      } catch {
-        toast.error("Failed to start timer");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to start timer");
       }
     });
   };
@@ -80,12 +80,16 @@ export function RequestTimer({
     if (!pauseReason) return;
     startTransition(async () => {
       try {
-        await pauseTimer(requestId, pauseReason);
+        const result = await pauseTimer(requestId, pauseReason);
         setIsPauseDialogOpen(false);
         setPauseReason("");
+        if (result?.blocked) {
+          toast.error(result.message);
+          return;
+        }
         toast.success("Timer paused");
-      } catch {
-        toast.error("Failed to pause timer");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to pause timer");
       }
     });
   };
@@ -94,9 +98,13 @@ export function RequestTimer({
     startTransition(async () => {
       try {
         const result = await stopTimer(requestId);
+        if (result?.blocked) {
+          toast.error(result.message);
+          return;
+        }
         toast.success(`Timer stopped. Logged ${result?.elapsedMinutes || 0} minutes.`);
-      } catch {
-        toast.error("Failed to stop timer");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to stop timer");
       }
     });
   };

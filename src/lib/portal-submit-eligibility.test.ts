@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  AgreementStatus,
   BillingMode,
   ClientStatus,
   EngagementType,
@@ -11,6 +12,7 @@ import {
 
 const activeSupportBlockBase = {
   status: ClientStatus.ACTIVE,
+  agreementStatus: AgreementStatus.SIGNED,
   engagementType: EngagementType.SUPPORT_BLOCK,
   billingMode: BillingMode.STRIPE,
   billingOverrideReason: null,
@@ -34,6 +36,19 @@ const activeRequestBasedBase = {
 };
 
 describe("getPortalWorkSubmitEligibility", () => {
+  it("blocks submit when agreement is not signed or waived", () => {
+    const result = getPortalWorkSubmitEligibility({
+      ...activeSupportBlockBase,
+      agreementStatus: AgreementStatus.SENT,
+    });
+    expect(result).toEqual({
+      canSubmit: false,
+      reasonCode: "agreement_pending",
+      message:
+        "Your service agreement is being finalized. Hargen will notify you when you can send work.",
+    });
+  });
+
   it("blocks Support Block submit when not active", () => {
     const result = getPortalWorkSubmitEligibility({
       ...activeSupportBlockBase,

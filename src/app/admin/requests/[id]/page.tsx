@@ -24,7 +24,15 @@ import { startOfWeek } from "date-fns";
 import { RequestTimer } from "@/components/admin/RequestTimer";
 import { RequestHandoffPricingForm } from "@/components/forms/RequestHandoffPricingForm";
 import { RequestAttachmentsList } from "@/components/requests/RequestAttachmentsList";
-import { getEngagementLabel, isRequestBasedPricingComplete } from "@/lib/engagement";
+import {
+  formatFlatPrice,
+  formatHandoffTier,
+  formatPricingMode,
+  getEngagementLabel,
+  getRequestPricingState,
+  getRequestPricingStateLabel,
+  isRequestBasedPricingComplete,
+} from "@/lib/engagement";
 import type { HandoffTierValue, PricingModeValue } from "@/lib/ui-enums";
 
 export const dynamic = "force-dynamic";
@@ -95,6 +103,9 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
     isSupportBlockClient && (usage.isNearLimit || usage.isOverLimit);
   const pricingIncomplete =
     isRequestBasedClient && !isRequestBasedPricingComplete(request);
+  const pricingState = isRequestBasedClient
+    ? getRequestPricingState(request)
+    : null;
   const showPricingWarning =
     pricingIncomplete && request.status === RequestStatus.IN_PROGRESS;
   const listHref = "/admin/requests";
@@ -204,10 +215,34 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
               <CardHeader>
                 <CardTitle>Pricing & handoff</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Classify the handoff and set how this request-based job is priced.
+                  Classify the handoff and approve fixed-fee or hourly pricing before work continues.
                 </p>
               </CardHeader>
               <CardContent>
+                <div className="mb-4">
+                  <Badge
+                    variant={pricingState === "fixed_fee_ready" ? "default" : "secondary"}
+                    className="text-[11px]"
+                  >
+                    {getRequestPricingStateLabel(pricingState ?? "pending_review")}
+                  </Badge>
+                </div>
+                <div className="mb-4 rounded-md border bg-slate-50 p-3 text-sm">
+                  <p>
+                    <span className="text-muted-foreground">Handoff:</span>{" "}
+                    {formatHandoffTier(request.handoffTier)}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Billing:</span>{" "}
+                    {formatPricingMode(request.pricingMode)}
+                  </p>
+                  {request.pricingMode === "FLAT" && request.flatPriceCents ? (
+                    <p>
+                      <span className="text-muted-foreground">Fixed fee:</span>{" "}
+                      {formatFlatPrice(request.flatPriceCents)}
+                    </p>
+                  ) : null}
+                </div>
                 <RequestHandoffPricingForm
                   requestId={request.id}
                   handoffTier={request.handoffTier as HandoffTierValue | null}
