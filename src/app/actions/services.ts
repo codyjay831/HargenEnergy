@@ -163,6 +163,9 @@ async function purgeInactiveCatalog(tx: Prisma.TransactionClient) {
   await tx.recurringTask.deleteMany({
     where: { workTask: { isActive: false } },
   });
+  await tx.supportRequestWorkTask.deleteMany({
+    where: { workTask: { isActive: false } },
+  });
   await tx.supportRequest.updateMany({
     where: { workTask: { isActive: false } },
     data: { workTaskId: null },
