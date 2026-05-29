@@ -31,7 +31,7 @@ export default async function DiscoverySchedulePage({
 
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-2xl space-y-6">
+      <div className="mx-auto w-full max-w-3xl space-y-6">
         <div className="text-center">
           <p className="text-sm font-semibold uppercase tracking-wider text-primary">
             Hargen Energy
