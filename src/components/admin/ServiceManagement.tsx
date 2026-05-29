@@ -416,7 +416,7 @@ export function ServiceManagement({
       <div className="grid gap-6">
         {initialCategories.map((category) => (
           <Card key={category.id} className={!category.isActive ? "opacity-60" : ""}>
-            <CardHeader className="flex flex-row items-center justify-between py-4">
+            <CardHeader className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
                 <CardTitle className="text-md flex items-center gap-2">
                   {category.name}
@@ -424,7 +424,7 @@ export function ServiceManagement({
                   <Button 
                     variant="ghost" 
                     size="icon" 
-                    className="h-6 w-6"
+                    className="h-8 w-8"
                     onClick={() => {
                       setCategoryForm({ 
                         name: category.name, 
@@ -440,7 +440,7 @@ export function ServiceManagement({
                   <p className="text-xs text-muted-foreground">{category.description}</p>
                 )}
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-3">
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -460,7 +460,7 @@ export function ServiceManagement({
                   <Plus className="mr-2 h-3 w-3" />
                   Add Task
                 </Button>
-                <div className="flex items-center gap-2 border-l pl-4">
+                <div className="flex items-center gap-2 border-l pl-3">
                   <span className="text-xs text-muted-foreground">Active</span>
                   <Checkbox 
                     checked={category.isActive} 

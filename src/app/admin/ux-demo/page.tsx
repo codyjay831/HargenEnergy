@@ -205,7 +205,7 @@ export default function AdminUxDemoPage() {
                   key={client.id}
                   href={`/admin/clients/${client.id}`}
                   className={cn(
-                    "grid gap-2 rounded-lg border border-slate-200 bg-white p-3 transition-all sm:grid-cols-[1.4fr_1fr_1.1fr_1fr_auto] sm:items-center",
+                    "grid gap-2 rounded-lg border border-slate-200 bg-white p-3 transition-all md:grid-cols-[1.4fr_1fr_1.1fr_1fr_auto] md:items-center",
                     brandGlowHover,
                     index === 0 && brandGlow,
                   )}
@@ -255,7 +255,7 @@ export default function AdminUxDemoPage() {
               {queueItems.map((item) => (
                 <div
                   key={item.id}
-                  className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-[70px_1fr_90px_110px_80px] sm:items-center"
+                  className="grid gap-2 rounded-lg border border-slate-200 p-3 md:grid-cols-[70px_1fr_90px_110px_80px] md:items-center"
                 >
                   <Badge
                     variant="outline"

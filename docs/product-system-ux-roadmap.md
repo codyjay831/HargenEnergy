@@ -31,7 +31,7 @@ Audit of current UI/UX issues and polish opportunities.
 | **Forms (General)** | Basic alert banners for success/error. | Implement a consistent Toast notification system (e.g., `sonner`). | Medium | No |
 | **Empty States** | Simple text-only placeholders (e.g., "No requests yet"). | Add illustrated empty states with clear calls to action. | Low | No |
 | **Loading States** | Basic skeleton loaders exist but feel generic. | Refine skeleton patterns to match specific card layouts better. | Low | No |
-| **Mobile Navigation** | Sidebar-to-topbar transition is functional but tight. | Verify touch targets and mobile menu ergonomics. | Medium | No |
+| **Mobile Navigation** | Admin and portal now use dedicated mobile sheet navigation; key touch targets were increased. | Keep responsive smoke tests green and refine dense table/card ergonomics as usage grows. | Low | No |
 
 ---
 

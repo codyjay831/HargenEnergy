@@ -27,7 +27,7 @@ export function LogTimeSheet({ clientId, engagementType, companyName }: LogTimeS
         <Clock3 className="h-4 w-4" />
         Log time
       </SheetTrigger>
-      <SheetContent side="right">
+      <SheetContent side="right" className="overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Log Time</SheetTitle>
           <SheetDescription>{companyName}</SheetDescription>

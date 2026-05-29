@@ -25,7 +25,7 @@ export function LogClientOpsSheet({ clientId, companyName }: LogClientOpsSheetPr
         <Plus className="h-4 w-4" />
         Log request
       </SheetTrigger>
-      <SheetContent side="right">
+      <SheetContent side="right" className="overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Log Work Request</SheetTitle>
           <SheetDescription>{companyName}</SheetDescription>

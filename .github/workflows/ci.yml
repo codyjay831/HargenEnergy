@@ -29,6 +29,10 @@ jobs:
       APP_URL: http://localhost:3000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       ADMIN_SETUP_TOKEN: ci-admin-setup-token
+      E2E_ADMIN_EMAIL: admin.e2e@hargen.test
+      E2E_ADMIN_PASSWORD: E2E_Admin_Password123!
+      E2E_CLIENT_EMAIL: client.e2e@hargen.test
+      E2E_CLIENT_PASSWORD: E2E_Client_Password123!
 
     steps:
       - name: Checkout
@@ -57,3 +61,12 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Seed E2E data
+        run: npx tsx scripts/seed-e2e.ts
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Responsive E2E
+        run: npm run test:e2e

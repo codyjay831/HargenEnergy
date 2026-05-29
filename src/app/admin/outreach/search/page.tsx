@@ -468,7 +468,7 @@ export default function ContractorFinderPage() {
 
             <form onSubmit={handleSearch} className="space-y-4">
               {activeSource === "google" ? (
-                <div className="flex gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -478,7 +478,7 @@ export default function ContractorFinderPage() {
                       onChange={(e) => setQuery(e.target.value)}
                     />
                   </div>
-                  <Button type="submit" disabled={isSearching}>
+                  <Button type="submit" disabled={isSearching} className="sm:w-auto">
                     {isSearching ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                     Search
                   </Button>

@@ -17,42 +17,33 @@ import {
   CalendarClock,
   type LucideIcon,
 } from "lucide-react";
-import { NAV_LABELS } from "@/lib/product-language";
+import { ADMIN_NAV_ITEMS, type AdminNavIconKey } from "@/lib/admin-nav";
 
-interface NavItem {
-  name: string;
-  href: string;
-  icon: LucideIcon;
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { name: "Outreach", href: "/admin/outreach", icon: Megaphone },
-  { name: NAV_LABELS.adminClients, href: "/admin/clients", icon: Users },
-  { name: NAV_LABELS.adminWorkRequests, href: "/admin/requests", icon: ClipboardList },
-  { name: "Time Tracking", href: "/admin/time", icon: Clock },
-  { name: "Billing", href: "/admin/billing", icon: CreditCard },
-  { name: "Team", href: "/admin/team", icon: Shield },
-  { name: "Service Catalog", href: "/admin/services", icon: Settings2 },
-  { name: "Calendar", href: "/admin/settings/calendar", icon: CalendarDays },
-  {
-    name: "Discovery Hours",
-    href: "/admin/settings/discovery-availability",
-    icon: CalendarClock,
-  },
-  { name: "Account", href: "/admin/account", icon: UserCog },
-];
+const ICONS: Record<AdminNavIconKey, LucideIcon> = {
+  dashboard: LayoutDashboard,
+  outreach: Megaphone,
+  clients: Users,
+  requests: ClipboardList,
+  time: Clock,
+  billing: CreditCard,
+  team: Shield,
+  services: Settings2,
+  calendar: CalendarDays,
+  discoveryHours: CalendarClock,
+  account: UserCog,
+};
 
 export function AdminNav() {
   const pathname = usePathname();
 
   return (
     <nav className="flex-1 px-3 py-4 space-y-0.5">
-      {NAV_ITEMS.map((item) => {
+      {ADMIN_NAV_ITEMS.map((item) => {
         const isActive =
           item.href === "/admin"
             ? pathname === "/admin"
             : pathname.startsWith(item.href);
+        const Icon = ICONS[item.icon];
 
         return (
           <Link
@@ -65,7 +56,7 @@ export function AdminNav() {
                 : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
             )}
           >
-            <item.icon
+            <Icon
               className={cn(
                 "h-4 w-4 shrink-0",
                 isActive ? "text-slate-700" : "text-slate-400",

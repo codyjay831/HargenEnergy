@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import {
   EngagementType,
@@ -20,7 +19,6 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   adminBtnPrimary,
-  adminPanelBorder,
 } from "@/lib/admin-ui/tokens";
 import {
   requestStatusBadgeClass,
@@ -184,8 +182,79 @@ export default async function AdminRequests({ searchParams }: AdminRequestsPageP
           action={{ label: "View All Requests", href: "/admin/requests" }}
         />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <table className="w-full text-sm">
+        <>
+          <div className="space-y-3 md:hidden">
+            {requests.map((request) => {
+              const totalMinutes = request.timeEntries.reduce(
+                (acc, curr) => acc + curr.minutes,
+                0,
+              );
+              const priorityLabel = rankToPriorityLabel(request.priorityRank);
+              const priorityClass = priorityRankBadgeClass(request.priorityRank);
+              const statusClass = requestStatusBadgeClass(request.status);
+              const urg = urgencyBadgeClass(request.urgency);
+
+              return (
+                <div
+                  key={`mobile-${request.id}`}
+                  className="rounded-xl border border-slate-200 bg-white p-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">
+                        {request.title}
+                      </p>
+                      <p className="truncate text-xs text-slate-500">
+                        {request.client.companyName} - {request.client.contactName}
+                      </p>
+                    </div>
+                    <Link
+                      href={`/admin/requests/${request.id}`}
+                      className={cn(
+                        buttonVariants({ size: "sm" }),
+                        adminBtnPrimary,
+                        "h-8 text-xs",
+                      )}
+                    >
+                      Open
+                    </Link>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className={cn("text-[10px] font-semibold", priorityClass)}
+                    >
+                      {priorityLabel}
+                    </Badge>
+                    <PriorityButtons
+                      requestId={request.id}
+                      currentPriority={request.priorityRank}
+                    />
+                    <Badge
+                      variant="outline"
+                      className={cn("text-[10px] font-medium uppercase", urg)}
+                    >
+                      {request.urgency.replace(/_/g, " ")}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className={cn("text-[10px] font-medium", statusClass)}
+                    >
+                      {request.status.replace(/_/g, " ")}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                    <span>{totalMinutes > 0 ? `${totalMinutes}m logged` : "0m logged"}</span>
+                    <span>{formatAge(request.createdAt)}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hidden overflow-hidden rounded-xl border border-slate-200 bg-white md:block">
+            <div className="overflow-x-auto">
+              <table className="min-w-[980px] w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/70">
                 <th className="w-[100px] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -369,8 +438,10 @@ export default async function AdminRequests({ searchParams }: AdminRequestsPageP
                 );
               })}
             </tbody>
-          </table>
-        </div>
+              </table>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

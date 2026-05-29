@@ -3,10 +3,15 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   async headers() {
+    const isDev = process.env.NODE_ENV === "development";
+    const scriptSrc = isDev
+      ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com"
+      : "script-src 'self' 'unsafe-inline' https://js.stripe.com";
+
     const csp = [
       "default-src 'self'",
       "img-src 'self' data: https:",
-      "script-src 'self' 'unsafe-inline' https://js.stripe.com",
+      scriptSrc,
       "style-src 'self' 'unsafe-inline'",
       "connect-src 'self' https://api.stripe.com https://*.blob.vercel-storage.com https://*.public.blob.vercel-storage.com https://*.private.blob.vercel-storage.com",
       "frame-src https://js.stripe.com https://hooks.stripe.com",

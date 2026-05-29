@@ -85,13 +85,11 @@ function schedulingStageSubtitle(
 
 function deriveClientHealth({
   weeklyHours,
-  includedMinutesThisWeek,
   hasNeedsInfo,
   isNearLimit,
   isOverLimit,
 }: {
   weeklyHours: number;
-  includedMinutesThisWeek: number;
   hasNeedsInfo: boolean;
   isNearLimit: boolean;
   isOverLimit: boolean;
@@ -281,7 +279,6 @@ export default async function AdminDashboard() {
     const hasNeedsInfo = topRequest?.needsInfo ?? false;
     const health = deriveClientHealth({
       weeklyHours: client.weeklyHours,
-      includedMinutesThisWeek: usage.includedMinutesThisWeek,
       hasNeedsInfo,
       isNearLimit: usage.isNearLimit,
       isOverLimit: usage.isOverLimit,
@@ -480,7 +477,7 @@ export default async function AdminDashboard() {
                     href={`/admin/clients/${client.id}`}
                     className={cn(
                       "grid gap-2 rounded-lg border border-slate-200 bg-white p-3 transition-all",
-                      "sm:grid-cols-[1.5fr_1fr_1fr_auto_auto] sm:items-center",
+                      "md:grid-cols-[1.5fr_1fr_1fr_auto_auto] md:items-center",
                       adminBrandGlowHover,
                       index === 0 && adminBrandGlow,
                     )}
@@ -546,7 +543,7 @@ export default async function AdminDashboard() {
                 queueItems.map((item) => (
                   <div
                     key={item.id}
-                    className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-[64px_1fr_52px_110px_80px] sm:items-center"
+                    className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3 md:grid-cols-[64px_1fr_52px_110px_80px] md:items-center"
                   >
                     <Badge
                       variant="outline"

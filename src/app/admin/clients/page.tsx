@@ -28,11 +28,9 @@ import {
   adminBrandGlow,
   adminBrandGlowHover,
   adminBtnPrimary,
-  adminPanelBorder,
 } from "@/lib/admin-ui/tokens";
 import { buttonVariants } from "@/components/ui/button";
-import { ArrowUpRight, Users, UserCheck, ClipboardList } from "lucide-react";
-import { EmptyState } from "@/components/ui/empty-state";
+import { ArrowUpRight, ClipboardList } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -254,7 +252,7 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
                 href={`/admin/clients/${client.id}`}
                 className={cn(
                   "grid gap-2 rounded-lg border border-slate-200 bg-white p-3 transition-all",
-                  "sm:grid-cols-[1.5fr_1fr_1fr_auto_auto] sm:items-center",
+                  "md:grid-cols-[1.5fr_1fr_1fr_auto_auto] md:items-center",
                   adminBrandGlowHover,
                   index === 0 && adminBrandGlow,
                 )}
@@ -288,8 +286,93 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
         </div>
       ) : (
         /* ── Other tabs: styled table ───────────────────────────────────── */
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <table className="w-full text-sm">
+        <>
+          <div className="space-y-3 md:hidden">
+            {clients.map((client) => {
+              const latestRequest = client.requests[0] as
+                | ProspectIntakeRequest
+                | undefined;
+              const latestAppointment = latestRequest
+                ? pickDiscoveryAppointmentForPipeline(latestRequest.discoveryAppointments)
+                : null;
+              const pipelineStage =
+                client.status === ClientStatus.LEAD && latestRequest
+                  ? deriveDiscoveryPipelineStage({
+                      clientStatus: client.status,
+                      requestStatus: latestRequest.status,
+                      linkStatus: latestRequest.discoverySchedulingLink?.status ?? null,
+                      appointmentStatus: latestAppointment?.status ?? null,
+                      fitDecision: latestAppointment?.fitDecision ?? null,
+                      recapSentAt: latestAppointment?.recapSentAt ?? null,
+                    })
+                  : null;
+              const hasUnreviewedDiscovery =
+                latestRequest?.status === "NEW" &&
+                !latestAppointment &&
+                latestRequest.discoverySchedulingLink?.status !== "ACTIVE";
+              const clientHref = `/admin/clients/${client.id}${hasUnreviewedDiscovery ? "?tab=discovery" : ""}`;
+
+              return (
+                <div
+                  key={`mobile-${client.id}`}
+                  className="rounded-xl border border-slate-200 bg-white p-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">
+                        {client.companyName}
+                      </p>
+                      <p className="truncate text-xs text-slate-500">{client.contactName}</p>
+                    </div>
+                    <Link
+                      href={clientHref}
+                      className={cn(
+                        buttonVariants({ size: "sm", variant: "outline" }),
+                        "border-slate-200 text-slate-700",
+                      )}
+                    >
+                      Open
+                    </Link>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {pipelineStage ? (
+                      <Badge
+                        variant={getDiscoveryPipelineStageBadgeVariant(pipelineStage)}
+                        className="text-[10px]"
+                      >
+                        {getDiscoveryPipelineStageLabel(pipelineStage)}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px]">
+                        No pipeline state
+                      </Badge>
+                    )}
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[10px] font-medium",
+                        client.status === ClientStatus.ACTIVE
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                          : "border-slate-200 bg-slate-50 text-slate-600",
+                      )}
+                    >
+                      {client.status === ClientStatus.ACTIVE ? "Active" : "Prospect"}
+                    </Badge>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {client.planType}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">
+                    Created {format(new Date(client.createdAt), "MMM d, yyyy")}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hidden overflow-hidden rounded-xl border border-slate-200 bg-white md:block">
+            <div className="overflow-x-auto">
+              <table className="min-w-[1080px] w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/70">
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -427,8 +510,10 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
                 );
               })}
             </tbody>
-          </table>
-        </div>
+              </table>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

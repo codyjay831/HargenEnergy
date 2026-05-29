@@ -3,18 +3,20 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
+  ChevronRight,
   LayoutDashboard,
   ClipboardList,
   PlusCircle,
-  UserCircle,
   KeyRound,
   Users,
-  ChevronRight,
+  UserCircle,
+  type LucideIcon,
 } from "lucide-react";
 import { LogoutButton } from "@/components/layout/LogoutButton";
 import { prisma } from "@/lib/prisma";
-import { NAV_LABELS } from "@/lib/product-language";
 import { resolveClientLogoUrl } from "@/lib/storage/logo-url";
+import { PORTAL_NAV_ITEMS, type PortalNavIconKey } from "@/lib/portal-nav";
+import { PortalMobileNav } from "@/components/portal/PortalMobileNav";
 
 export const dynamic = "force-dynamic";
 
@@ -48,14 +50,14 @@ export default async function PortalLayout({
     },
   });
 
-  const navItems = [
-    { name: "Dashboard", href: "/portal", icon: LayoutDashboard },
-    { name: NAV_LABELS.portalWork, href: "/portal/requests", icon: ClipboardList },
-    { name: NAV_LABELS.portalSubmit, href: "/portal/requests/new", icon: PlusCircle },
-    { name: "System Access", href: "/portal/access", icon: KeyRound },
-    { name: "Team", href: "/portal/team", icon: Users },
-    { name: "Account", href: "/portal/account", icon: UserCircle },
-  ];
+  const icons: Record<PortalNavIconKey, LucideIcon> = {
+    dashboard: LayoutDashboard,
+    work: ClipboardList,
+    submit: PlusCircle,
+    access: KeyRound,
+    team: Users,
+    account: UserCircle,
+  };
 
   const logoDisplayUrl = client
     ? resolveClientLogoUrl(client.logoUrl)
@@ -64,7 +66,7 @@ export default async function PortalLayout({
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
       {/* Sidebar */}
-      <aside className="w-full md:w-64 bg-[#0f172a] text-white flex-shrink-0">
+      <aside className="hidden w-64 flex-shrink-0 bg-[#0f172a] text-white md:flex md:flex-col">
         <div className="p-6">
           <Link href="/portal" className="flex items-center gap-2">
             {logoDisplayUrl ? (
@@ -87,17 +89,20 @@ export default async function PortalLayout({
           </Link>
         </div>
 
-        <nav className="mt-4 px-3 space-y-1">
-          {navItems.map((item) => (
+        <nav className="mt-4 space-y-1 px-3">
+          {PORTAL_NAV_ITEMS.map((item) => {
+            const Icon = icons[item.icon];
+            return (
             <Link
               key={item.name}
               href={item.href}
               className="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
             >
-              <item.icon className="h-4 w-4" />
+              <Icon className="h-4 w-4" />
               {item.name}
             </Link>
-          ))}
+            );
+          })}
         </nav>
 
         <div className="mt-auto p-4 border-t border-slate-800">
@@ -115,6 +120,11 @@ export default async function PortalLayout({
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <PortalMobileNav
+              companyName={client?.companyName ?? "Hargen Portal"}
+              logoDisplayUrl={logoDisplayUrl}
+              userLabel={session.user.name || session.user.email}
+            />
             <span>Portal</span>
             <ChevronRight className="h-4 w-4" />
             <span className="font-medium text-slate-900">

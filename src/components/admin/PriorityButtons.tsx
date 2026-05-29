@@ -37,7 +37,7 @@ export function PriorityButtons({ requestId, currentPriority }: PriorityButtonsP
     <div className="flex items-center gap-1">
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="icon-sm"
         disabled={isUpdating}
         onClick={() => handleUpdate((currentPriority || 0) - 1)}
         title="Increase Priority"
@@ -46,7 +46,7 @@ export function PriorityButtons({ requestId, currentPriority }: PriorityButtonsP
       </Button>
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="icon-sm"
         disabled={isUpdating}
         onClick={() => handleUpdate((currentPriority || 0) + 1)}
         title="Decrease Priority"

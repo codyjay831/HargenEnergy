@@ -308,7 +308,7 @@ export default async function PortalDashboard() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground uppercase font-semibold">Reserved</p>
                   <p className="text-2xl font-bold">{client.weeklyHours} hrs</p>

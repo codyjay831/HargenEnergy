@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { CatalogHealthBanner } from "@/components/admin/CatalogHealthBanner";
+import { AdminMobileNav } from "@/components/admin/AdminMobileNav";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +52,10 @@ export default async function AdminLayout({
       {/* Main Content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-14 items-center justify-between border-b border-slate-200 bg-white px-4 md:px-6">
-          <p className="text-sm font-semibold text-slate-700">Solar Ops Desk</p>
+          <div className="flex items-center gap-2">
+            <AdminMobileNav />
+            <p className="text-sm font-semibold text-slate-700">Solar Ops Desk</p>
+          </div>
           <div className="flex items-center gap-3">
             <div className="hidden flex-col items-end sm:flex">
               <span className="text-sm font-medium text-slate-800">

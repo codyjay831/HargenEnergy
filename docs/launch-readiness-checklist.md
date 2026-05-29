@@ -168,7 +168,7 @@ Run after deploy — also in `DEPLOYMENT.md` §6–8:
 
 | # | Issue | Symptom | Location | Fix |
 |---|--------|---------|----------|-----|
-| B1 | **No automated test suite / CI** | Regressions ship silently | Repo-wide | Add CI: lint, build, `tsx scripts/test-attachment-url-validation.ts`, smoke e2e |
+| B1 | **Responsive regressions can slip without viewport checks** | Mobile/tablet UI issues can ship unnoticed | Repo-wide | CI now runs lint, unit tests, build, and Playwright responsive smoke (`mobile`/`tablet`/`desktop`) with `scripts/seed-e2e.ts` |
 | B2 | **Service catalog empty on fresh DB** | Portal "Submit Request" has no work types | `seedInitialServices` in `services.ts` | Run seed post-deploy; or migration seed |
 | B3 | **Email send failures often non-blocking** | Request created but no admin alert | `requests.ts`, `portal.ts` catch blocks | Queue/retry; surface admin banner if Resend down |
 | B4 | **Recurring tasks not scheduled** | Recurring work never auto-creates | `processRecurringTasks` requires manual admin call | Vercel Cron + secret-protected route |

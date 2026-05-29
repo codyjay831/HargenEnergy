@@ -514,7 +514,7 @@ export function DiscoveryWorkspace({
       )}
 
       {isPending && (
-        <div className="fixed bottom-6 right-6 flex items-center gap-2 rounded-md border bg-background px-3 py-2 shadow-md">
+        <div className="fixed left-4 right-4 bottom-4 z-30 flex items-center gap-2 rounded-md border bg-background px-3 py-2 shadow-md md:left-auto md:right-6 md:bottom-6">
           <Loader2 className="h-4 w-4 animate-spin" />
           <span className="text-sm">Saving...</span>
         </div>
