@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type HTMLAttributes } from "react";
+import { useEffect, useRef, useState, type HTMLAttributes } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
@@ -61,6 +61,11 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
     phone: "",
     bottleneck: "",
   });
+  const stepTopRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    stepTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [step]);
 
   const handleCheckboxChange = (id: string, checked: boolean) => {
     setSelectedSupport((prev) =>
@@ -395,7 +400,7 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
         />
       </div>
 
-      <div className="flex items-center justify-between gap-4">
+      <div ref={stepTopRef} className="flex scroll-mt-20 items-center justify-between gap-4">
         <p className="text-sm font-medium text-stone-600">{COPY.stepIndicator(step)}</p>
         <div className="flex gap-2">
           <div
