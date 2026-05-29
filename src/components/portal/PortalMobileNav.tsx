@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ClipboardList,
+  KanbanSquare,
   KeyRound,
   LayoutDashboard,
   Menu,
@@ -22,6 +23,7 @@ import { PORTAL_NAV_ITEMS, type PortalNavIconKey } from "@/lib/portal-nav";
 const ICONS: Record<PortalNavIconKey, LucideIcon> = {
   dashboard: LayoutDashboard,
   work: ClipboardList,
+  blockWork: KanbanSquare,
   submit: PlusCircle,
   access: KeyRound,
   team: Users,

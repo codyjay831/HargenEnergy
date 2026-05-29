@@ -140,6 +140,20 @@ enum AuthorType {
   SYSTEM
 }
 
+enum BlockWorkItemState {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum BlockWorkActivityType {
+  CLIENT_NUDGE
+  ADMIN_UPDATE
+  PROGRESS_LOG
+  SYSTEM_NOTE
+  CONVERTED_TO_REQUEST
+}
+
 enum SystemAccessType {
   AHJ
   UTILITY
@@ -250,6 +264,7 @@ model User {
   timeEntries  TimeEntry[] @relation("TimeEntryCreator")
   approvedOverflows SupportRequest[] @relation("OverflowApprover")
   comments     RequestComment[]
+  blockWorkActivities BlockWorkActivity[] @relation("BlockWorkActivityAuthor")
   passwordResetTokens PasswordResetToken[]
   outreachActivities OutreachActivity[]
   outreachSearchRuns OutreachSearchRun[]
@@ -331,6 +346,7 @@ model Client {
   systemAccesses     ClientSystemAccess[]
   disbursements      DisbursementRequest[]
   recurringTasks     RecurringTask[]
+  blockWorkItems     BlockWorkItem[]
   approvedWorkTasks  ClientApprovedWorkTask[]
   serviceModels      ClientServiceModel[]
   discoverySchedulingLinks DiscoverySchedulingLink[]
@@ -403,6 +419,7 @@ model SupportRequest {
   timeEntries         TimeEntry[]
   attachments         Attachment[]
   comments            RequestComment[]
+  blockWorkActivities BlockWorkActivity[]
   disbursements       DisbursementRequest[]
   discoverySchedulingLink DiscoverySchedulingLink?
   discoveryAppointments DiscoveryAppointment[]
@@ -675,11 +692,54 @@ model WorkTask {
   requests               SupportRequest[]
   intakeRequests         SupportRequestWorkTask[]
   recurringTasks         RecurringTask[]
+  blockWorkItems         BlockWorkItem[]
   approvedForClients     ClientApprovedWorkTask[]
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
 
   @@index([categoryId])
+}
+
+model BlockWorkItem {
+  id                 String             @id @default(cuid())
+  clientId           String
+  client             Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  workTaskId         String
+  workTask           WorkTask           @relation(fields: [workTaskId], references: [id], onDelete: Restrict)
+  state              BlockWorkItemState @default(ACTIVE)
+  currentPriorityRank Int               @default(3)
+  lastClientNudgeAt  DateTime?
+  lastAdminUpdateAt  DateTime?
+  activities         BlockWorkActivity[]
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@unique([clientId, workTaskId])
+  @@index([clientId, state])
+  @@index([workTaskId])
+  @@index([currentPriorityRank, updatedAt])
+}
+
+model BlockWorkActivity {
+  id               String                @id @default(cuid())
+  blockWorkItemId  String
+  blockWorkItem    BlockWorkItem         @relation(fields: [blockWorkItemId], references: [id], onDelete: Cascade)
+  authorType       AuthorType
+  authorUserId     String?
+  authorUser       User?                 @relation("BlockWorkActivityAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  activityType     BlockWorkActivityType
+  title            String?
+  body             String
+  metadata         Json?
+  visibleToClient  Boolean               @default(true)
+  supportRequestId String?
+  supportRequest   SupportRequest?       @relation(fields: [supportRequestId], references: [id], onDelete: SetNull)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@index([blockWorkItemId, createdAt])
+  @@index([authorUserId])
+  @@index([supportRequestId])
 }
 
 model RecurringTask {

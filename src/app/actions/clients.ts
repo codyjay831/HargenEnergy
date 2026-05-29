@@ -6,7 +6,6 @@ import { z } from "zod";
 import {
   BillingMode,
   ClientStatus,
-  EngagementType,
   RequestStatus,
   Role,
   SupportRequestKind,
@@ -39,6 +38,7 @@ import {
   revalidatePortalClientSurfaces,
 } from "@/lib/revalidate-paths";
 import { resolveStaffRole } from "@/lib/permissions";
+import { syncBlockWorkItemsForClient } from "@/lib/block-work";
 import type { Prisma } from "@/generated/prisma/client";
 
 export async function updateClientBillingMode(data: {
@@ -254,6 +254,13 @@ export async function updateClientEngagement(data: {
           },
         });
       }
+
+      await syncBlockWorkItemsForClient({
+        tx,
+        clientId,
+        approvedWorkTaskIds,
+        hasSupportBlock,
+      });
 
       const primaryEngagement = pickPrimaryEngagementType(requestedModels);
 

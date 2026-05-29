@@ -27,6 +27,7 @@ export type RateLimitBucket =
   | "portal-request-submit"
   | "portal-comment"
   | "portal-scope-change"
+  | "portal-block-nudge"
   | "outreach-google-search"
   | "outreach-permitstack-search"
   | "outreach-yelp-enrich"
@@ -57,6 +58,7 @@ const BUCKET_CONFIG: Record<
   /** Authenticated client portal: comments on requests (keyed by user id). */
   "portal-comment": { max: 120, windowSec: 60 * 60 },
   "portal-scope-change": { max: 10, windowSec: 60 * 60 },
+  "portal-block-nudge": { max: 40, windowSec: 60 * 60 },
   /** Admin outreach contractor finder: Google Places text search. */
   "outreach-google-search": { max: 20, windowSec: 10 * 60 },
   /** Admin outreach contractor finder: PermitStack lookups. */

@@ -130,10 +130,12 @@ export const STATUS_LABELS = {
 // Navigation labels
 export const NAV_LABELS = {
   adminWorkRequests: PRODUCT_LANGUAGE.workRequest.plural,
+  adminBlockWork: "Block Workboard",
   adminClients: "Clients",
   adminOutreach: "Outreach",
   portalSubmit: PRODUCT_LANGUAGE.workRequest.action,
   portalWork: PRODUCT_LANGUAGE.workRequest.listPageTitle,
+  portalBlockWork: "My block work",
   publicCTA: PRODUCT_LANGUAGE.discoveryRequest.action,
 } as const;
 

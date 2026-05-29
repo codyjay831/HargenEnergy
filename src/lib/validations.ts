@@ -235,3 +235,54 @@ export const requestScopeChangeSchema = z.object({
 });
 
 export type RequestScopeChangeInput = z.infer<typeof requestScopeChangeSchema>;
+
+const blockWorkPrioritySchema = z.number().int().min(1).max(5);
+
+export const blockWorkNudgeSchema = z.object({
+  blockWorkItemId: trimmedString.min(1).max(128),
+  note: trimmedString
+    .max(4000, "Message must be at most 4000 characters.")
+    .optional(),
+  volumeHint: z.number().int().min(0).max(10000).optional().nullable(),
+  desiredWindow: trimmedString.max(120).optional(),
+});
+
+export type BlockWorkNudgeInput = z.infer<typeof blockWorkNudgeSchema>;
+
+export const blockWorkAdminUpdateSchema = z.object({
+  blockWorkItemId: trimmedString.min(1).max(128),
+  title: trimmedString.max(200).optional(),
+  body: trimmedString
+    .min(1, "Update details are required.")
+    .max(8000, "Update details must be at most 8000 characters."),
+  completedCount: z.number().int().min(0).max(100000).optional().nullable(),
+  pendingCount: z.number().int().min(0).max(100000).optional().nullable(),
+  visibleToClient: z.boolean().optional(),
+});
+
+export type BlockWorkAdminUpdateInput = z.infer<typeof blockWorkAdminUpdateSchema>;
+
+export const blockWorkPriorityUpdateSchema = z.object({
+  blockWorkItemId: trimmedString.min(1).max(128),
+  priorityRank: blockWorkPrioritySchema,
+});
+
+export type BlockWorkPriorityUpdateInput = z.infer<typeof blockWorkPriorityUpdateSchema>;
+
+export const blockWorkStateUpdateSchema = z.object({
+  blockWorkItemId: trimmedString.min(1).max(128),
+  state: z.enum(["ACTIVE", "PAUSED", "ARCHIVED"]),
+});
+
+export type BlockWorkStateUpdateInput = z.infer<typeof blockWorkStateUpdateSchema>;
+
+export const blockWorkConvertToRequestSchema = z.object({
+  blockWorkItemId: trimmedString.min(1).max(128),
+  title: trimmedString.min(1).max(200),
+  description: trimmedString.min(1).max(8000),
+  urgency: trimmedString.refine(isUrgencyValue, {
+    message: "Invalid urgency.",
+  }),
+});
+
+export type BlockWorkConvertToRequestInput = z.infer<typeof blockWorkConvertToRequestSchema>;
