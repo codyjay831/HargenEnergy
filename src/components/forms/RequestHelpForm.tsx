@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type HTMLAttributes } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type HTMLAttributes } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
@@ -27,6 +27,7 @@ import { FORM_COPY } from "@/lib/product-language";
 import { formatIntakePlanLabel } from "@/lib/intake-plan";
 
 const COPY = FORM_COPY.discoveryRequest;
+const NAVBAR_OFFSET = 80;
 
 type FieldErrors = Partial<Record<keyof RequestHelpInput | "requestedWorkTaskIds", string>>;
 
@@ -62,10 +63,25 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
     bottleneck: "",
   });
   const stepTopRef = useRef<HTMLDivElement>(null);
+  const skipInitialScroll = useRef(true);
 
-  useEffect(() => {
-    stepTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [step]);
+  const scrollToStepTop = useCallback(() => {
+    const el = stepTopRef.current;
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + window.scrollY - NAVBAR_OFFSET;
+    window.scrollTo({ top: Math.max(0, top), behavior: "instant" });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (skipInitialScroll.current) {
+      skipInitialScroll.current = false;
+      return;
+    }
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(scrollToStepTop);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [step, scrollToStepTop]);
 
   const handleCheckboxChange = (id: string, checked: boolean) => {
     setSelectedSupport((prev) =>
@@ -384,7 +400,10 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
   const step1Hidden = step !== 1;
 
   return (
-    <form onSubmit={step === 2 ? handleSubmit : (e) => e.preventDefault()} className="relative space-y-8">
+    <form
+      onSubmit={step === 2 ? handleSubmit : (e) => e.preventDefault()}
+      className="relative space-y-8 overflow-anchor-none"
+    >
       <div
         className="absolute -left-[9999px] h-px w-px overflow-hidden"
         aria-hidden="true"
