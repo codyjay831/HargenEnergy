@@ -4,7 +4,9 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { LogClientOpsSheet } from "@/components/admin/LogClientOpsSheet";
+import { LogProofOfWorkSheet } from "@/components/admin/client-work/LogProofOfWorkSheet";
 import { LogTimeSheet } from "@/components/admin/LogTimeSheet";
+import type { BlockWorkTaskOption } from "@/lib/block-work";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { ClientStatus, EngagementType } from "@/generated/prisma/client";
@@ -17,6 +19,8 @@ type ClientDetailHeaderProps = {
   engagementType: EngagementType;
   engagementLabel: string;
   statusDateLabel: string;
+  showProofOfWork?: boolean;
+  proofOfWorkTaskOptions?: BlockWorkTaskOption[];
 };
 
 export function ClientDetailHeader({
@@ -26,6 +30,8 @@ export function ClientDetailHeader({
   engagementType,
   engagementLabel,
   statusDateLabel,
+  showProofOfWork = false,
+  proofOfWorkTaskOptions = [],
 }: ClientDetailHeaderProps) {
   const isActive = status === ClientStatus.ACTIVE;
 
@@ -48,7 +54,13 @@ export function ClientDetailHeader({
         </div>
       </div>
       {isActive && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {showProofOfWork && proofOfWorkTaskOptions.length > 0 && (
+            <LogProofOfWorkSheet
+              companyName={companyName}
+              taskOptions={proofOfWorkTaskOptions}
+            />
+          )}
           <LogTimeSheet clientId={clientId} engagementType={engagementType} companyName={companyName} />
           <LogClientOpsSheet clientId={clientId} companyName={companyName} />
         </div>

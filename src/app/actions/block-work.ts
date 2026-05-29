@@ -30,11 +30,9 @@ import { requireClientUser, requireStaff } from "@/lib/auth-guards";
 import { loadAdminBlockWorkboard, loadPortalBlockWorkboard } from "@/lib/block-work";
 
 function revalidateBlockWorkSurfaces(clientId?: string): void {
-  revalidatePath("/admin/block-work");
-  revalidatePath("/portal/block-work");
   if (clientId) {
     revalidatePath(`/admin/clients/${clientId}`);
-    revalidatePath("/portal");
+    revalidatePath("/portal/requests");
   }
 }
 

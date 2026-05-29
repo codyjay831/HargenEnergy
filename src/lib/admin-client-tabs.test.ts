@@ -22,6 +22,12 @@ describe("admin-client-tabs", () => {
   it("builds hrefs without query for overview", () => {
     expect(adminClientTabHref("abc", "overview")).toBe("/admin/clients/abc");
     expect(adminClientTabHref("abc", "setup")).toBe("/admin/clients/abc?tab=setup");
+    expect(adminClientTabHref("abc", "work")).toBe("/admin/clients/abc?tab=work");
+  });
+
+  it("resolves work tab from tab param", () => {
+    expect(resolveAdminClientTab("work")).toBe("work");
+    expect(isAdminClientTab("work")).toBe(true);
   });
 
   it("validates tab ids", () => {

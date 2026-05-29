@@ -2,6 +2,20 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      {
+        source: "/admin/block-work",
+        destination: "/admin/clients",
+        permanent: false,
+      },
+      {
+        source: "/portal/block-work",
+        destination: "/portal/requests",
+        permanent: false,
+      },
+    ];
+  },
   async headers() {
     const isDev = process.env.NODE_ENV === "development";
     const scriptSrc = isDev

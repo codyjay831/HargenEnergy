@@ -6,7 +6,6 @@ import {
   ChevronRight,
   LayoutDashboard,
   ClipboardList,
-  KanbanSquare,
   PlusCircle,
   KeyRound,
   Users,
@@ -54,7 +53,6 @@ export default async function PortalLayout({
   const icons: Record<PortalNavIconKey, LucideIcon> = {
     dashboard: LayoutDashboard,
     work: ClipboardList,
-    blockWork: KanbanSquare,
     submit: PlusCircle,
     access: KeyRound,
     team: Users,

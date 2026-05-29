@@ -33,6 +33,26 @@ export type BlockWorkActivityFeedItem = {
   authorName: string;
 };
 
+export type BlockWorkTimelineEntry = BlockWorkActivityFeedItem & {
+  blockWorkItemId: string;
+  taskName: string;
+  taskCategoryName: string;
+  visibleToClient: boolean;
+};
+
+export type ClientBlockWorkData = {
+  items: BlockWorkboardItem[];
+  timeline: BlockWorkTimelineEntry[];
+};
+
+/** Task options for proof-of-work / nudge forms. */
+export type BlockWorkTaskOption = {
+  blockWorkItemId: string;
+  workTaskId: string;
+  name: string;
+  categoryName: string;
+};
+
 export type BlockWorkboardItem = {
   id: string;
   state: BlockWorkItemState;
@@ -140,41 +160,132 @@ function mapItem(input: {
   };
 }
 
-export async function loadPortalBlockWorkboard(clientId: string): Promise<BlockWorkboardItem[]> {
+const blockWorkItemInclude = (activityFilter?: { visibleToClient?: boolean }) => ({
+  workTask: {
+    select: {
+      id: true,
+      name: true,
+      category: { select: { name: true } },
+    },
+  },
+  activities: {
+    where: activityFilter,
+    orderBy: { createdAt: "desc" as const },
+    take: 50,
+    select: {
+      id: true,
+      activityType: true,
+      title: true,
+      body: true,
+      metadata: true,
+      visibleToClient: true,
+      createdAt: true,
+      authorType: true,
+      authorUser: { select: { name: true, email: true } },
+    },
+  },
+});
+
+async function loadClientBlockWorkItems(
+  clientId: string,
+  options?: { clientVisibleActivitiesOnly?: boolean },
+): Promise<BlockWorkboardItem[]> {
+  const activityWhere = options?.clientVisibleActivitiesOnly
+    ? { visibleToClient: true }
+    : undefined;
+
   const items = await prisma.blockWorkItem.findMany({
     where: {
       clientId,
       state: { in: [BlockWorkItemState.ACTIVE, BlockWorkItemState.PAUSED] },
     },
-    include: {
-      workTask: {
-        select: {
-          id: true,
-          name: true,
-          category: { select: { name: true } },
-        },
-      },
-      activities: {
-        where: { visibleToClient: true },
-        orderBy: { createdAt: "desc" },
-        take: 12,
-        select: {
-          id: true,
-          activityType: true,
-          title: true,
-          body: true,
-          metadata: true,
-          visibleToClient: true,
-          createdAt: true,
-          authorType: true,
-          authorUser: { select: { name: true, email: true } },
-        },
-      },
-    },
+    include: blockWorkItemInclude(activityWhere),
     orderBy: [{ currentPriorityRank: "asc" }, { updatedAt: "desc" }],
   });
 
   return items.map((item) => mapItem(item));
+}
+
+/** Flat timeline with optional client-visible filter (queries DB). */
+export async function loadClientBlockWorkTimeline(
+  clientId: string,
+  options?: { clientVisibleOnly?: boolean },
+): Promise<BlockWorkTimelineEntry[]> {
+  const activities = await prisma.blockWorkActivity.findMany({
+    where: {
+      blockWorkItem: {
+        clientId,
+        state: { in: [BlockWorkItemState.ACTIVE, BlockWorkItemState.PAUSED] },
+      },
+      ...(options?.clientVisibleOnly ? { visibleToClient: true } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    select: {
+      id: true,
+      activityType: true,
+      title: true,
+      body: true,
+      visibleToClient: true,
+      createdAt: true,
+      authorType: true,
+      blockWorkItemId: true,
+      authorUser: { select: { name: true, email: true } },
+      blockWorkItem: {
+        select: {
+          workTask: {
+            select: {
+              name: true,
+              category: { select: { name: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return activities.map((row) => ({
+    id: row.id,
+    activityType: row.activityType,
+    title: row.title,
+    body: row.body,
+    createdAt: row.createdAt,
+    authorType: row.authorType,
+    authorName:
+      row.authorUser?.name ??
+      row.authorUser?.email ??
+      (row.authorType === "SYSTEM" ? "System" : "Hargen Team"),
+    blockWorkItemId: row.blockWorkItemId,
+    taskName: row.blockWorkItem.workTask.name,
+    taskCategoryName: row.blockWorkItem.workTask.category.name,
+    visibleToClient: row.visibleToClient,
+  }));
+}
+
+export async function loadClientBlockWork(
+  clientId: string,
+  options?: { clientVisibleActivitiesOnly?: boolean },
+): Promise<ClientBlockWorkData> {
+  const items = await loadClientBlockWorkItems(clientId, options);
+  const timeline = await loadClientBlockWorkTimeline(clientId, {
+    clientVisibleOnly: options?.clientVisibleActivitiesOnly,
+  });
+  return { items, timeline };
+}
+
+export function toBlockWorkTaskOptions(items: BlockWorkboardItem[]): BlockWorkTaskOption[] {
+  return items
+    .filter((item) => item.state === BlockWorkItemState.ACTIVE)
+    .map((item) => ({
+      blockWorkItemId: item.id,
+      workTaskId: item.task.id,
+      name: item.task.name,
+      categoryName: item.task.categoryName,
+    }));
+}
+
+export async function loadPortalBlockWorkboard(clientId: string): Promise<BlockWorkboardItem[]> {
+  return loadClientBlockWorkItems(clientId, { clientVisibleActivitiesOnly: true });
 }
 
 export async function loadAdminBlockWorkboard(): Promise<BlockWorkboardItem[]> {

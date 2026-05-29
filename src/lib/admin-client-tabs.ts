@@ -1,5 +1,6 @@
 export const ADMIN_CLIENT_TABS = [
   "overview",
+  "work",
   "discovery",
   "setup",
   "billing",
@@ -29,6 +30,7 @@ export function adminClientTabHref(clientId: string, tab: AdminClientTab): strin
 
 export const ADMIN_CLIENT_TAB_LABELS: Record<AdminClientTab, string> = {
   overview: "Overview",
+  work: "Work",
   discovery: "Discovery call",
   setup: "Setup & access",
   billing: "Billing",

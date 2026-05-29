@@ -47,7 +47,14 @@ import {
 } from "@/lib/discovery-scheduling/pipeline";
 import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
 import { getClientSystemAccessForAdmin } from "@/app/actions/system-access";
-import { resolveAdminClientTab } from "@/lib/admin-client-tabs";
+import { adminClientTabHref, resolveAdminClientTab } from "@/lib/admin-client-tabs";
+import { hasServiceModel } from "@/lib/client-service-model";
+import {
+  loadClientBlockWork,
+  toBlockWorkTaskOptions,
+} from "@/lib/block-work";
+import { isBlockWorkboardEnabled } from "@/lib/block-work-policy";
+import { ClientWorkTab } from "@/components/admin/client-work/ClientWorkTab";
 import { auth } from "@/auth";
 import { resolveStaffRole } from "@/lib/permissions";
 
@@ -152,7 +159,26 @@ export default async function ClientDetailPage({
   }
 
   const isProspect = client.status === ClientStatus.LEAD;
+  const isActive = client.status === ClientStatus.ACTIVE;
+  const activeServiceModels =
+    client.serviceModels?.filter((m) => m.isActive).map((m) => m.modelType) ?? [];
+  const hasSupportBlock = hasServiceModel(activeServiceModels, "SUPPORT_BLOCK");
+  const showWorkTab = isActive && hasSupportBlock && isBlockWorkboardEnabled();
   const usage = calculateWeeklyUsage(client.timeEntries, client.weeklyHours);
+
+  const blockWorkData = showWorkTab
+    ? await loadClientBlockWork(client.id)
+    : { items: [], timeline: [] };
+  const proofOfWorkTaskOptions = toBlockWorkTaskOptions(blockWorkData.items);
+  const workTabRequests = client.requests
+    .filter((r: SupportRequest) => r.kind === SupportRequestKind.CLIENT_OPS)
+    .map((r) => ({
+      id: r.id,
+      title: r.title,
+      status: r.status,
+      createdAt: r.createdAt,
+      supportNeeded: r.supportNeeded,
+    }));
 
   const latestDiscovery = await prisma.supportRequest.findFirst({
     where: {
@@ -260,6 +286,9 @@ export default async function ClientDetailPage({
   if (initialTab === "discovery" && !showDiscoveryTab) {
     initialTab = "overview";
   }
+  if (initialTab === "work" && !showWorkTab) {
+    initialTab = "overview";
+  }
 
   const engagementPanel = (
     <ClientEngagementManager
@@ -282,6 +311,8 @@ export default async function ClientDetailPage({
         engagementType={client.engagementType}
         engagementLabel={getEngagementLabel(client.engagementType)}
         statusDateLabel={statusDateLabel}
+        showProofOfWork={showWorkTab}
+        proofOfWorkTaskOptions={proofOfWorkTaskOptions}
       />
 
       <div id="setup-guide" className="scroll-mt-8">
@@ -366,8 +397,19 @@ export default async function ClientDetailPage({
           initialTab={initialTab}
           showDiscoveryTab={showDiscoveryTab}
           discoveryTabLabel={isProspect ? "Prospect onboarding" : "Discovery call"}
+          showWorkTab={showWorkTab}
           showSetupTab={!isProspect}
           showBillingTab={!isProspect}
+          work={
+            showWorkTab ? (
+              <ClientWorkTab
+                clientId={client.id}
+                items={blockWorkData.items}
+                timeline={blockWorkData.timeline}
+                requests={workTabRequests}
+              />
+            ) : null
+          }
           overview={
             isProspect ? (
               <div className="space-y-6">
@@ -383,7 +425,7 @@ export default async function ClientDetailPage({
             ) : (
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 <div className="lg:col-span-2 space-y-6">
-                  {renderRecentRequests(client)}
+                  {renderRecentRequests(client, { showWorkTab, clientId: client.id })}
                   {renderCompanyDetailsCard(client)}
                   {client.notes && (
                     <Card>
@@ -804,7 +846,32 @@ function renderProspectOnboardingOverview({
   );
 }
 
-function renderRecentRequests(client: ClientWithRelations) {
+function renderRecentRequests(
+  client: ClientWithRelations,
+  options?: { showWorkTab?: boolean; clientId?: string },
+) {
+  if (options?.showWorkTab && options.clientId) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Work</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Block activity, subscribed tasks, and priced requests are on the{" "}
+            <Link
+              href={adminClientTabHref(options.clientId, "work")}
+              className="text-primary hover:underline font-medium"
+            >
+              Work tab
+            </Link>
+            .
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const clientRequests = client.requests.filter((r: SupportRequest) => r.kind === "CLIENT_OPS");
   return (
     <Card>

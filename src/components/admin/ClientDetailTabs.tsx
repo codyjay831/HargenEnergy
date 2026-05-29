@@ -15,9 +15,11 @@ type ClientDetailTabsProps = {
   initialTab: AdminClientTab;
   showDiscoveryTab: boolean;
   discoveryTabLabel?: string;
+  showWorkTab?: boolean;
   showSetupTab?: boolean;
   showBillingTab?: boolean;
   overview: React.ReactNode;
+  work?: React.ReactNode;
   discovery: React.ReactNode;
   setup: React.ReactNode;
   billing: React.ReactNode;
@@ -27,6 +29,7 @@ function resolveActiveTab(
   tabParam: string | null | undefined,
   initialTab: AdminClientTab,
   showDiscoveryTab: boolean,
+  showWorkTab: boolean,
   showSetupTab: boolean,
   showBillingTab: boolean,
 ): AdminClientTab {
@@ -36,11 +39,20 @@ function resolveActiveTab(
   if (activeTab === "discovery" && !showDiscoveryTab) {
     activeTab = "overview";
   }
+  if (activeTab === "work" && !showWorkTab) {
+    activeTab = "overview";
+  }
   if (activeTab === "setup" && !showSetupTab) {
-    activeTab = showDiscoveryTab ? "discovery" : "overview";
+    activeTab = showWorkTab ? "work" : showDiscoveryTab ? "discovery" : "overview";
   }
   if (activeTab === "billing" && !showBillingTab) {
-    activeTab = showSetupTab ? "setup" : showDiscoveryTab ? "discovery" : "overview";
+    activeTab = showWorkTab
+      ? "work"
+      : showSetupTab
+        ? "setup"
+        : showDiscoveryTab
+          ? "discovery"
+          : "overview";
   }
 
   return activeTab;
@@ -51,9 +63,11 @@ export function ClientDetailTabs({
   initialTab,
   showDiscoveryTab,
   discoveryTabLabel = "Discovery call",
+  showWorkTab = false,
   showSetupTab = true,
   showBillingTab = true,
   overview,
+  work,
   discovery,
   setup,
   billing,
@@ -65,6 +79,7 @@ export function ClientDetailTabs({
     tabParam,
     initialTab,
     showDiscoveryTab,
+    showWorkTab,
     showSetupTab,
     showBillingTab,
   );
@@ -77,6 +92,9 @@ export function ClientDetailTabs({
       if (value === "discovery" && !showDiscoveryTab) {
         return;
       }
+      if (value === "work" && !showWorkTab) {
+        return;
+      }
       if (value === "setup" && !showSetupTab) {
         return;
       }
@@ -86,13 +104,14 @@ export function ClientDetailTabs({
 
       router.replace(adminClientTabHref(clientId, value), { scroll: false });
     },
-    [clientId, router, showBillingTab, showDiscoveryTab, showSetupTab],
+    [clientId, router, showBillingTab, showDiscoveryTab, showSetupTab, showWorkTab],
   );
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
       <TabsList className="w-full max-w-2xl flex-wrap h-auto">
         <TabsTrigger value="overview">Overview</TabsTrigger>
+        {showWorkTab && <TabsTrigger value="work">Work</TabsTrigger>}
         {showDiscoveryTab && <TabsTrigger value="discovery">{discoveryTabLabel}</TabsTrigger>}
         {showSetupTab && <TabsTrigger value="setup">Setup & access</TabsTrigger>}
         {showBillingTab && <TabsTrigger value="billing">Billing</TabsTrigger>}
@@ -101,6 +120,12 @@ export function ClientDetailTabs({
       <TabsContent value="overview" className="mt-0">
         {overview}
       </TabsContent>
+
+      {showWorkTab && work && (
+        <TabsContent value="work" className="mt-0">
+          {work}
+        </TabsContent>
+      )}
 
       {showDiscoveryTab && (
         <TabsContent value="discovery" className="mt-0">

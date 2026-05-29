@@ -5,7 +5,6 @@ export type AdminNavIconKey =
   | "outreach"
   | "clients"
   | "requests"
-  | "blockWork"
   | "time"
   | "billing"
   | "team"
@@ -29,7 +28,6 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     href: "/admin/requests",
     icon: "requests",
   },
-  { name: NAV_LABELS.adminBlockWork, href: "/admin/block-work", icon: "blockWork" },
   { name: "Time Tracking", href: "/admin/time", icon: "time" },
   { name: "Billing", href: "/admin/billing", icon: "billing" },
   { name: "Team", href: "/admin/team", icon: "team" },
