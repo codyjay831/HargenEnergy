@@ -81,7 +81,10 @@ export function RequestAttentionSheet({ taskOptions }: RequestAttentionSheetProp
         <form onSubmit={handleSubmit} className="space-y-4 px-4 pb-6">
           <div className="space-y-2">
             <Label htmlFor="nudge-task">Subscribed task</Label>
-            <Select value={blockWorkItemId} onValueChange={setBlockWorkItemId}>
+            <Select
+              value={blockWorkItemId}
+              onValueChange={(value) => setBlockWorkItemId(value ?? "")}
+            >
               <SelectTrigger id="nudge-task">
                 <SelectValue placeholder="Select task" />
               </SelectTrigger>

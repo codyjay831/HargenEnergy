@@ -89,7 +89,10 @@ export function ProofOfWorkForm({ taskOptions, onSuccess }: ProofOfWorkFormProps
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="proof-task">Subscribed task</Label>
-        <Select value={blockWorkItemId} onValueChange={setBlockWorkItemId}>
+        <Select
+          value={blockWorkItemId}
+          onValueChange={(value) => setBlockWorkItemId(value ?? "")}
+        >
           <SelectTrigger id="proof-task">
             <SelectValue placeholder="Select task" />
           </SelectTrigger>
