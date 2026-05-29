@@ -123,7 +123,7 @@ export default async function PortalLayout({
             <PortalMobileNav
               companyName={client?.companyName ?? "Hargen Portal"}
               logoDisplayUrl={logoDisplayUrl}
-              userLabel={session.user.name || session.user.email}
+              userLabel={session.user.name ?? session.user.email ?? "User"}
             />
             <span>Portal</span>
             <ChevronRight className="h-4 w-4" />
