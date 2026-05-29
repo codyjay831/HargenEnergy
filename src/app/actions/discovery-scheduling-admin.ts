@@ -33,7 +33,7 @@ export async function qualifyDiscoveryRequest(
   supportRequestId: string,
   internalNotes?: string,
 ) {
-  await requireStaff();
+  await requireStaff("ops.full");
   const request = await getIntakeRequest(supportRequestId);
   if (!request) return { error: "Discovery request not found." };
 
@@ -58,7 +58,7 @@ const NEEDS_INFO_MESSAGE_MIN = 10;
 const NEEDS_INFO_MESSAGE_MAX = 5000;
 
 export async function markDiscoveryNeedsInfo(supportRequestId: string, message: string) {
-  const session = await requireStaff();
+  const session = await requireStaff("ops.full");
   const request = await getIntakeRequest(supportRequestId);
   if (!request) return { error: "Discovery request not found." };
 
@@ -126,7 +126,7 @@ export async function markDiscoveryNeedsInfo(supportRequestId: string, message: 
 }
 
 export async function markDiscoveryNotAFit(supportRequestId: string, reason?: string) {
-  await requireStaff();
+  await requireStaff("ops.full");
   const request = await getIntakeRequest(supportRequestId);
   if (!request) return { error: "Discovery request not found." };
 
@@ -146,7 +146,7 @@ async function createOrRefreshSchedulingLink(
   supportRequestId: string,
   regenerate: boolean,
 ) {
-  const session = await requireStaff();
+  const session = await requireStaff("ops.full");
   const result = await ensureDiscoverySchedulingLink({
     supportRequestId,
     regenerate,
@@ -180,7 +180,7 @@ export async function regenerateDiscoverySchedulingLink(supportRequestId: string
 }
 
 export async function resendDiscoverySchedulingLink(supportRequestId: string) {
-  await requireStaff();
+  await requireStaff("ops.full");
   const request = await getIntakeRequest(supportRequestId);
   if (!request) return { error: "Discovery request not found." };
 
@@ -218,7 +218,7 @@ export async function resendDiscoverySchedulingLink(supportRequestId: string) {
 }
 
 export async function getDiscoverySchedulingLinkUrl(supportRequestId: string) {
-  await requireStaff();
+  await requireStaff("ops.full");
   const link = await prisma.discoverySchedulingLink.findUnique({
     where: { supportRequestId },
   });
@@ -233,7 +233,7 @@ export async function getDiscoverySchedulingLinkUrl(supportRequestId: string) {
 }
 
 export async function revokeDiscoverySchedulingLink(supportRequestId: string) {
-  const session = await requireStaff();
+  const session = await requireStaff("ops.full");
   const request = await getIntakeRequest(supportRequestId);
   if (!request) return { error: "Discovery request not found." };
 
@@ -263,7 +263,7 @@ export async function saveDiscoveryDiscoveryNotes(
   appointmentId: string,
   discoveryNotes: string,
 ) {
-  await requireStaff();
+  await requireStaff("ops.full");
   await prisma.discoveryAppointment.update({
     where: { id: appointmentId },
     data: { discoveryNotes: discoveryNotes.trim() || null },
@@ -276,7 +276,7 @@ export async function saveDiscoveryFitDecision(
   fitDecision: DiscoveryFitDecision,
   fitDecisionReason?: string,
 ) {
-  await requireStaff();
+  await requireStaff("ops.full");
   const appointment = await prisma.discoveryAppointment.update({
     where: { id: appointmentId },
     data: {
@@ -289,7 +289,7 @@ export async function saveDiscoveryFitDecision(
 }
 
 export async function saveDiscoveryRecap(appointmentId: string, recapContent: string) {
-  await requireStaff();
+  await requireStaff("ops.full");
   const appointment = await prisma.discoveryAppointment.update({
     where: { id: appointmentId },
     data: { recapContent: recapContent.trim() },
@@ -299,7 +299,7 @@ export async function saveDiscoveryRecap(appointmentId: string, recapContent: st
 }
 
 export async function sendDiscoveryRecap(appointmentId: string) {
-  const session = await requireStaff();
+  const session = await requireStaff("ops.full");
   const appointment = await prisma.discoveryAppointment.findUnique({
     where: { id: appointmentId },
     include: { client: true },
@@ -336,7 +336,7 @@ export async function sendDiscoveryRecap(appointmentId: string) {
 }
 
 export async function markDiscoveryCompleted(appointmentId: string) {
-  await requireStaff();
+  await requireStaff("ops.full");
   const appointment = await prisma.discoveryAppointment.update({
     where: { id: appointmentId },
     data: { status: "COMPLETED", completedAt: new Date() },
@@ -346,7 +346,7 @@ export async function markDiscoveryCompleted(appointmentId: string) {
 }
 
 export async function markDiscoveryNoShow(appointmentId: string) {
-  await requireStaff();
+  await requireStaff("ops.full");
   const appointment = await prisma.discoveryAppointment.update({
     where: { id: appointmentId },
     data: { status: "NO_SHOW", noShowAt: new Date() },
@@ -372,7 +372,7 @@ export type DiscoveryAvailabilitySettingsInput = {
 export async function updateDiscoveryAvailabilitySettings(
   input: DiscoveryAvailabilitySettingsInput,
 ) {
-  const session = await requireStaff();
+  const session = await requireStaff("ops.full");
   await ensureDiscoveryAvailabilitySettings();
 
   await prisma.discoveryAvailabilitySettings.update({
@@ -399,7 +399,7 @@ export async function updateDiscoveryAvailabilitySettings(
 }
 
 export async function getDiscoveryAvailabilitySettingsForAdmin() {
-  await requireStaff();
+  await requireStaff("ops.full");
   const settings = await ensureDiscoveryAvailabilitySettings();
   return settings;
 }

@@ -67,3 +67,19 @@ export async function requireStaffOrClientScope(clientId: string): Promise<Sessi
   assertClientScope(session, clientId);
   return session;
 }
+
+export type StaffActionAuthResult =
+  | { ok: true; session: Session }
+  | { ok: false; error: string };
+
+/** For server actions that return `{ error }` instead of throwing on auth failure. */
+export async function authorizeStaffAction(
+  capability?: StaffCapability,
+): Promise<StaffActionAuthResult> {
+  try {
+    const session = await requireStaff(capability);
+    return { ok: true, session };
+  } catch {
+    return { ok: false, error: "Unauthorized. Admin access required." };
+  }
+}

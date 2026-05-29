@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/auth";
+import { requireStaff } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import {
@@ -63,10 +63,7 @@ async function assertWorkAllowedForRequest(requestId: string) {
 }
 
 export async function startTimer(requestId: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
+  await requireStaff("ops.full");
 
   await assertWorkAllowedForRequest(requestId);
 
@@ -82,10 +79,7 @@ export async function startTimer(requestId: string) {
 }
 
 export async function pauseTimer(requestId: string, reason: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
+  const session = await requireStaff("ops.full");
 
   const request = await prisma.supportRequest.findUnique({
     where: { id: requestId },
@@ -148,10 +142,7 @@ export async function pauseTimer(requestId: string, reason: string) {
 }
 
 export async function stopTimer(requestId: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
+  const session = await requireStaff("ops.full");
 
   const request = await prisma.supportRequest.findUnique({
     where: { id: requestId },

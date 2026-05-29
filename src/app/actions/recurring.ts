@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/auth";
+import { requireStaff } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import {
@@ -10,10 +10,7 @@ import {
 import { processRecurringTasksInternal } from "@/lib/recurring-processor";
 
 export async function getRecurringTasks() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
+  await requireStaff("ops.full");
 
   return await prisma.recurringTask.findMany({
     include: {
@@ -32,10 +29,7 @@ export async function createRecurringTask(data: {
   frequency: RecurringFrequency;
   nextRunAt: Date;
 }) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
+  await requireStaff("ops.full");
 
   const client = await prisma.client.findUnique({
     where: { id: data.clientId },
@@ -62,10 +56,7 @@ export async function createRecurringTask(data: {
 }
 
 export async function deleteRecurringTask(id: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
+  await requireStaff("ops.full");
 
   await prisma.recurringTask.delete({
     where: { id },
@@ -75,10 +66,7 @@ export async function deleteRecurringTask(id: string) {
 }
 
 export async function processRecurringTasks() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
+  await requireStaff("ops.full");
 
   const { createdCount } = await processRecurringTasksInternal();
 

@@ -17,7 +17,7 @@ import {
   sendDeferredUpdateEmail,
   sendOverflowApprovedEmail,
 } from "@/lib/email";
-import { auth } from "@/auth";
+import { authorizeStaffAction } from "@/lib/auth-guards";
 import { isRequestStatusValue, isOverflowStatusValue } from "@/lib/ui-enums";
 import { checkRateLimit, getRateLimitIdentifier } from "@/lib/rate-limit";
 import { revalidateAdminClientPage } from "@/lib/revalidate-paths";
@@ -189,11 +189,11 @@ export async function updateRequest(
     sendDeferredEmail?: boolean;
   },
 ) {
-  const session = await auth();
-
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
+  const session = authResult.session;
 
   if (data.status !== undefined && !isRequestStatusValue(data.status)) {
     return { error: "Invalid status." };
@@ -346,11 +346,11 @@ export async function updateRequestHandoffPricing(data: {
   pricingMode: string;
   flatPriceCents?: number | null;
 }) {
-  const session = await auth();
-
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
+  const session = authResult.session;
 
   const parsed = updateRequestHandoffPricingSchema.safeParse({
     requestId: data.requestId,
@@ -442,10 +442,9 @@ export async function updateRequestHandoffPricing(data: {
 }
 
 export async function updateRequestPriority(id: string, priorityRank: number | null) {
-  const session = await auth();
-
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
 
   try {

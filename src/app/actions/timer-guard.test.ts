@@ -2,15 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const mockAuth = vi.fn();
+const mockRequireStaff = vi.fn();
 const mockAssertClientCanStartWork = vi.fn();
 const mockCheckClientCanStartWork = vi.fn();
 const mockFindUnique = vi.fn();
 const mockUpdate = vi.fn();
 const mockCreate = vi.fn();
 
-vi.mock("@/auth", () => ({
-  auth: () => mockAuth(),
+vi.mock("@/lib/auth-guards", () => ({
+  requireStaff: (...args: unknown[]) => mockRequireStaff(...args),
 }));
 
 vi.mock("@/lib/client-work-eligibility-guard", () => ({
@@ -39,7 +39,7 @@ import { startTimer, stopTimer } from "@/app/actions/timer";
 describe("startTimer work gate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue({ user: { id: "admin-1", role: "ADMIN" } });
+    mockRequireStaff.mockResolvedValue({ user: { id: "admin-1", role: "ADMIN" } });
     mockFindUnique.mockResolvedValue({ clientId: "client-1" });
     mockUpdate.mockResolvedValue({});
     mockCheckClientCanStartWork.mockResolvedValue({ ok: true });

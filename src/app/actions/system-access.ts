@@ -54,7 +54,7 @@ const clientCreateSchema = z.object({
 export async function createClientSystemAccess(
   data: z.infer<typeof adminAccessSchema>,
 ) {
-  await requireStaff();
+  await requireStaff("clients.manage");
 
   const parsed = adminAccessSchema.safeParse(data);
   if (!parsed.success) {
@@ -80,7 +80,7 @@ export async function updateClientSystemAccess(
   accessId: string,
   data: Partial<z.infer<typeof adminAccessSchema>>,
 ) {
-  await requireStaff();
+  await requireStaff("clients.manage");
 
   const existing = await prisma.clientSystemAccess.findUnique({
     where: { id: accessId },
@@ -113,7 +113,7 @@ export async function updateClientSystemAccess(
 }
 
 export async function verifyClientSystemAccess(accessId: string) {
-  await requireStaff();
+  await requireStaff("clients.manage");
 
   const existing = await prisma.clientSystemAccess.findUnique({
     where: { id: accessId },
@@ -231,7 +231,7 @@ export async function createClientSystemAccessFromPortal(
 }
 
 export async function getClientSystemAccessForAdmin(clientId: string) {
-  await requireStaff();
+  await requireStaff("clients.manage");
 
   const rows = await prisma.clientSystemAccess.findMany({
     where: { clientId },

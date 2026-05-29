@@ -51,7 +51,7 @@ async function getActiveOwnerCount(): Promise<number> {
 }
 
 export async function listStaffUsers() {
-  await requireStaff();
+  await requireStaff("staff.manage");
   const users = await prisma.user.findMany({
     where: {
       role: Role.ADMIN,

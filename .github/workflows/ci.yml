@@ -49,5 +49,11 @@ jobs:
       - name: Attachment validation checks
         run: npx tsx scripts/test-attachment-url-validation.ts
 
+      - name: Test
+        run: npm test
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
       - name: Build
         run: npm run build

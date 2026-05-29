@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/auth";
+import { requireStaff } from "@/lib/auth-guards";
 
 export type AdminRouteErrorReport = {
   message: string;
@@ -11,16 +11,14 @@ export type AdminRouteErrorReport = {
 };
 
 export async function reportAdminRouteError(report: AdminRouteErrorReport): Promise<void> {
-  const session = await auth();
+  const session = await requireStaff();
 
   console.error("[admin-route-error]", {
     message: report.message,
     digest: report.digest,
-    stack: report.stack,
     route: report.route,
     clientId: report.clientId,
-    adminUserId: session?.user?.id ?? null,
-    adminEmail: session?.user?.email ?? null,
+    adminUserId: session.user.id,
   });
 
   try {
@@ -33,8 +31,8 @@ export async function reportAdminRouteError(report: AdminRouteErrorReport): Prom
       extra: {
         route: report.route,
         clientId: report.clientId,
-        adminUserId: session?.user?.id ?? null,
-        stack: report.stack,
+        adminUserId: session.user.id,
+        digest: report.digest,
       },
     });
   } catch {

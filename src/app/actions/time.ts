@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/auth";
+import { authorizeStaffAction } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { BillableType, TimeEntryStatus } from "@/generated/prisma/client";
 import { assertBillableTimeOnRequest } from "@/lib/request-lifecycle";
@@ -19,11 +19,11 @@ export async function createTimeEntry(data: {
   description: string;
   billableType: string;
 }) {
-  const session = await auth();
-
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
+  const session = authResult.session;
 
   if (!isBillableTypeValue(data.billableType)) {
     return { error: "Invalid billable type." };
@@ -113,11 +113,11 @@ export async function createTimeEntry(data: {
 }
 
 export async function deleteTimeEntry(id: string) {
-  const session = await auth();
-
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
+  const session = authResult.session;
 
   try {
     const timeEntry = await prisma.timeEntry.delete({
@@ -149,11 +149,11 @@ export async function deleteTimeEntry(id: string) {
 }
 
 export async function confirmTimeEntry(id: string) {
-  const session = await auth();
-
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
+  const session = authResult.session;
 
   try {
     const existing = await prisma.timeEntry.findUnique({
@@ -208,11 +208,11 @@ export async function updateTimeEntry(id: string, data: {
   description?: string;
   billableType?: string;
 }) {
-  const session = await auth();
-
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
+  const session = authResult.session;
 
   if (data.billableType !== undefined && !isBillableTypeValue(data.billableType)) {
     return { error: "Invalid billable type." };

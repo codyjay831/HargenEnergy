@@ -47,7 +47,7 @@ export async function updateClientBillingMode(data: {
   reason?: string | null;
   expiresAt?: string | null;
 }) {
-  const session = await requireStaff();
+  const session = await requireStaff("billing.manage");
 
   const validated = validateClientBillingModeUpdate(data);
   if (!validated.ok) {
@@ -115,7 +115,7 @@ export async function updateClientBillingMode(data: {
 }
 
 export async function applyIntakeToApprovedWork(clientId: string, requestId?: string) {
-  await requireStaff();
+  await requireStaff("clients.manage");
 
   const result = await applyIntakeWorkTasksToClient(prisma, clientId, {
     requestId,
@@ -138,7 +138,7 @@ export async function applyIntakeToApprovedWork(clientId: string, requestId?: st
 }
 
 export async function activateClient(clientId: string) {
-  await requireStaff();
+  await requireStaff("clients.manage");
 
   const client = await prisma.client.findUnique({
     where: { id: clientId },
@@ -194,7 +194,7 @@ export async function updateClientEngagement(data: {
   serviceModels?: ServiceModelTypeValue[];
   approvedWorkTaskIds: string[];
 }) {
-  await requireStaff();
+  await requireStaff("clients.manage");
 
   const parsed = updateClientEngagementSchema.safeParse(data);
   if (!parsed.success) {
@@ -289,7 +289,7 @@ export async function updateClientEngagement(data: {
 }
 
 export async function getClientEngagementConfig(clientId: string) {
-  await requireStaff();
+  await requireStaff("clients.manage");
 
   const [client, categories] = await Promise.all([
     prisma.client.findUnique({
@@ -336,7 +336,7 @@ export async function logClientOpsRequest(data: {
   adminOverride?: boolean;
   overrideReason?: string;
 }) {
-  const session = await requireStaff();
+  const session = await requireStaff("clients.manage");
 
   const parsed = logOpsRequestSchema.safeParse(data);
   if (!parsed.success) {

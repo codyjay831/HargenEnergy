@@ -28,7 +28,7 @@ const agreementTransitionSchema = z.object({
 async function transitionClientAgreement(
   raw: z.infer<typeof agreementTransitionSchema>,
 ) {
-  const session = await requireStaff();
+  const session = await requireStaff("clients.manage");
 
   const parsed = agreementTransitionSchema.safeParse(raw);
   if (!parsed.success) {

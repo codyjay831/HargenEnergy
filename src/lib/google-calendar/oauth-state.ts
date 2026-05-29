@@ -5,6 +5,13 @@ import { getRedisClient } from "@/lib/redis-client";
 
 const OAUTH_STATE_TTL_SECONDS = 600;
 
+const PRODUCTION_REDIS_REQUIRED_ERROR =
+  "Google OAuth is unavailable until Redis state storage is configured.";
+
+function isProductionWithoutRedis(): boolean {
+  return process.env.NODE_ENV === "production" && !getRedisClient();
+}
+
 type OAuthStatePayload = {
   userId: string;
   createdAt: string;
@@ -23,7 +30,11 @@ export async function createGoogleOAuthState(userId: string): Promise<string> {
     return state;
   }
 
-  // Dev fallback: encode payload in state (less secure; document for local only)
+  if (isProductionWithoutRedis()) {
+    throw new Error(PRODUCTION_REDIS_REQUIRED_ERROR);
+  }
+
+  // Dev fallback: encode payload in state (less secure; local only)
   return Buffer.from(JSON.stringify({ ...payload, state }), "utf8").toString("base64url");
 }
 
@@ -61,6 +72,11 @@ export async function consumeGoogleOAuthState(state: string): Promise<string | n
     }
     await redis.del(`google-oauth-state:${state}`);
     return payload.userId;
+  }
+
+  if (isProductionWithoutRedis()) {
+    console.warn("[google-oauth-state] rejecting OAuth state in production without Redis");
+    return null;
   }
 
   try {

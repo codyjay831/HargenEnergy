@@ -3,12 +3,12 @@ import { BillableType } from "@/generated/prisma/client";
 
 vi.mock("server-only", () => ({}));
 
-const mockAuth = vi.fn();
+const mockAuthorizeStaffAction = vi.fn();
 const mockCheckClientCanStartWork = vi.fn();
 const mockCreate = vi.fn();
 
-vi.mock("@/auth", () => ({
-  auth: () => mockAuth(),
+vi.mock("@/lib/auth-guards", () => ({
+  authorizeStaffAction: (...args: unknown[]) => mockAuthorizeStaffAction(...args),
 }));
 
 vi.mock("@/lib/client-work-eligibility-guard", () => ({
@@ -35,7 +35,10 @@ import { createTimeEntry } from "@/app/actions/time";
 describe("createTimeEntry work gate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue({ user: { id: "admin-1", role: "ADMIN" } });
+    mockAuthorizeStaffAction.mockResolvedValue({
+      ok: true,
+      session: { user: { id: "admin-1", role: "ADMIN" } },
+    });
   });
 
   it("returns admin block message when client cannot start work", async () => {

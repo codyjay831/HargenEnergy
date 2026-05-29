@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { outreachCompanySchema, OutreachCompanyInput } from "@/lib/validations";
-import { auth } from "@/auth";
+import { authorizeStaffAction, requireStaff } from "@/lib/auth-guards";
 import {
   BusinessType,
   OutreachActivityType,
@@ -16,7 +16,6 @@ import { revalidatePath } from "next/cache";
 import Papa from "papaparse";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { requireStaff } from "@/lib/auth-guards";
 import {
   annotateFinderResults,
   buildOutreachSearchReplaySnapshot,
@@ -103,11 +102,10 @@ export async function createOutreachCompany(data: OutreachCompanyInput) {
 }
 
 export async function updateOutreachCompany(id: string, data: Partial<OutreachCompanyInput>) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
-
   try {
     const { enrichmentData, ...companyFields } = data;
 
@@ -134,11 +132,10 @@ export async function updateOutreachCompany(id: string, data: Partial<OutreachCo
 }
 
 export async function deleteOutreachCompany(id: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
-
   try {
     await prisma.outreachCompany.delete({
       where: { id },
@@ -153,11 +150,10 @@ export async function deleteOutreachCompany(id: string) {
 }
 
 export async function importOutreachCSV(csvContent: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
-
   const parsed = Papa.parse(csvContent, {
     header: true,
     skipEmptyLines: true,
@@ -270,11 +266,10 @@ export async function importOutreachCSV(csvContent: string) {
 }
 
 export async function exportOutreachCSV() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
-
   try {
     const companies = await prisma.outreachCompany.findMany({
       include: {
@@ -306,10 +301,11 @@ export async function exportOutreachCSV() {
 }
 
 export async function searchContractors(query: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
+  const session = authResult.session;
 
   const rateLimitError = await enforceOutreachRateLimit(
     "outreach-google-search",
@@ -398,21 +394,19 @@ export async function searchContractors(query: string) {
 }
 
 export async function listOutreachSearchHistory(limit = 20) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
-
   const runs = await getRecentOutreachSearchRuns(limit);
   return { success: true, runs };
 }
 
 export async function getOutreachSearchRun(runId: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
-
   const run = await getOutreachSearchRunById(runId);
   if (!run) {
     return { error: "Search run not found." };
@@ -456,10 +450,11 @@ export async function getOutreachSearchRun(runId: string) {
 export type { PermitStackSearchInput } from "@/lib/outreach-permitstack";
 
 export async function searchPermitStack(input: PermitStackSearchInput) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
+  const session = authResult.session;
 
   const rateLimitError = await enforceOutreachRateLimit(
     "outreach-permitstack-search",
@@ -539,10 +534,11 @@ export async function searchPermitStack(input: PermitStackSearchInput) {
 }
 
 export async function normalizePermitStackQueryWithAI(text: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
+  const session = authResult.session;
 
   const rateLimitError = await enforceOutreachRateLimit(
     "outreach-gemini-assist",
@@ -626,11 +622,10 @@ export async function normalizePermitStackQueryWithAI(text: string) {
 }
 
 export async function getPlaceDetails(placeId: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
-
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
     return { error: "Google Maps API key not configured." };
@@ -654,9 +649,9 @@ export async function getPlaceDetails(placeId: string) {
 }
 
 export async function enrichCompanyWithAI(companyId: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -782,9 +777,9 @@ export async function enrichCompanyWithAI(companyId: string) {
 }
 
 export async function enrichWithApollo(companyId: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
 
   const apiKey = process.env.APOLLO_API_KEY;
@@ -949,10 +944,11 @@ async function applyYelpBusinessToCompany(
 }
 
 export async function enrichWithYelp(companyId: string, selectedBusinessId?: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
+  const session = authResult.session;
 
   const rateLimitError = await enforceOutreachRateLimit(
     "outreach-yelp-enrich",
@@ -1056,9 +1052,9 @@ export async function enrichWithYelp(companyId: string, selectedBusinessId?: str
 }
 
 export async function checkLicenseStatus(companyId: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
 
   const apiKey = process.env.TRADES_API_KEY;
@@ -1117,10 +1113,11 @@ export async function logOutreachActivity(data: {
   responseSummary?: string;
   nextFollowUpAt?: Date;
 }) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
+  const session = authResult.session;
 
   try {
     const activity = await prisma.outreachActivity.create({
@@ -1179,9 +1176,9 @@ export async function addOutreachContact(data: {
   linkedinUrl?: string;
   isPrimary?: boolean;
 }) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
 
   try {
@@ -1198,9 +1195,9 @@ export async function addOutreachContact(data: {
 }
 
 export async function deleteOutreachContact(id: string, companyId: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return { error: "Unauthorized. Admin access required." };
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
 
   try {

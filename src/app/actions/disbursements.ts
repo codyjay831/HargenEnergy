@@ -43,7 +43,7 @@ const markPaidSchema = z.object({
 export async function createDisbursementRequest(
   data: z.infer<typeof createSchema>,
 ) {
-  const session = await requireStaff();
+  const session = await requireStaff("billing.manage");
 
   const parsed = createSchema.safeParse(data);
   if (!parsed.success) {
@@ -223,7 +223,7 @@ export async function declineDisbursementRequest(disbursementId: string) {
 export async function markDisbursementPaid(
   data: z.infer<typeof markPaidSchema>,
 ) {
-  const session = await requireStaff();
+  const session = await requireStaff("billing.manage");
 
   const parsed = markPaidSchema.safeParse(data);
   if (!parsed.success) {
