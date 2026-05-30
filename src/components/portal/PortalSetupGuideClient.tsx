@@ -12,10 +12,14 @@ import {
   CUSTOMER_NEXT_STEP_ORDER,
   CUSTOMER_SETUP_RAIL,
   computeRailNodes,
-  findNextStep,
+  findNextRequiredStep,
 } from "@/components/setup-guide/setup-guide-utils";
 
 function PortalSetupSummary({ readiness }: { readiness: ClientSetupReadiness }) {
+  const sendWorkLabel = readiness.canSubmitPortalWork
+    ? "Send work ready"
+    : "Send work blocked";
+
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
       <span
@@ -25,7 +29,13 @@ function PortalSetupSummary({ readiness }: { readiness: ClientSetupReadiness }) 
             : "font-medium text-red-700"
         }
       >
-        {readiness.canSubmitPortalWork ? "Send work ready" : "Send work blocked"}
+        {sendWorkLabel}
+        {!readiness.canSubmitPortalWork && readiness.primarySubmitBlockMessage && (
+          <span className="font-normal text-red-600/90">
+            {" · "}
+            {readiness.primarySubmitBlockMessage}
+          </span>
+        )}
       </span>
       <span className="text-muted-foreground">
         Billing:{" "}
@@ -49,7 +59,7 @@ export function PortalSetupGuideClient({
   discovery,
 }: PortalSetupGuideClientProps) {
   const railNodes = computeRailNodes(readiness.customerSteps, CUSTOMER_SETUP_RAIL);
-  const nextStep = findNextStep(readiness.customerSteps, CUSTOMER_NEXT_STEP_ORDER);
+  const nextStep = findNextRequiredStep(readiness.customerSteps, CUSTOMER_NEXT_STEP_ORDER);
   const allComplete = nextStep == null;
 
   return (

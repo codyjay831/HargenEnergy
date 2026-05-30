@@ -46,13 +46,11 @@ export function SetupNextStepCard({
         <div className="flex items-start gap-3">
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden />
           <div className="space-y-1">
-            <p className="text-base font-semibold text-emerald-900">
-              {variant === "admin" ? "Setup complete" : "You are ready to go"}
-            </p>
+            <p className="text-base font-semibold text-emerald-900">Setup complete</p>
             <p className="text-sm text-emerald-800/80">
               {variant === "admin"
                 ? "Core setup steps are complete. Use setup details below to review optional items."
-                : "Your portal setup is complete. You can send work whenever you are ready."}
+                : "Your account setup is complete. Send work status is shown above."}
             </p>
           </div>
         </div>

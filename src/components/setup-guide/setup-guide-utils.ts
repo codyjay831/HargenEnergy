@@ -47,19 +47,14 @@ export const CUSTOMER_SETUP_RAIL: SetupRailConfig[] = [
   { id: "portal", label: "Portal", stepIds: ["portal-access-ready"] },
   { id: "agreement", label: "Agreement", stepIds: ["customer-agreement"] },
   { id: "billing", label: "Billing", stepIds: ["customer-billing"] },
-  { id: "access", label: "Access", stepIds: ["customer-system-access"] },
   { id: "support", label: "Support areas", stepIds: ["support-areas-visible"] },
-  { id: "send-work", label: "Send work", stepIds: ["send-work-ready", "first-work-submitted"] },
 ];
 
 export const CUSTOMER_NEXT_STEP_ORDER = [
   "portal-access-ready",
   "customer-agreement",
   "customer-billing",
-  "customer-system-access",
   "support-areas-visible",
-  "send-work-ready",
-  "first-work-submitted",
 ];
 
 export type SetupRailNode = SetupRailConfig & { state: RailNodeState };

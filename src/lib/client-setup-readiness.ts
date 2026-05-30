@@ -791,27 +791,6 @@ export function deriveClientSetupReadiness(
       customerVisible: true,
     },
     {
-      id: "customer-system-access",
-      title: "Provide system access",
-      description: systemAccess.description,
-      owner:
-        systemAccess.status === "in_review" || systemAccess.status === "complete"
-          ? "system"
-          : "customer",
-      status:
-        systemAccess.status === "complete"
-          ? "complete"
-          : systemAccess.status === "in_review"
-            ? "attention"
-            : "incomplete",
-      blockers: ["informational"],
-      required: false,
-      actionLabel: "Provide system access",
-      actionHref: input.hrefs.portalAccess,
-      adminOnly: false,
-      customerVisible: true,
-    },
-    {
       id: "support-areas-visible",
       title: "Approved support areas",
       description: supportAreasVisible
@@ -834,36 +813,6 @@ export function deriveClientSetupReadiness(
       required: true,
       actionLabel: "View support setup",
       actionHref: input.hrefs.portalAccount,
-      adminOnly: false,
-      customerVisible: true,
-    },
-    {
-      id: "send-work-ready",
-      title: "Send work readiness",
-      description: canSubmitPortalWork
-        ? "You can submit work requests."
-        : "Send work is blocked until setup requirements are complete.",
-      owner: canSubmitPortalWork ? "customer" : "admin",
-      status: canSubmitPortalWork ? "complete" : "blocked",
-      blockers: ["blocks_submit"],
-      required: true,
-      actionLabel: "Send work",
-      actionHref: input.hrefs.portalNewRequest,
-      adminOnly: false,
-      customerVisible: true,
-    },
-    {
-      id: "first-work-submitted",
-      title: "First work request",
-      description: firstWorkSubmitted
-        ? "Your first operations request is submitted."
-        : "Submit your first request when ready.",
-      owner: "customer",
-      status: firstWorkSubmitted ? "complete" : "incomplete",
-      blockers: ["informational"],
-      required: false,
-      actionLabel: "Send work",
-      actionHref: input.hrefs.portalNewRequest,
       adminOnly: false,
       customerVisible: true,
     },

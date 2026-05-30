@@ -24,10 +24,9 @@ export const ADMIN_RAIL_SHEET: Record<string, SetupSheetKey> = {
 
 export const CUSTOMER_RAIL_SHEET: Record<string, SetupSheetKey> = {
   portal: "portal-account",
+  agreement: "agreement",
   billing: "billing",
-  access: "system-access",
   support: "support-areas",
-  "send-work": "send-work",
 };
 
 export const ADMIN_STEP_SHEET: Partial<Record<string, SetupSheetKey>> = {
@@ -50,10 +49,7 @@ export const CUSTOMER_STEP_SHEET: Partial<Record<string, SetupSheetKey>> = {
   "portal-access-ready": "portal-account",
   "customer-agreement": "agreement",
   "customer-billing": "billing",
-  "customer-system-access": "system-access",
   "support-areas-visible": "support-areas",
-  "send-work-ready": "send-work",
-  "first-work-submitted": "send-work",
 };
 
 const NAVIGATE_ONLY_STEP_IDS = new Set(["portal-access", "work-catalog"]);

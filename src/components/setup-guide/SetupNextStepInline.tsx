@@ -25,7 +25,7 @@ export function SetupNextStepInline({
       <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/40 px-3 py-2.5 text-sm text-emerald-800">
         <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
         <span className="font-medium">
-          {variant === "admin" ? "Required setup complete" : "You are ready to go"}
+          {variant === "admin" ? "Required setup complete" : "Setup complete"}
         </span>
       </div>
     );

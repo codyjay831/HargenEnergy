@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { PortalBillingPortalButton } from "@/components/forms/PortalBillingPortalButton";
@@ -99,20 +98,6 @@ export function PortalSetupSheetPanels({
         </div>
       );
 
-    case "system-access":
-      return (
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">{readiness.systemAccess.description}</p>
-          <Link
-            href="/portal/access"
-            className={cn(buttonVariants({ variant: "default" }), "inline-flex items-center gap-2")}
-          >
-            {readiness.systemAccess.ready ? "Review system access" : "Provide system access"}
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      );
-
     case "support-areas":
       if (!setup) {
         return (
@@ -126,35 +111,6 @@ export function PortalSetupSheetPanels({
         );
       }
       return <SupportAreasPanel setup={setup} discovery={discovery} />;
-
-    case "send-work":
-      return (
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            {readiness.canSubmitPortalWork
-              ? "You can submit work requests whenever you are ready."
-              : (readiness.primarySubmitBlockMessage ??
-                "Send work is blocked until Hargen completes your setup.")}
-          </p>
-          {!readiness.canSubmitPortalWork && readiness.allSubmitBlockers.length > 1 && (
-            <ul className="list-disc pl-5 text-xs text-muted-foreground space-y-1">
-              {readiness.allSubmitBlockers.slice(1).map((blocker) => (
-                <li key={blocker.reasonCode}>{blocker.portalMessage}</li>
-              ))}
-            </ul>
-          )}
-          <Link
-            href="/portal/requests/new"
-            className={cn(
-              buttonVariants({ variant: "default" }),
-              !readiness.canSubmitPortalWork && "pointer-events-none opacity-50",
-            )}
-            aria-disabled={!readiness.canSubmitPortalWork}
-          >
-            {PRODUCT_LANGUAGE.workRequest.action}
-          </Link>
-        </div>
-      );
 
     default:
       return null;
