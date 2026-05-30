@@ -1,7 +1,8 @@
 import { format } from "date-fns";
 
-import { BillingMode } from "@/generated/prisma/client";
+import { BillingMode, PlanType } from "@/generated/prisma/client";
 import type { ClientBillingReadiness } from "@/lib/client-billing-readiness";
+import { parseSupportPlanType } from "@/lib/support-plan-hours";
 
 const BILLING_MODE_SET = new Set<string>([
   BillingMode.STRIPE,
@@ -15,12 +16,18 @@ export type UpdateClientBillingModeInput = {
   billingMode: string;
   reason?: string | null;
   expiresAt?: string | null;
+  planType?: string | null;
+};
+
+export type ValidateClientBillingModeOptions = {
+  requiresSupportBlockPlan?: boolean;
 };
 
 export type ValidatedBillingModeUpdate = {
   billingMode: BillingMode;
   billingOverrideReason: string | null;
   billingOverrideExpiresAt: Date | null;
+  planType?: PlanType;
 };
 
 function parseFutureExpiration(value?: string | null): Date | null | "invalid" | "past" {
@@ -42,6 +49,7 @@ function parseFutureExpiration(value?: string | null): Date | null | "invalid" |
 
 export function validateClientBillingModeUpdate(
   input: UpdateClientBillingModeInput,
+  options?: ValidateClientBillingModeOptions,
 ): { ok: true; data: ValidatedBillingModeUpdate } | { ok: false; error: string } {
   if (!input.clientId?.trim()) {
     return { ok: false, error: "Client is required." };
@@ -62,6 +70,18 @@ export function validateClientBillingModeUpdate(
         billingOverrideExpiresAt: null,
       },
     };
+  }
+
+  let planType: PlanType | undefined;
+  if (options?.requiresSupportBlockPlan) {
+    const parsed = parseSupportPlanType(input.planType);
+    if (!parsed) {
+      return {
+        ok: false,
+        error: "Support Block plan is required (Light, Core, or Priority).",
+      };
+    }
+    planType = parsed;
   }
 
   const reason = input.reason?.trim() ?? "";
@@ -91,6 +111,7 @@ export function validateClientBillingModeUpdate(
         billingMode,
         billingOverrideReason: reason,
         billingOverrideExpiresAt: expiration,
+        planType,
       },
     };
   }
@@ -108,6 +129,7 @@ export function validateClientBillingModeUpdate(
       billingMode,
       billingOverrideReason: reason,
       billingOverrideExpiresAt: expiration,
+      planType,
     },
   };
 }

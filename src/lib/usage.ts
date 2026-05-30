@@ -54,6 +54,7 @@ export function calculateWeeklyUsage(
     remainingIncludedMinutes: remainingIncluded,
     percentUsed,
     isNearLimit: percentUsed >= 80 && percentUsed <= 100,
-    isOverLimit: includedMinutes > weeklyReservedMinutes,
+    isOverLimit:
+      weeklyReservedMinutes > 0 && includedMinutes > weeklyReservedMinutes,
   };
 }

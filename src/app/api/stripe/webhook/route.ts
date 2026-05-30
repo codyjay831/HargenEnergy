@@ -4,17 +4,11 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { BillingMode, PlanType } from "@/generated/prisma/client";
+import { getWeeklyHoursForPlanType } from "@/lib/support-plan-hours";
 
 export const dynamic = "force-dynamic";
 
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
-
-const PLAN_HOURS = {
-  [PlanType.LIGHT]: 2,
-  [PlanType.CORE]: 5,
-  [PlanType.PRIORITY]: 10,
-  [PlanType.CUSTOM]: 0,
-};
 
 export async function POST(req: Request) {
   const body = await req.text();
@@ -54,7 +48,7 @@ export async function POST(req: Request) {
               stripeSubscriptionId: subscriptionId,
               subscriptionStatus: "active",
               planType: planType || PlanType.LIGHT,
-              weeklyHours: planType ? PLAN_HOURS[planType] : 2,
+              weeklyHours: planType ? getWeeklyHoursForPlanType(planType) : 2,
             },
           });
         }
@@ -75,7 +69,7 @@ export async function POST(req: Request) {
               subscriptionStatus: subscription.status,
               subscriptionCurrentPeriodEnd: new Date(subscription.current_period_end * 1000),
               planType: planType || undefined,
-              weeklyHours: planType ? PLAN_HOURS[planType] : undefined,
+              weeklyHours: planType ? getWeeklyHoursForPlanType(planType) : undefined,
             },
           });
         }

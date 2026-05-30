@@ -137,6 +137,10 @@ export function ClientBillingManager({
           billingMode: mode,
           reason: modeReason,
           expiresAt: modeExpiresAt,
+          ...(mode !== BillingMode.STRIPE &&
+          engagementType === EngagementType.SUPPORT_BLOCK
+            ? { planType: plan }
+            : {}),
         });
 
         if ("error" in result && result.error) {
@@ -417,11 +421,13 @@ export function ClientBillingManager({
             </div>
           )}
 
-          <div className="space-y-2 opacity-70">
-            <label className="text-sm font-medium text-muted-foreground">
-              Support Block / Plan
-            </label>
-            <Select value={plan} disabled>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Support Block / Plan</label>
+            <Select
+              value={plan}
+              onValueChange={(v) => setPlan(v as SupportPlanType)}
+              disabled={isPending}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -433,6 +439,9 @@ export function ClientBillingManager({
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              Sets weekly reserved hours for capacity tracking (Demo, Manual, or Comped).
+            </p>
           </div>
 
           <Button className="w-full" variant="outline" disabled>

@@ -11,6 +11,7 @@ import { buildIntakeTitle } from "@/lib/request-lifecycle";
 import { getIntakeClientMutationStrategy } from "@/lib/intake-client-upsert";
 import { formatIntakePlanLabel } from "@/lib/intake-plan";
 import { formatUrgencyLabel } from "@/lib/ui-enums";
+import { getWeeklyHoursForPlanType } from "@/lib/support-plan-hours";
 import type { RequestHelpInput } from "@/lib/validations";
 
 export type IntakePrismaClient = Pick<
@@ -171,7 +172,12 @@ export async function persistPublicIntake(
             role,
             currentTools: tools,
             status: ClientStatus.LEAD,
-            ...(mappedPlanType ? { planType: mappedPlanType } : {}),
+            ...(mappedPlanType
+              ? {
+                  planType: mappedPlanType,
+                  weeklyHours: getWeeklyHoursForPlanType(mappedPlanType),
+                }
+              : {}),
           },
         })
       : mutationStrategy === "update-lead" && existingClient
@@ -185,7 +191,12 @@ export async function persistPublicIntake(
               serviceArea,
               role,
               currentTools: tools,
-              ...(mappedPlanType ? { planType: mappedPlanType } : {}),
+              ...(mappedPlanType
+                ? {
+                    planType: mappedPlanType,
+                    weeklyHours: getWeeklyHoursForPlanType(mappedPlanType),
+                  }
+                : {}),
             },
           })
         : existingClient!;

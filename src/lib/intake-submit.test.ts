@@ -168,7 +168,7 @@ describe("persistPublicIntake", () => {
 
     expect(prisma.client.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ planType: "LIGHT" }),
+        data: expect.objectContaining({ planType: "LIGHT", weeklyHours: 2 }),
       }),
     );
   });

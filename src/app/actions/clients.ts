@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   BillingMode,
   ClientStatus,
+  EngagementType,
   RequestStatus,
   Role,
   SupportRequestKind,
@@ -39,6 +40,7 @@ import {
 } from "@/lib/revalidate-paths";
 import { resolveStaffRole } from "@/lib/permissions";
 import { syncBlockWorkItemsForClient } from "@/lib/block-work";
+import { getWeeklyHoursForPlanType } from "@/lib/support-plan-hours";
 import type { Prisma } from "@/generated/prisma/client";
 
 export async function updateClientBillingMode(data: {
@@ -46,21 +48,38 @@ export async function updateClientBillingMode(data: {
   billingMode: string;
   reason?: string | null;
   expiresAt?: string | null;
+  planType?: string | null;
 }) {
   const session = await requireStaff("billing.manage");
-
-  const validated = validateClientBillingModeUpdate(data);
-  if (!validated.ok) {
-    return { error: validated.error };
-  }
 
   const client = await prisma.client.findUnique({ where: { id: data.clientId } });
   if (!client) {
     return { error: "Client not found." };
   }
 
-  const { billingMode, billingOverrideReason, billingOverrideExpiresAt } = validated.data;
+  const requiresSupportBlockPlan =
+    client.engagementType === EngagementType.SUPPORT_BLOCK;
+
+  const validated = validateClientBillingModeUpdate(data, {
+    requiresSupportBlockPlan,
+  });
+  if (!validated.ok) {
+    return { error: validated.error };
+  }
+
+  const { billingMode, billingOverrideReason, billingOverrideExpiresAt, planType } =
+    validated.data;
   const now = new Date();
+
+  const planCapacityUpdate =
+    requiresSupportBlockPlan &&
+    billingMode !== BillingMode.STRIPE &&
+    planType != null
+      ? {
+          planType,
+          weeklyHours: getWeeklyHoursForPlanType(planType),
+        }
+      : {};
 
   try {
     const updated = await prisma.client.update({
@@ -80,6 +99,7 @@ export async function updateClientBillingMode(data: {
               billingOverrideExpiresAt,
               billingOverrideCreatedAt: now,
               billingOverrideCreatedById: session.user.id,
+              ...planCapacityUpdate,
             },
     });
 
@@ -98,11 +118,15 @@ export async function updateClientBillingMode(data: {
           billingMode: client.billingMode,
           billingOverrideReason: client.billingOverrideReason,
           billingOverrideExpiresAt: client.billingOverrideExpiresAt?.toISOString() ?? null,
+          planType: client.planType,
+          weeklyHours: client.weeklyHours,
         },
         after: {
           billingMode: updated.billingMode,
           billingOverrideReason: updated.billingOverrideReason,
           billingOverrideExpiresAt: updated.billingOverrideExpiresAt?.toISOString() ?? null,
+          planType: updated.planType,
+          weeklyHours: updated.weeklyHours,
         },
       },
     });

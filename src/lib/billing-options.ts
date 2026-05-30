@@ -2,10 +2,24 @@
  * Browser-safe support plan options (mirrors Prisma `PlanType` checkout subset).
  * Do not import `@prisma/client` from Client Components — use this instead.
  */
+import { SUPPORT_PLAN_WEEKLY_HOURS_BY_TIER } from "@/lib/support-plan-hours-constants";
+
 export const SUPPORT_PLANS = [
-  { value: "LIGHT", label: "Light Operations Support", weeklyHours: 2 },
-  { value: "CORE", label: "Steady Operations Support", weeklyHours: 5 },
-  { value: "PRIORITY", label: "Heavy Operations Support", weeklyHours: 10 },
+  {
+    value: "LIGHT",
+    label: "Light Operations Support",
+    weeklyHours: SUPPORT_PLAN_WEEKLY_HOURS_BY_TIER.LIGHT,
+  },
+  {
+    value: "CORE",
+    label: "Steady Operations Support",
+    weeklyHours: SUPPORT_PLAN_WEEKLY_HOURS_BY_TIER.CORE,
+  },
+  {
+    value: "PRIORITY",
+    label: "Heavy Operations Support",
+    weeklyHours: SUPPORT_PLAN_WEEKLY_HOURS_BY_TIER.PRIORITY,
+  },
 ] as const;
 
 export type SupportPlanType = (typeof SUPPORT_PLANS)[number]["value"];
