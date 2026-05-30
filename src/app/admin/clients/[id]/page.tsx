@@ -266,6 +266,9 @@ export default async function ClientDetailPage({
           fitDecision: latestAppointment?.fitDecision ?? null,
           recapSentAt: latestAppointment?.recapSentAt ?? null,
         });
+  const readyForClientSetup = discoveryStage === "proposal_setup";
+  const showSetupTab = !isProspect || readyForClientSetup;
+  const showBillingTab = !isProspect || readyForClientSetup;
   const statusDateLabel =
     client.status === ClientStatus.ACTIVE && client.activatedAt
       ? `Active since ${format(new Date(client.activatedAt), "MMMM d, yyyy")}`
@@ -288,6 +291,12 @@ export default async function ClientDetailPage({
   }
   if (initialTab === "work" && !showWorkTab) {
     initialTab = "overview";
+  }
+  if (initialTab === "setup" && !showSetupTab) {
+    initialTab = showDiscoveryTab ? "discovery" : "overview";
+  }
+  if (initialTab === "billing" && !showBillingTab) {
+    initialTab = showSetupTab ? "setup" : showDiscoveryTab ? "discovery" : "overview";
   }
 
   const engagementPanel = (
@@ -398,8 +407,8 @@ export default async function ClientDetailPage({
           showDiscoveryTab={showDiscoveryTab}
           discoveryTabLabel={isProspect ? "Prospect onboarding" : "Discovery call"}
           showWorkTab={showWorkTab}
-          showSetupTab={!isProspect}
-          showBillingTab={!isProspect}
+          showSetupTab={showSetupTab}
+          showBillingTab={showBillingTab}
           work={
             showWorkTab ? (
               <ClientWorkTab
@@ -447,6 +456,7 @@ export default async function ClientDetailPage({
           }
           discovery={
             discoveryRequestForDrawer ? (
+            <div id="discovery-workspace">
             <DiscoveryClientPanel
               intakeClient={{
                 companyName: client.companyName,
@@ -492,6 +502,7 @@ export default async function ClientDetailPage({
                   : null
               }
             />
+            </div>
             ) : (
               <Card>
                 <CardContent className="py-8 text-center text-sm text-muted-foreground">

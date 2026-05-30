@@ -270,7 +270,8 @@ export function getDiscoveryStageConfig(
     case "proposal_setup":
       return {
         heading: "Ready to activate",
-        description: "Configure scope, billing, and portal access in Setup.",
+        description:
+          "Configure approved scope and billing on the Setup & access tab. Activate the client when ready to send portal access.",
         primaryLabel: "Configure scope / billing",
         secondaryLabels: ["Open setup"],
       };

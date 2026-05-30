@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,10 @@ import {
   getDiscoveryStageConfig,
 } from "@/lib/discovery-scheduling/pipeline";
 import { computeDiscoveryRailNodes } from "@/lib/discovery-scheduling/discovery-rail-utils";
+import {
+  resolveDiscoveryPrimaryNavigation,
+  resolveDiscoverySetupTabHref,
+} from "@/lib/discovery-scheduling/discovery-primary-navigation";
 import type { DiscoverySchedulingReadiness } from "@/lib/discovery-scheduling/scheduling-readiness";
 import {
   ClientStatus,
@@ -63,6 +67,8 @@ export function DiscoveryCommandCenter({
   clientVisibleUpdate,
 }: DiscoveryCommandCenterProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [needsInfoDialogOpen, setNeedsInfoDialogOpen] = useState(false);
 
@@ -76,9 +82,21 @@ export function DiscoveryCommandCenter({
   });
   const config = getDiscoveryStageConfig(stage);
   const railNodes = computeDiscoveryRailNodes(stage);
+  const setupTabHref = resolveDiscoverySetupTabHref(clientId);
+
+  const currentHref = `${pathname}${searchParams?.toString() ? `?${searchParams.toString()}` : ""}`;
+
+  const openSetupTab = () => {
+    router.push(setupTabHref);
+  };
 
   const openDiscoveryTab = () => {
-    router.push(adminClientTabHref(clientId, "discovery"));
+    const href = adminClientTabHref(clientId, "discovery");
+    if (currentHref === href) {
+      document.getElementById("discovery-workspace")?.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+    router.push(href);
   };
 
   const run = (action: () => Promise<{ error?: string; success?: boolean; warning?: string; schedulingUrl?: string }>) => {
@@ -108,24 +126,37 @@ export function DiscoveryCommandCenter({
     isPending;
 
   const handlePrimary = () => {
+    const navigation = resolveDiscoveryPrimaryNavigation(stage, clientId);
+
     switch (stage) {
-      case "new_request":
-        openDiscoveryTab();
-        break;
       case "awaiting_info":
         run(() => qualifyDiscoveryRequest(supportRequestId));
-        break;
+        return;
       case "qualified":
         run(() => sendDiscoverySchedulingLink(supportRequestId));
-        break;
+        return;
       case "link_sent":
         run(() => getDiscoverySchedulingLinkUrl(supportRequestId));
-        break;
+        return;
       case "booking_canceled":
         run(() => regenerateDiscoverySchedulingLink(supportRequestId));
-        break;
-      default:
+        return;
+      case "proposal_setup":
+      case "active_client":
+        openSetupTab();
+        return;
+      case "new_request":
+      case "scheduled":
+      case "completed":
+      case "recap":
         openDiscoveryTab();
+        return;
+      default:
+        if (navigation.kind === "tab") {
+          router.push(navigation.href);
+        } else if (navigation.kind === "discovery_tab") {
+          openDiscoveryTab();
+        }
     }
   };
 
@@ -164,6 +195,11 @@ export function DiscoveryCommandCenter({
               <Button onClick={handlePrimary} disabled={primaryDisabled}>
                 {config.primaryLabel}
               </Button>
+              {stage === "proposal_setup" && (
+                <Button variant="outline" disabled={isPending} onClick={openSetupTab}>
+                  Open setup
+                </Button>
+              )}
               {stage === "new_request" && (
                 <>
                   <Button

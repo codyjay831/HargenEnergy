@@ -114,6 +114,32 @@ describe("deriveDiscoveryPipelineStage", () => {
       }),
     ).toBe("booking_canceled");
   });
+
+  it("returns proposal_setup when recap was sent", () => {
+    expect(
+      deriveDiscoveryPipelineStage({
+        clientStatus: ClientStatus.LEAD,
+        requestStatus: RequestStatus.REVIEWED,
+        linkStatus: DiscoverySchedulingLinkStatus.USED,
+        appointmentStatus: DiscoveryAppointmentStatus.COMPLETED,
+        fitDecision: null,
+        recapSentAt: new Date("2026-05-30T12:00:00Z"),
+      }),
+    ).toBe("proposal_setup");
+  });
+
+  it("returns proposal_setup when discovery request is complete", () => {
+    expect(
+      deriveDiscoveryPipelineStage({
+        clientStatus: ClientStatus.LEAD,
+        requestStatus: RequestStatus.COMPLETE,
+        linkStatus: null,
+        appointmentStatus: null,
+        fitDecision: null,
+        recapSentAt: null,
+      }),
+    ).toBe("proposal_setup");
+  });
 });
 
 describe("pickDiscoveryAppointmentForPipeline", () => {
