@@ -2,7 +2,7 @@ import Link from "next/link";
 import { format, formatDistanceToNow } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { adminClientTabHref } from "@/lib/admin-client-tabs";
+import { SubscribedBlockTasksCard } from "@/components/admin/client-work/SubscribedBlockTasksCard";
 import type { BlockWorkTimelineEntry, BlockWorkboardItem } from "@/lib/block-work";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 
@@ -79,46 +79,7 @@ export function ClientWorkTab({ clientId, items, timeline, requests }: ClientWor
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Subscribed block tasks</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No active block tasks. Configure approved work in{" "}
-              <Link
-                href={adminClientTabHref(clientId, "setup")}
-                className="text-primary underline underline-offset-2"
-              >
-                Setup & access
-              </Link>
-              .
-            </p>
-          ) : (
-            <ul className="divide-y">
-              {items.map((item) => (
-                <li key={item.id} className="flex items-center justify-between py-3 gap-4">
-                  <div>
-                    <p className="text-sm font-medium">{item.task.name}</p>
-                    <p className="text-xs text-muted-foreground">{item.task.categoryName}</p>
-                  </div>
-                  <div className="text-right text-xs text-muted-foreground shrink-0">
-                    <p>{item.priorityLabel}</p>
-                    <p>
-                      {item.lastVisibleUpdateAt
-                        ? formatDistanceToNow(new Date(item.lastVisibleUpdateAt), {
-                            addSuffix: true,
-                          })
-                        : "No updates"}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      <SubscribedBlockTasksCard clientId={clientId} items={items} />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

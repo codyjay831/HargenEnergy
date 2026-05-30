@@ -26,9 +26,55 @@ interface YourDiscoveryRequestProps {
   catalog: DiscoveryCatalogCategory[];
 }
 
+function DiscoveryDetailContent({ discovery }: { discovery: ClientDiscoveryRequest }) {
+  const copy = PRODUCT_LANGUAGE.portalDiscoveryRequest;
+
+  return (
+    <div className="mt-6 space-y-6">
+      <div className="space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {copy.supportAreas}
+        </p>
+        <div className="space-y-2">
+          {discovery.tasks.map((task) => (
+            <div key={task.id} className="rounded-md border bg-background px-3 py-2">
+              <p className="text-sm font-medium">{task.name}</p>
+              {task.description ? (
+                <p className="mt-1 text-xs text-muted-foreground">{task.description}</p>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {copy.bottleneck}
+          </p>
+          <p className="mt-1 text-sm whitespace-pre-wrap">{discovery.bottleneck}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {copy.planInterest}
+          </p>
+          <p className="mt-1 text-sm">{discovery.planLabel}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {copy.urgency}
+          </p>
+          <p className="mt-1 text-sm">{discovery.urgencyLabel}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function YourDiscoveryRequest({ discovery, catalog }: YourDiscoveryRequestProps) {
   const copy = PRODUCT_LANGUAGE.portalDiscoveryRequest;
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+  const [scopeChangeSheetOpen, setScopeChangeSheetOpen] = useState(false);
   const [note, setNote] = useState("");
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>(
     discovery.taskIds.length > 0 ? discovery.taskIds : [],
@@ -39,6 +85,11 @@ export function YourDiscoveryRequest({ discovery, catalog }: YourDiscoveryReques
     setSelectedTaskIds((prev) =>
       checked ? [...prev, taskId] : prev.filter((id) => id !== taskId),
     );
+  };
+
+  const openScopeChange = () => {
+    setDetailSheetOpen(false);
+    setScopeChangeSheetOpen(true);
   };
 
   const handleSubmitScopeChange = () => {
@@ -55,7 +106,7 @@ export function YourDiscoveryRequest({ discovery, catalog }: YourDiscoveryReques
       }
 
       toast.success(copy.scopeChangeSuccess);
-      setSheetOpen(false);
+      setScopeChangeSheetOpen(false);
       setNote("");
     });
   };
@@ -63,7 +114,7 @@ export function YourDiscoveryRequest({ discovery, catalog }: YourDiscoveryReques
   return (
     <>
       <Card className="border-sky-200 bg-sky-50/30">
-        <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+        <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-3">
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
               <ClipboardList className="h-5 w-5 text-sky-700" />
@@ -74,51 +125,41 @@ export function YourDiscoveryRequest({ discovery, catalog }: YourDiscoveryReques
               {format(new Date(discovery.submittedAt), "MMMM d, yyyy 'at' h:mm a")}
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setSheetOpen(true)}>
+          <Button variant="outline" size="sm" onClick={openScopeChange}>
             {copy.requestScopeChange}
           </Button>
         </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {copy.supportAreas}
-            </p>
-            <div className="space-y-2">
-              {discovery.tasks.map((task) => (
-                <div key={task.id} className="rounded-md border bg-background px-3 py-2">
-                  <p className="text-sm font-medium">{task.name}</p>
-                  {task.description ? (
-                    <p className="mt-1 text-xs text-muted-foreground">{task.description}</p>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {copy.bottleneck}
-              </p>
-              <p className="mt-1 text-sm whitespace-pre-wrap">{discovery.bottleneck}</p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {copy.planInterest}
-              </p>
-              <p className="mt-1 text-sm">{discovery.planLabel}</p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {copy.urgency}
-              </p>
-              <p className="mt-1 text-sm">{discovery.urgencyLabel}</p>
-            </div>
-          </div>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-0">
+          <p className="text-sm text-muted-foreground">
+            {copy.areasSelectedSummary(discovery.tasks.length)}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => setDetailSheetOpen(true)}>
+            {copy.viewDiscoveryRequest}
+          </Button>
         </CardContent>
       </Card>
 
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+      <Sheet open={detailSheetOpen} onOpenChange={setDetailSheetOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{copy.title}</SheetTitle>
+            <SheetDescription>
+              {copy.submittedLabel}{" "}
+              {format(new Date(discovery.submittedAt), "MMMM d, yyyy 'at' h:mm a")}
+            </SheetDescription>
+          </SheetHeader>
+
+          <DiscoveryDetailContent discovery={discovery} />
+
+          <div className="mt-6">
+            <Button variant="outline" className="w-full" onClick={openScopeChange}>
+              {copy.requestScopeChange}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={scopeChangeSheetOpen} onOpenChange={setScopeChangeSheetOpen}>
         <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{copy.scopeChangeTitle}</SheetTitle>

@@ -55,7 +55,7 @@ export function PortalSetupGuideClient({
   return (
     <SetupGuideProvider variant="customer">
       <Card className="border-sky-200/80 bg-sky-50/20 shadow-sm">
-        <CardContent className="pt-6">
+        <CardContent className="pt-4">
           <SetupGuideShell
             title="Setup guide"
             summary={<PortalSetupSummary readiness={readiness} />}
@@ -64,6 +64,7 @@ export function PortalSetupGuideClient({
             allComplete={allComplete}
             steps={readiness.customerSteps}
             variant="customer"
+            compact
           />
         </CardContent>
       </Card>

@@ -95,6 +95,9 @@ export const PRODUCT_LANGUAGE = {
     title: "Your discovery call request",
     submittedLabel: "Submitted",
     supportAreas: "Support areas you selected",
+    areasSelectedSummary: (count: number) =>
+      `${count} support area${count === 1 ? "" : "s"} selected`,
+    viewDiscoveryRequest: "View discovery request",
     bottleneck: "Biggest bottleneck",
     planInterest: "Plan interest",
     urgency: "Urgency",
