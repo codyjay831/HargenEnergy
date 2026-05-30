@@ -26,6 +26,10 @@ import { getRequestPricingState } from "@/lib/engagement";
 import { getClientPortalSupportSetup } from "@/lib/portal-support";
 import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
 import { PortalSetupGuide } from "@/components/portal/PortalSetupGuide";
+import {
+  isCustomerSetupComplete,
+  resolveCustomerSetupGuideView,
+} from "@/components/setup-guide/setup-guide-utils";
 import { getClientDiscoveryRequest } from "@/lib/portal-discovery";
 import { getPublicDiscoveryCatalog } from "@/lib/discovery-catalog";
 import { YourDiscoveryRequest } from "@/components/portal/YourDiscoveryCallRequest";
@@ -67,6 +71,16 @@ export default async function PortalDashboard() {
   const discovery = await getClientDiscoveryRequest(clientId);
   const discoveryCatalog = discovery ? await getPublicDiscoveryCatalog() : [];
   const setupBlocked = !("error" in supportSetup) && !supportSetup.canSubmit;
+
+  const setupReadinessOk = !("error" in setupReadinessResult);
+  const setupComplete =
+    setupReadinessOk && isCustomerSetupComplete(setupReadinessResult.customerSteps);
+  const showDashboardSetupGuide =
+    setupReadinessOk &&
+    resolveCustomerSetupGuideView({
+      customerSteps: setupReadinessResult.customerSteps,
+      surface: "dashboard",
+    }).mode !== "hidden";
 
   const isSupportBlock = client.engagementType === EngagementType.SUPPORT_BLOCK;
   const isRequestBased = client.engagementType === EngagementType.REQUEST_BASED;
@@ -187,7 +201,7 @@ export default async function PortalDashboard() {
         </p>
       )}
 
-      {setupBlocked && supportSetupOk && (
+      {setupBlocked && supportSetupOk && setupComplete && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 text-sm -mt-4">
           <p className="font-semibold">{PRODUCT_LANGUAGE.supportSetup.blockedSubmitTitle}</p>
           <p className="mt-2">
@@ -269,8 +283,9 @@ export default async function PortalDashboard() {
         <YourDiscoveryRequest discovery={discovery} catalog={discoveryCatalog} />
       )}
 
-      {!("error" in setupReadinessResult) && (
+      {showDashboardSetupGuide && (
         <PortalSetupGuide
+          surface="dashboard"
           readiness={setupReadinessResult}
           setup={"error" in supportSetup ? null : supportSetup}
           discovery={discovery}

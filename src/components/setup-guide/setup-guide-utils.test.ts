@@ -4,6 +4,8 @@ import {
   CUSTOMER_NEXT_STEP_ORDER,
   CUSTOMER_SETUP_RAIL,
   findNextRequiredStep,
+  isCustomerSetupComplete,
+  resolveCustomerSetupGuideView,
 } from "./setup-guide-utils";
 
 const OPERATIONAL_STEP_IDS = [
@@ -85,5 +87,111 @@ describe("findNextRequiredStep", () => {
 
     const next = findNextRequiredStep(steps, CUSTOMER_NEXT_STEP_ORDER);
     expect(next?.id).toBe("support-areas-visible");
+  });
+});
+
+describe("isCustomerSetupComplete", () => {
+  const completeSteps: ClientSetupStep[] = [
+    {
+      id: "portal-access-ready",
+      title: "Portal access",
+      owner: "customer",
+      status: "complete",
+      blockers: ["informational"],
+      required: true,
+    },
+    {
+      id: "customer-agreement",
+      title: "Service agreement",
+      owner: "customer",
+      status: "complete",
+      blockers: ["blocks_submit"],
+      required: true,
+    },
+    {
+      id: "support-areas-visible",
+      title: "Approved support areas",
+      owner: "customer",
+      status: "complete",
+      blockers: ["informational"],
+      required: true,
+    },
+  ];
+
+  it("returns true when no required steps remain incomplete", () => {
+    expect(isCustomerSetupComplete(completeSteps)).toBe(true);
+  });
+
+  it("returns false when a required step is incomplete", () => {
+    const steps = completeSteps.map((step) =>
+      step.id === "customer-agreement" ? { ...step, status: "blocked" as const } : step,
+    );
+    expect(isCustomerSetupComplete(steps)).toBe(false);
+  });
+});
+
+describe("resolveCustomerSetupGuideView", () => {
+  const completeSteps: ClientSetupStep[] = [
+    {
+      id: "portal-access-ready",
+      title: "Portal access",
+      owner: "customer",
+      status: "complete",
+      blockers: ["informational"],
+      required: true,
+    },
+    {
+      id: "support-areas-visible",
+      title: "Approved support areas",
+      owner: "customer",
+      status: "complete",
+      blockers: ["informational"],
+      required: true,
+    },
+  ];
+
+  const incompleteSteps: ClientSetupStep[] = [
+    ...completeSteps,
+    {
+      id: "customer-agreement",
+      title: "Service agreement",
+      owner: "admin",
+      status: "blocked",
+      blockers: ["blocks_submit"],
+      required: true,
+    },
+  ];
+
+  it("returns full when setup is incomplete", () => {
+    expect(
+      resolveCustomerSetupGuideView({
+        customerSteps: incompleteSteps,
+        surface: "dashboard",
+      }),
+    ).toEqual({ mode: "full" });
+    expect(
+      resolveCustomerSetupGuideView({
+        customerSteps: incompleteSteps,
+        surface: "account",
+      }),
+    ).toEqual({ mode: "full" });
+  });
+
+  it("returns hidden on dashboard when setup is complete", () => {
+    expect(
+      resolveCustomerSetupGuideView({
+        customerSteps: completeSteps,
+        surface: "dashboard",
+      }),
+    ).toEqual({ mode: "hidden" });
+  });
+
+  it("returns minimized on account when setup is complete", () => {
+    expect(
+      resolveCustomerSetupGuideView({
+        customerSteps: completeSteps,
+        surface: "account",
+      }),
+    ).toEqual({ mode: "minimized" });
   });
 });

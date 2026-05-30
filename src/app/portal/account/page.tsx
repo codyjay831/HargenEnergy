@@ -51,6 +51,7 @@ export default async function PortalAccount() {
       </div>
 
       <PortalSetupGuide
+        surface="account"
         readiness={setupReadiness}
         setup={setup}
         discovery={discovery}

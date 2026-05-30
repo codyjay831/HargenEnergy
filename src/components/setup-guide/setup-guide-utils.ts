@@ -136,6 +136,30 @@ export function findNextRequiredStep(
   return null;
 }
 
+export type CustomerSetupGuideSurface = "dashboard" | "account";
+
+export type CustomerSetupGuideView =
+  | { mode: "full" }
+  | { mode: "hidden" }
+  | { mode: "minimized" };
+
+export function isCustomerSetupComplete(steps: ClientSetupStep[]): boolean {
+  return findNextRequiredStep(steps, CUSTOMER_NEXT_STEP_ORDER) == null;
+}
+
+export function resolveCustomerSetupGuideView(input: {
+  customerSteps: ClientSetupStep[];
+  surface: CustomerSetupGuideSurface;
+}): CustomerSetupGuideView {
+  if (!isCustomerSetupComplete(input.customerSteps)) {
+    return { mode: "full" };
+  }
+  if (input.surface === "account") {
+    return { mode: "minimized" };
+  }
+  return { mode: "hidden" };
+}
+
 export function ownerLabel(owner: SetupStepOwner, variant: "admin" | "customer"): string {
   if (variant === "customer") {
     if (owner === "admin" || owner === "system" || owner === "stripe") return "Hargen";
