@@ -223,7 +223,6 @@ export function ProspectOnboardingView({
                 subscriptionCurrentPeriodEnd: client.subscriptionCurrentPeriodEnd,
                 users: client.users,
               }}
-              fitDecisionRecorded={Boolean(latestAppointment?.fitDecision)}
             />
           }
         />

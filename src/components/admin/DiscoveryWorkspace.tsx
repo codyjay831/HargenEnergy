@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useTransition } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import {
-  CalendarClock,
   AlertTriangle,
+  CalendarClock,
   CheckCircle2,
   Copy,
+  ExternalLink,
   Loader2,
   Mail,
   RefreshCw,
@@ -19,7 +20,6 @@ import { toast } from "sonner";
 import { IntakeLeadSnapshot } from "@/components/intake/IntakeLeadSnapshot";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { RequestMoreInfoDialog } from "@/components/admin/RequestMoreInfoDialog";
+import { DiscoveryWorkspaceSection, type SectionAttention } from "@/components/admin/DiscoveryWorkspaceSection";
 import {
   getDiscoverySchedulingLinkUrl,
   markDiscoveryCompleted,
@@ -52,6 +53,7 @@ import type { RequestStatusValue } from "@/lib/ui-enums";
 import type { GoogleCalendarSyncStatus } from "@/generated/prisma/client";
 
 type DiscoveryFitDecisionValue = "GOOD_FIT" | "MAYBE_FIT" | "NOT_A_FIT";
+type DiscoveryPanelId = "scheduling" | "notes" | "recap";
 
 interface DiscoveryWorkspaceProps {
   client: IntakeSnapshotClient;
@@ -101,6 +103,61 @@ const FIT_DECISION_OPTIONS: { value: DiscoveryFitDecisionValue; label: string }[
   { value: "NOT_A_FIT", label: "Not a fit" },
 ];
 
+function computeSchedulingAttention(
+  request: DiscoveryWorkspaceProps["request"],
+  schedulingLink: DiscoveryWorkspaceProps["schedulingLink"],
+  appointment: DiscoveryWorkspaceProps["appointment"],
+  schedulingReadiness: DiscoveryWorkspaceProps["schedulingReadiness"],
+): SectionAttention {
+  if (request.status === "CANCELLED") return "neutral";
+  if (appointment?.status === "COMPLETED" || appointment?.status === "NO_SHOW") return "complete";
+  if (appointment?.status === "SCHEDULED" || appointment?.status === "RESCHEDULED") {
+    if (appointment.googleSyncStatus !== "SYNCED") return "action";
+    return "complete";
+  }
+  if (appointment?.status === "CANCELED") return "action";
+  if (request.status === "NEW" || request.status === "NEEDS_INFO") return "action";
+  if (request.status === "REVIEWED" || request.status === "IN_PROGRESS") {
+    if (!schedulingLink && !schedulingReadiness?.ready) return "action";
+    return schedulingLink ? "complete" : "action";
+  }
+  return "neutral";
+}
+
+function computeNotesAttention(appointment: DiscoveryWorkspaceProps["appointment"]): SectionAttention {
+  if (!appointment || appointment.status === "CANCELED") return "neutral";
+  if (appointment.status === "COMPLETED" || appointment.status === "NO_SHOW") {
+    return appointment.fitDecision ? "complete" : "action";
+  }
+  return "neutral";
+}
+
+function computeRecapAttention(appointment: DiscoveryWorkspaceProps["appointment"]): SectionAttention {
+  if (!appointment || appointment.status === "CANCELED") return "neutral";
+  if (appointment.status === "COMPLETED" || appointment.status === "NO_SHOW") {
+    if (appointment.recapSentAt) return "complete";
+    if (appointment.fitDecision) return "action";
+  }
+  return "neutral";
+}
+
+function schedulingSubtitle(
+  request: DiscoveryWorkspaceProps["request"],
+  schedulingLink: DiscoveryWorkspaceProps["schedulingLink"],
+  appointment: DiscoveryWorkspaceProps["appointment"],
+): string {
+  if (appointment?.status === "SCHEDULED" || appointment?.status === "RESCHEDULED") {
+    return "Meeting scheduled";
+  }
+  if (appointment?.status === "COMPLETED") return "Meeting completed";
+  if (appointment?.status === "NO_SHOW") return "No-show recorded";
+  if (appointment?.status === "CANCELED") return "Appointment canceled — rebook needed";
+  if (schedulingLink?.status === "ACTIVE") return "Scheduling link sent";
+  if (request.status === "NEEDS_INFO") return "Awaiting prospect response";
+  if (request.status === "REVIEWED" || request.status === "IN_PROGRESS") return "Ready to schedule";
+  return "Qualify, send link, manage appointment";
+}
+
 export function DiscoveryWorkspace({
   client,
   request,
@@ -110,19 +167,71 @@ export function DiscoveryWorkspace({
   schedulingReadiness,
 }: DiscoveryWorkspaceProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [qualificationNotes, setQualificationNotes] = useState(request.internalNotes ?? "");
   const [discoveryNotes, setDiscoveryNotes] = useState(appointment?.discoveryNotes ?? "");
   const [fitDecision, setFitDecision] = useState<DiscoveryFitDecisionValue | "">(
     appointment?.fitDecision ?? "",
   );
-  const [fitDecisionReason, setFitDecisionReason] = useState(
-    appointment?.fitDecisionReason ?? "",
-  );
+  const [fitDecisionReason, setFitDecisionReason] = useState(appointment?.fitDecisionReason ?? "");
   const [recapContent, setRecapContent] = useState(appointment?.recapContent ?? "");
   const [needsInfoDialogOpen, setNeedsInfoDialogOpen] = useState(false);
 
-  const runAction = (action: () => Promise<{ error?: string; success?: boolean; warning?: string; schedulingUrl?: string }>) => {
+  const [schedulingManual, setSchedulingManual] = useState(false);
+  const [notesManual, setNotesManual] = useState(false);
+  const [recapManual, setRecapManual] = useState(false);
+  const [requestOpen, setRequestOpen] = useState(true);
+
+  const panelParam = searchParams?.get("panel") as DiscoveryPanelId | null;
+
+  const schedulingOpen = panelParam === "scheduling" || schedulingManual;
+  const notesOpen = panelParam === "notes" || notesManual;
+  const recapOpen = panelParam === "recap" || recapManual;
+
+  const clearPanelParam = () => {
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    params.delete("panel");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname);
+  };
+
+  const handleSchedulingOpenChange = (open: boolean) => {
+    if (!open && panelParam === "scheduling") {
+      clearPanelParam();
+      return;
+    }
+    setSchedulingManual(open);
+  };
+
+  const handleNotesOpenChange = (open: boolean) => {
+    if (!open && panelParam === "notes") {
+      clearPanelParam();
+      return;
+    }
+    setNotesManual(open);
+  };
+
+  const handleRecapOpenChange = (open: boolean) => {
+    if (!open && panelParam === "recap") {
+      clearPanelParam();
+      return;
+    }
+    setRecapManual(open);
+  };
+
+  useEffect(() => {
+    if (!panelParam) return;
+    const sectionId = `discovery-section-${panelParam}`;
+    const el =
+      document.getElementById(sectionId) ?? document.getElementById("discovery-workspace");
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [panelParam]);
+
+  const runAction = (
+    action: () => Promise<{ error?: string; success?: boolean; warning?: string; schedulingUrl?: string }>,
+  ) => {
     startTransition(async () => {
       try {
         const result = await action();
@@ -149,9 +258,7 @@ export function DiscoveryWorkspace({
   const copySchedulingUrl = () => {
     runAction(async () => {
       const result = await getDiscoverySchedulingLinkUrl(request.id);
-      if ("error" in result && result.error) {
-        return { error: result.error };
-      }
+      if ("error" in result && result.error) return { error: result.error };
       if (result.schedulingUrl) {
         await navigator.clipboard.writeText(result.schedulingUrl);
         toast.success("Scheduling link copied");
@@ -161,40 +268,90 @@ export function DiscoveryWorkspace({
   };
 
   const linkActive = schedulingLink?.status === "ACTIVE";
+  const canQualify = request.status === "NEW" || request.status === "NEEDS_INFO";
   const canSendLink = request.status !== "NEW" && schedulingReadiness?.ready;
 
-  return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Request review</CardTitle>
-          <CardDescription>
-            Intake details submitted for {PRODUCT_LANGUAGE.discoveryRequest.singular.toLowerCase()}.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <IntakeLeadSnapshot
-            client={client}
-            request={{
-              supportNeeded: request.supportNeeded,
-              description: request.description,
-              mostHelpful: request.mostHelpful,
-              urgency: request.urgency,
-              requestedTasks: request.requestedTasks,
-            }}
-            metadata={metadata}
-          />
-        </CardContent>
-      </Card>
+  const schedulingAttention = computeSchedulingAttention(request, schedulingLink, appointment, schedulingReadiness);
+  const notesAttention = computeNotesAttention(appointment);
+  const recapAttention = computeRecapAttention(appointment);
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Scheduling actions</CardTitle>
-          <CardDescription>
-            Qualify the request, then send a self-schedule link when Google Calendar and availability are configured.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+  const notesSubtitle = appointment?.fitDecision
+    ? `Fit decision: ${FIT_DECISION_OPTIONS.find((o) => o.value === appointment.fitDecision)?.label ?? appointment.fitDecision}`
+    : appointment?.status === "COMPLETED" || appointment?.status === "NO_SHOW"
+      ? "Fit decision pending"
+      : "Notes and fit decision after the call";
+
+  const recapSubtitle = appointment?.recapSentAt
+    ? `Sent ${format(new Date(appointment.recapSentAt), "MMM d, yyyy")}`
+    : "Draft and send post-discovery email";
+
+  const showNotes = Boolean(appointment && appointment.status !== "CANCELED");
+  const showRecap = Boolean(appointment);
+
+  return (
+    <div className="space-y-3">
+      {/* Slim meeting strip — visible without expanding the scheduling section */}
+      {appointment && appointment.status !== "CANCELED" && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/80 bg-white px-4 py-3 text-sm">
+          <CalendarClock className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="font-medium text-slate-900">
+            {formatInTimeZone(
+              new Date(appointment.scheduledStartUtc),
+              appointment.timezone,
+              "EEE, MMM d 'at' h:mm a zzz",
+            )}
+          </span>
+          <Badge variant={appointment.status === "COMPLETED" ? "secondary" : "default"}>
+            {appointment.status}
+          </Badge>
+          {appointment.meetingUrl &&
+            appointment.status !== "COMPLETED" &&
+            appointment.status !== "NO_SHOW" && (
+              <a
+                href={appointment.meetingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-primary hover:underline font-medium"
+              >
+                Join meeting
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+              </a>
+            )}
+        </div>
+      )}
+
+      {/* Request review — default open */}
+      <DiscoveryWorkspaceSection
+        id="discovery-section-request"
+        title="Request review"
+        subtitle={`Intake details for ${PRODUCT_LANGUAGE.discoveryRequest.singular.toLowerCase()}`}
+        defaultOpen
+        open={requestOpen}
+        onOpenChange={setRequestOpen}
+      >
+        <IntakeLeadSnapshot
+          client={client}
+          request={{
+            supportNeeded: request.supportNeeded,
+            description: request.description,
+            mostHelpful: request.mostHelpful,
+            urgency: request.urgency,
+            requestedTasks: request.requestedTasks,
+          }}
+          metadata={metadata}
+        />
+      </DiscoveryWorkspaceSection>
+
+      {/* Scheduling actions */}
+      <DiscoveryWorkspaceSection
+        id="discovery-section-scheduling"
+        title="Scheduling actions"
+        subtitle={schedulingSubtitle(request, schedulingLink, appointment)}
+        attention={schedulingAttention}
+        open={schedulingOpen}
+        onOpenChange={handleSchedulingOpenChange}
+      >
+        <div className="space-y-4">
           {schedulingReadiness && !schedulingReadiness.ready && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
               <p className="font-medium">Scheduling not ready</p>
@@ -229,10 +386,8 @@ export function DiscoveryWorkspace({
           <div className="flex flex-wrap gap-2">
             <Button
               variant="default"
-              disabled={isPending || request.status !== "NEW"}
-              onClick={() =>
-                runAction(() => qualifyDiscoveryRequest(request.id, qualificationNotes))
-              }
+              disabled={isPending || !canQualify}
+              onClick={() => runAction(() => qualifyDiscoveryRequest(request.id, qualificationNotes))}
             >
               Qualify
             </Button>
@@ -246,9 +401,7 @@ export function DiscoveryWorkspace({
             <Button
               variant="destructive"
               disabled={isPending}
-              onClick={() =>
-                runAction(() => markDiscoveryNotAFit(request.id, qualificationNotes))
-              }
+              onClick={() => runAction(() => markDiscoveryNotAFit(request.id, qualificationNotes))}
             >
               Not a fit
             </Button>
@@ -274,9 +427,7 @@ export function DiscoveryWorkspace({
                   <span>Opened {format(new Date(schedulingLink.openedAt), "MMM d, yyyy")}</span>
                 )}
                 {schedulingLink.expiresAt && (
-                  <span>
-                    Expires {format(new Date(schedulingLink.expiresAt), "MMM d, yyyy")}
-                  </span>
+                  <span>Expires {format(new Date(schedulingLink.expiresAt), "MMM d, yyyy")}</span>
                 )}
               </div>
             )}
@@ -327,9 +478,7 @@ export function DiscoveryWorkspace({
             <div className="border-t pt-4 space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-medium">Booked appointment</span>
-                <Badge
-                  variant={appointment.status === "CANCELED" ? "destructive" : "secondary"}
-                >
+                <Badge variant={appointment.status === "CANCELED" ? "destructive" : "secondary"}>
                   {appointment.status}
                 </Badge>
               </div>
@@ -393,18 +542,20 @@ export function DiscoveryWorkspace({
               )}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </DiscoveryWorkspaceSection>
 
-      {appointment && appointment.status !== "CANCELED" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Discovery notes</CardTitle>
-            <CardDescription>
-              Capture discovery observations and fit assessment after the call.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      {/* Discovery notes — visible once appointment exists and isn't canceled */}
+      {showNotes && (
+        <DiscoveryWorkspaceSection
+          id="discovery-section-notes"
+          title="Discovery notes"
+          subtitle={notesSubtitle}
+          attention={notesAttention}
+          open={notesOpen}
+          onOpenChange={handleNotesOpenChange}
+        >
+          <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="discoveryNotes">Notes</Label>
               <Textarea
@@ -419,7 +570,7 @@ export function DiscoveryWorkspace({
               variant="outline"
               disabled={isPending}
               onClick={() =>
-                runAction(() => saveDiscoveryDiscoveryNotes(appointment.id, discoveryNotes))
+                runAction(() => saveDiscoveryDiscoveryNotes(appointment!.id, discoveryNotes))
               }
             >
               Save notes
@@ -459,7 +610,7 @@ export function DiscoveryWorkspace({
               onClick={() =>
                 runAction(() =>
                   saveDiscoveryFitDecision(
-                    appointment.id,
+                    appointment!.id,
                     fitDecision as DiscoveryFitDecisionValue,
                     fitDecisionReason,
                   ),
@@ -468,23 +619,25 @@ export function DiscoveryWorkspace({
             >
               Save fit decision
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </DiscoveryWorkspaceSection>
       )}
 
-      {appointment && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Recap</CardTitle>
-            <CardDescription>
-              Draft and send a post-discovery recap email to the prospect.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {appointment.recapSentAt && (
+      {/* Recap — visible once appointment exists */}
+      {showRecap && (
+        <DiscoveryWorkspaceSection
+          id="discovery-section-recap"
+          title="Recap"
+          subtitle={recapSubtitle}
+          attention={recapAttention}
+          open={recapOpen}
+          onOpenChange={handleRecapOpenChange}
+        >
+          <div className="space-y-4">
+            {appointment!.recapSentAt && (
               <div className="flex items-center gap-2 text-sm text-emerald-700">
                 <CheckCircle2 className="h-4 w-4" />
-                Sent {format(new Date(appointment.recapSentAt), "MMM d, yyyy 'at' h:mm a")}
+                Sent {format(new Date(appointment!.recapSentAt), "MMM d, yyyy 'at' h:mm a")}
               </div>
             )}
             <div className="space-y-2">
@@ -501,20 +654,20 @@ export function DiscoveryWorkspace({
               <Button
                 variant="outline"
                 disabled={isPending || !recapContent.trim()}
-                onClick={() => runAction(() => saveDiscoveryRecap(appointment.id, recapContent))}
+                onClick={() => runAction(() => saveDiscoveryRecap(appointment!.id, recapContent))}
               >
                 Save recap
               </Button>
               <Button
                 disabled={isPending || !recapContent.trim()}
-                onClick={() => runAction(() => sendDiscoveryRecap(appointment.id))}
+                onClick={() => runAction(() => sendDiscoveryRecap(appointment!.id))}
               >
                 <Send className="mr-2 h-4 w-4" />
                 Send recap
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </DiscoveryWorkspaceSection>
       )}
 
       {isPending && (

@@ -250,22 +250,22 @@ export function getDiscoveryStageConfig(
       return {
         heading: "Discovery booked",
         description: "Discovery call is on the calendar. Prepare and run the discovery.",
-        primaryLabel: "Open discovery workspace",
-        secondaryLabels: ["Reschedule", "Cancel", "Mark no-show"],
+        primaryLabel: "Review meeting",
+        secondaryLabels: [],
       };
     case "completed":
       return {
         heading: "Discovery completed",
-        description: "Capture recap and decide whether to move forward.",
-        primaryLabel: "Create recap",
-        secondaryLabels: ["Activate as client", "Needs follow-up", "Not a fit"],
+        description: "Capture notes and fit decision, then draft the recap.",
+        primaryLabel: "Add discovery notes",
+        secondaryLabels: ["Draft recap"],
       };
     case "recap":
       return {
         heading: "Recap ready",
-        description: "Send recap or make a fit decision.",
-        primaryLabel: "Send recap",
-        secondaryLabels: ["Activate as client", "Not a fit"],
+        description: "Send the recap email to move the prospect to decision.",
+        primaryLabel: "Open recap",
+        secondaryLabels: [],
       };
     case "proposal_setup":
       return {

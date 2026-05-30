@@ -47,6 +47,7 @@ export function DiscoverySlotPicker({
   const displayTimezone = slots[0]?.displayTimezone ?? "UTC";
   const timezoneLabel = formatInTimeZone(new Date(), displayTimezone, "zzz");
 
+  /* eslint-disable react-hooks/set-state-in-effect -- Resync day + default slot when availability reloads */
   useEffect(() => {
     if (dayGroups.length === 0) {
       setSelectedDayKey(null);
@@ -66,6 +67,7 @@ export function DiscoverySlotPicker({
     setSelectedDayKey(firstDay.dayKey);
     onSelect(firstDay.slots[0]);
   }, [slots, dayGroups, selectedSlot, onSelect]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleDaySelect = (dayKey: string) => {
     const day = dayGroups.find((group) => group.dayKey === dayKey);

@@ -1,5 +1,4 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ActivateClientButton } from "@/components/forms/ActivateClientButton";
 import { ClientBillingManager } from "@/components/forms/ClientBillingManager";
 import { ClientPortalAccessManager } from "@/components/forms/ClientPortalAccessManager";
 import { CreditCard, Mail } from "lucide-react";
@@ -28,17 +27,12 @@ type ProspectAccessBillingPanelProps = {
     subscriptionCurrentPeriodEnd: Date | null;
     users: { id: string; email: string; name: string | null }[];
   };
-  fitDecisionRecorded: boolean;
 };
 
 export function ProspectAccessBillingPanel({
   client,
-  fitDecisionRecorded,
 }: ProspectAccessBillingPanelProps) {
   const isRequestBased = client.engagementType === EngagementType.REQUEST_BASED;
-  const approveConfirmMessage = fitDecisionRecorded
-    ? undefined
-    : "No fit decision has been recorded yet. Approve this company as a client anyway?";
 
   return (
     <div className="space-y-8 max-w-3xl">
@@ -49,16 +43,10 @@ export function ProspectAccessBillingPanel({
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Configure billing below if needed, then approve this company as a client to send
-              portal access.
+              Configure billing below if needed. When ready, use the{" "}
+              <span className="font-medium text-slate-700">Prospect onboarding</span> card at the top
+              of the page to approve this company as a client.
             </p>
-            <ActivateClientButton
-              clientId={client.id}
-              buttonLabel="Approve as Client"
-              isLoadingLabel="Approving..."
-              successMessage="Company approved as active client. Continue setup in active client view."
-              confirmMessage={approveConfirmMessage}
-            />
           </CardContent>
         </Card>
       )}

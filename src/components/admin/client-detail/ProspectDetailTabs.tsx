@@ -64,13 +64,17 @@ export function ProspectDetailTabs({
     [clientId, router, showBillingTab, showSetupTab],
   );
 
+  const showTabList = showSetupTab || showBillingTab;
+
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-      <TabsList className="w-full max-w-2xl flex-wrap h-auto">
-        <TabsTrigger value="discovery">Discovery</TabsTrigger>
-        {showSetupTab && <TabsTrigger value="setup">Pre-activation setup</TabsTrigger>}
-        {showBillingTab && <TabsTrigger value="billing">Access & billing</TabsTrigger>}
-      </TabsList>
+      {showTabList && (
+        <TabsList className="w-full max-w-2xl flex-wrap h-auto">
+          <TabsTrigger value="discovery">Discovery</TabsTrigger>
+          {showSetupTab && <TabsTrigger value="setup">Pre-activation setup</TabsTrigger>}
+          {showBillingTab && <TabsTrigger value="billing">Access & billing</TabsTrigger>}
+        </TabsList>
+      )}
 
       <TabsContent value="discovery" className="mt-0">
         {discovery}

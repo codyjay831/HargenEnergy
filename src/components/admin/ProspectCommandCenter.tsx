@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { CheckCircle2, Circle } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,6 @@ import {
   getDiscoveryStageConfig,
 } from "@/lib/discovery-scheduling/pipeline";
 import { computeDiscoveryRailNodes } from "@/lib/discovery-scheduling/discovery-rail-utils";
-import { resolveDiscoveryPrimaryNavigation } from "@/lib/discovery-scheduling/discovery-primary-navigation";
 import type { DiscoverySchedulingReadiness } from "@/lib/discovery-scheduling/scheduling-readiness";
 import {
   ClientStatus,
@@ -33,6 +33,8 @@ import {
 } from "@/app/actions/discovery-scheduling-admin";
 import { adminClientTabHref } from "@/lib/admin-client-tabs";
 
+type DiscoveryPanelId = "scheduling" | "notes" | "recap";
+
 type ProspectCommandCenterProps = {
   clientId: string;
   clientStatus: ClientStatus;
@@ -49,6 +51,19 @@ type ProspectCommandCenterProps = {
   clientVisibleUpdate?: string | null;
   showPreActivationTabs: boolean;
 };
+
+function ChecklistRow({ done, label }: { done: boolean; label: string }) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      {done ? (
+        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+      ) : (
+        <Circle className="h-4 w-4 shrink-0 text-muted-foreground/50" aria-hidden />
+      )}
+      <span className={done ? "text-slate-700" : "text-muted-foreground"}>{label}</span>
+    </div>
+  );
+}
 
 export function ProspectCommandCenter({
   clientId,
@@ -85,24 +100,16 @@ export function ProspectCommandCenter({
   const setupTabHref = adminClientTabHref(clientId, "setup");
   const billingTabHref = adminClientTabHref(clientId, "billing");
 
-  const currentHref = `${pathname}${searchParams?.toString() ? `?${searchParams.toString()}` : ""}`;
-
-  const openSetupTab = () => {
-    router.push(setupTabHref);
+  // Build a discovery-tab URL with a panel param, preserving other existing params
+  const openDiscoveryPanel = (panel: DiscoveryPanelId) => {
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    params.set("tab", "discovery");
+    params.set("panel", panel);
+    router.push(`${pathname}?${params.toString()}`);
   };
 
-  const openBillingTab = () => {
-    router.push(billingTabHref);
-  };
-
-  const openDiscoveryTab = () => {
-    const href = adminClientTabHref(clientId, "discovery");
-    if (currentHref === href) {
-      document.getElementById("discovery-workspace")?.scrollIntoView({ behavior: "smooth" });
-      return;
-    }
-    router.push(href);
-  };
+  const openSetupTab = () => router.push(setupTabHref);
+  const openBillingTab = () => router.push(billingTabHref);
 
   const run = (
     action: () => Promise<{
@@ -132,9 +139,8 @@ export function ProspectCommandCenter({
   };
 
   const primaryDisabled =
-    ((config.primaryLabel === "Send scheduling link" ||
-      config.primaryLabel === "Regenerate scheduling link") &&
-      !readiness.ready) ||
+    ((stage === "qualified") && !readiness.ready) ||
+    ((stage === "booking_canceled") && !readiness.ready) ||
     isPending;
 
   const approveConfirmMessage = fitDecision
@@ -142,9 +148,10 @@ export function ProspectCommandCenter({
     : "No fit decision has been recorded yet. Approve this company as a client anyway?";
 
   const handlePrimary = () => {
-    const navigation = resolveDiscoveryPrimaryNavigation(stage, clientId);
-
     switch (stage) {
+      case "new_request":
+        openDiscoveryPanel("scheduling");
+        return;
       case "awaiting_info":
         run(() => qualifyDiscoveryRequest(supportRequestId));
         return;
@@ -157,21 +164,18 @@ export function ProspectCommandCenter({
       case "booking_canceled":
         run(() => regenerateDiscoverySchedulingLink(supportRequestId));
         return;
+      case "scheduled":
+        openDiscoveryPanel("scheduling");
+        return;
+      case "completed":
+        openDiscoveryPanel("notes");
+        return;
+      case "recap":
+        openDiscoveryPanel("recap");
+        return;
       case "active_client":
         openSetupTab();
         return;
-      case "new_request":
-      case "scheduled":
-      case "completed":
-      case "recap":
-        openDiscoveryTab();
-        return;
-      default:
-        if (navigation.kind === "tab") {
-          router.push(navigation.href);
-        } else if (navigation.kind === "discovery_tab") {
-          openDiscoveryTab();
-        }
     }
   };
 
@@ -205,14 +209,23 @@ export function ProspectCommandCenter({
                   <p className="mt-1 whitespace-pre-wrap">{clientVisibleUpdate}</p>
                 </div>
               )}
+              {/* proposal_setup read-only checklist */}
+              {stage === "proposal_setup" && (
+                <div className="mt-3 space-y-1.5">
+                  <ChecklistRow done={Boolean(recapSentAt)} label="Recap sent" />
+                  <ChecklistRow done={Boolean(fitDecision)} label="Fit decision recorded" />
+                </div>
+              )}
             </div>
+
             <div className="flex flex-wrap gap-2 items-start">
+              {/* Primary CTA */}
               {showApprovePrimary ? (
                 <ActivateClientButton
                   clientId={clientId}
                   buttonLabel="Approve as Client"
                   isLoadingLabel="Approving..."
-                  successMessage="Company approved as active client. Continue setup in active client view."
+                  successMessage="Approved. Continue client setup below."
                   confirmMessage={approveConfirmMessage}
                 />
               ) : (
@@ -220,6 +233,8 @@ export function ProspectCommandCenter({
                   {config.primaryLabel}
                 </Button>
               )}
+
+              {/* proposal_setup secondaries */}
               {showApprovePrimary && showPreActivationTabs && (
                 <>
                   <Button variant="outline" disabled={isPending} onClick={openSetupTab}>
@@ -230,6 +245,8 @@ export function ProspectCommandCenter({
                   </Button>
                 </>
               )}
+
+              {/* new_request secondaries */}
               {stage === "new_request" && (
                 <>
                   <Button
@@ -248,6 +265,8 @@ export function ProspectCommandCenter({
                   </Button>
                 </>
               )}
+
+              {/* awaiting_info secondaries */}
               {stage === "awaiting_info" && (
                 <>
                   <Button
@@ -266,6 +285,8 @@ export function ProspectCommandCenter({
                   </Button>
                 </>
               )}
+
+              {/* qualified secondary */}
               {stage === "qualified" && (
                 <Button
                   variant="outline"
@@ -275,6 +296,8 @@ export function ProspectCommandCenter({
                   Mark not a fit
                 </Button>
               )}
+
+              {/* link_sent secondaries */}
               {stage === "link_sent" && (
                 <>
                   <Button
@@ -300,21 +323,27 @@ export function ProspectCommandCenter({
                   </Button>
                 </>
               )}
-              {(stage === "scheduled" || stage === "completed" || stage === "recap") && (
-                <>
-                  <Button variant="outline" onClick={openDiscoveryTab}>
-                    Open discovery workspace
-                  </Button>
-                  {(stage === "completed" || stage === "recap") && (
-                    <ActivateClientButton
-                      clientId={clientId}
-                      buttonLabel="Approve as Client"
-                      isLoadingLabel="Approving..."
-                      successMessage="Company approved as active client. Continue setup in active client view."
-                      confirmMessage={approveConfirmMessage}
-                    />
-                  )}
-                </>
+
+              {/* booking_canceled secondary */}
+              {stage === "booking_canceled" && (
+                <Button
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={() => openDiscoveryPanel("scheduling")}
+                >
+                  Scheduling actions
+                </Button>
+              )}
+
+              {/* completed secondary */}
+              {stage === "completed" && (
+                <Button
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={() => openDiscoveryPanel("recap")}
+                >
+                  Draft recap
+                </Button>
               )}
             </div>
           </div>
