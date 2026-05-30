@@ -72,3 +72,47 @@ export function normalizeRequestedServiceModels(
 export type ClientWithServiceModelState = Pick<Client, "engagementType"> & {
   serviceModels?: Array<Pick<ClientServiceModel, "modelType" | "isActive">>;
 };
+
+export type ClientWithServiceLaneState = ClientWithServiceModelState & {
+  approvedWorkTasks?: Array<{ workTaskId: string }>;
+};
+
+export function getClientServicePaths(client: ClientWithServiceModelState): {
+  activeModels: ServiceModelTypeValue[];
+  hasSupportBlock: boolean;
+  hasFixedFee: boolean;
+} {
+  const activeModels = getActiveServiceModelTypes({
+    engagementType: client.engagementType,
+    serviceModels: client.serviceModels,
+  });
+
+  return {
+    activeModels,
+    hasSupportBlock: hasServiceModel(activeModels, "SUPPORT_BLOCK"),
+    hasFixedFee: hasServiceModel(activeModels, "REQUEST_BASED"),
+  };
+}
+
+export function resolveWorkLaneForTask(input: {
+  client: ClientWithServiceLaneState;
+  workTaskId?: string | null;
+}): "SUPPORT_BLOCK" | "REQUEST_BASED" | null {
+  const servicePaths = getClientServicePaths(input.client);
+  const approvedWorkTaskIds = input.client.approvedWorkTasks?.map((row) => row.workTaskId) ?? [];
+
+  if (
+    input.workTaskId &&
+    servicePaths.hasSupportBlock &&
+    approvedWorkTaskIds.includes(input.workTaskId)
+  ) {
+    return "SUPPORT_BLOCK";
+  }
+  if (servicePaths.hasFixedFee) {
+    return "REQUEST_BASED";
+  }
+  if (servicePaths.hasSupportBlock) {
+    return "SUPPORT_BLOCK";
+  }
+  return null;
+}

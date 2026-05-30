@@ -126,6 +126,13 @@ enum PricingMode {
   REVIEW_THEN_HOURLY
 }
 
+enum RequestPaymentStatus {
+  NOT_REQUIRED
+  PENDING
+  PAID
+  WAIVED
+}
+
 enum OverflowStatus {
   NOT_NEEDED
   NEEDS_APPROVAL
@@ -415,6 +422,8 @@ model SupportRequest {
   handoffTier         HandoffTier?
   pricingMode         PricingMode?
   flatPriceCents      Int?
+  paymentStatus       RequestPaymentStatus @default(NOT_REQUIRED)
+  stripeCheckoutSessionId String?
   requestedWorkTasks  SupportRequestWorkTask[]
   timeEntries         TimeEntry[]
   attachments         Attachment[]

@@ -15,7 +15,6 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn, safeExternalHref } from "@/lib/utils";
 import { calculateWeeklyUsage } from "@/lib/usage";
 import {
-  EngagementType,
   OverflowStatus,
   RequestStatus,
   SupportRequestKind,
@@ -23,6 +22,7 @@ import {
 import { startOfWeek } from "date-fns";
 import { RequestTimer } from "@/components/admin/RequestTimer";
 import { RequestHandoffPricingForm } from "@/components/forms/RequestHandoffPricingForm";
+import { RequestPaymentManager } from "@/components/forms/RequestPaymentManager";
 import { RequestAttachmentsList } from "@/components/requests/RequestAttachmentsList";
 import {
   formatFlatPrice,
@@ -34,6 +34,7 @@ import {
   isRequestBasedPricingComplete,
 } from "@/lib/engagement";
 import type { HandoffTierValue, PricingModeValue } from "@/lib/ui-enums";
+import { getClientServicePaths } from "@/lib/client-service-model";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,9 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
       workTask: true,
       client: {
         include: {
+          serviceModels: {
+            select: { modelType: true, isActive: true },
+          },
           timeEntries: {
             where: {
               date: {
@@ -94,10 +98,9 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
     redirect(`/admin/clients/${request.clientId}?tab=discovery`);
   }
 
-  const isSupportBlockClient =
-    request.client.engagementType === EngagementType.SUPPORT_BLOCK;
-  const isRequestBasedClient =
-    request.client.engagementType === EngagementType.REQUEST_BASED;
+  const servicePaths = getClientServicePaths(request.client);
+  const isSupportBlockClient = servicePaths.hasSupportBlock;
+  const isRequestBasedClient = servicePaths.hasFixedFee;
   const usage = calculateWeeklyUsage(request.client.timeEntries, request.client.weeklyHours);
   const isNearOrOverLimit =
     isSupportBlockClient && (usage.isNearLimit || usage.isOverLimit);
@@ -242,6 +245,10 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
                       {formatFlatPrice(request.flatPriceCents)}
                     </p>
                   ) : null}
+                  <p>
+                    <span className="text-muted-foreground">Payment:</span>{" "}
+                    {request.paymentStatus.replace(/_/g, " ")}
+                  </p>
                 </div>
                 <RequestHandoffPricingForm
                   requestId={request.id}
@@ -255,6 +262,15 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
                     request.workTask?.suggestedPricingMode as PricingModeValue | null
                   }
                 />
+                <div className="mt-4">
+                  <RequestPaymentManager
+                    requestId={request.id}
+                    canCreateCheckout={
+                      request.pricingMode === "FLAT" && Boolean(request.flatPriceCents)
+                    }
+                    paymentStatus={request.paymentStatus}
+                  />
+                </div>
               </CardContent>
             </Card>
           )}

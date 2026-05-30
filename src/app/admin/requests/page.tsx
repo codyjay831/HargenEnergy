@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import {
-  EngagementType,
   Urgency,
   OverflowStatus,
   SupportRequestKind,
@@ -28,6 +27,7 @@ import {
 } from "@/lib/admin-ui/status-badges";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Wrench } from "lucide-react";
+import { getClientServicePaths } from "@/lib/client-service-model";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +79,11 @@ export default async function AdminRequests({ searchParams }: AdminRequestsPageP
     prisma.supportRequest.findMany({
       where: buildWhereClause(filter),
       include: {
-        client: true,
+        client: {
+          include: {
+            serviceModels: { select: { modelType: true, isActive: true } },
+          },
+        },
         timeEntries: { select: { minutes: true } },
       },
       orderBy: [{ priorityRank: "asc" }, { createdAt: "desc" }],
@@ -291,8 +295,9 @@ export default async function AdminRequests({ searchParams }: AdminRequestsPageP
                 const priorityClass = priorityRankBadgeClass(request.priorityRank);
                 const statusClass = requestStatusBadgeClass(request.status);
                 const urg = urgencyBadgeClass(request.urgency);
+                const servicePaths = getClientServicePaths(request.client);
                 const pricingState =
-                  request.client.engagementType === EngagementType.REQUEST_BASED
+                  servicePaths.hasFixedFee
                     ? getRequestPricingState(request)
                     : null;
 
@@ -389,14 +394,12 @@ export default async function AdminRequests({ searchParams }: AdminRequestsPageP
                             {request.overflowStatus.replace(/_/g, " ")}
                           </Badge>
                         )}
-                        {request.client.engagementType ===
-                          EngagementType.REQUEST_BASED &&
-                          request.handoffTier && (
+                        {servicePaths.hasFixedFee && request.handoffTier && (
                             <Badge variant="secondary" className="w-fit text-[10px]">
                               {request.handoffTier}
                             </Badge>
                           )}
-                        {request.client.engagementType === EngagementType.REQUEST_BASED && (
+                        {servicePaths.hasFixedFee && (
                           <Badge
                             variant={pricingState === "fixed_fee_ready" ? "default" : "outline"}
                             className="w-fit text-[10px]"

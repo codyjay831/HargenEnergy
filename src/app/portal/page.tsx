@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { EngagementType, SystemAccessStatus } from "@/generated/prisma/client";
+import { SystemAccessStatus } from "@/generated/prisma/client";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { getRequestPricingState } from "@/lib/engagement";
 import { getClientPortalSupportSetup } from "@/lib/portal-support";
@@ -33,6 +33,7 @@ import {
 import { getClientDiscoveryRequest } from "@/lib/portal-discovery";
 import { getPublicDiscoveryCatalog } from "@/lib/discovery-catalog";
 import { YourDiscoveryRequest } from "@/components/portal/YourDiscoveryCallRequest";
+import { getClientServicePaths } from "@/lib/client-service-model";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,7 @@ export default async function PortalDashboard() {
           }
         }
       },
+      serviceModels: { select: { modelType: true, isActive: true } },
     }
   });
 
@@ -82,8 +84,8 @@ export default async function PortalDashboard() {
       surface: "dashboard",
     }).mode !== "hidden";
 
-  const isSupportBlock = client.engagementType === EngagementType.SUPPORT_BLOCK;
-  const isRequestBased = client.engagementType === EngagementType.REQUEST_BASED;
+  const { hasSupportBlock: isSupportBlock, hasFixedFee: isRequestBased } =
+    getClientServicePaths(client);
   const usage = calculateWeeklyUsage(client.timeEntries, client.weeklyHours);
 
   const openRequestsCount = await prisma.supportRequest.count({
@@ -122,7 +124,7 @@ export default async function PortalDashboard() {
     ? "/portal/account#support-setup"
     : "/portal/requests/new";
   const primaryLabel = paymentBlocked
-    ? "Set up payment"
+    ? "Start subscription"
     : PRODUCT_LANGUAGE.workRequest.action;
   const primaryDisabled = setupBlocked && !paymentBlocked && !agreementBlocked;
 
@@ -145,6 +147,82 @@ export default async function PortalDashboard() {
         { title: "Needs info", value: needsInfoCount.toString(), icon: AlertCircle, color: "text-orange-600", bg: "bg-orange-50" },
         { title: "Awaiting pricing", value: pendingPricingRequests.length.toString(), icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
       ];
+
+  if (!setupComplete) {
+    return (
+      <div className="space-y-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Your Hargen Energy Solar Ops Desk</h1>
+            <p className="text-muted-foreground">
+              Complete onboarding steps so we can begin work.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/portal/account#support-setup"
+              className={cn(buttonVariants({ variant: "default" }), "flex items-center gap-2")}
+            >
+              <PlusCircle className="h-4 w-4" />
+              Review setup
+            </Link>
+            <Link
+              href="/portal/access"
+              className={cn(buttonVariants({ variant: "outline" }), "flex items-center gap-2")}
+            >
+              <KeyRound className="h-4 w-4" />
+              Share access
+              {pendingAccessCount > 0 && (
+                <Badge variant="secondary" className="ml-1">
+                  {pendingAccessCount}
+                </Badge>
+              )}
+            </Link>
+          </div>
+        </div>
+
+        {discovery && (
+          <YourDiscoveryRequest discovery={discovery} catalog={discoveryCatalog} />
+        )}
+
+        {showDashboardSetupGuide && setupReadinessOk && (
+          <PortalSetupGuide
+            surface="dashboard"
+            readiness={setupReadinessResult}
+            setup={"error" in supportSetup ? null : supportSetup}
+            discovery={discovery}
+          />
+        )}
+
+        {supportSetupOk && !supportSetup.canSubmit && (
+          <Card className="border-amber-200 bg-amber-50/40">
+            <CardHeader>
+              <CardTitle className="text-lg text-amber-900">Work is not enabled yet</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm text-amber-900">
+              <p>
+                {supportSetup.blockMessage ??
+                  "Your account is still being configured. Hargen will notify you when you can send work."}
+              </p>
+              {agreementBlocked && (
+                <p className="text-xs text-amber-800/90">
+                  Hargen will finalize your agreement status before work begins.
+                </p>
+              )}
+              {paymentBlocked && (
+                <Link
+                  href="/portal/account#support-setup"
+                  className="inline-block text-sm font-medium underline underline-offset-2"
+                >
+                  Start subscription
+                </Link>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -214,7 +292,7 @@ export default async function PortalDashboard() {
               className="mt-3 inline-block text-sm font-medium text-amber-900 underline underline-offset-2"
             >
               {paymentBlocked
-                ? "Set up payment"
+                ? "Start subscription"
                 : PRODUCT_LANGUAGE.supportSetup.viewSetupLink}
             </Link>
           )}

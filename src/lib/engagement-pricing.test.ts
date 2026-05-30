@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { HandoffTier, PricingMode } from "@/generated/prisma/client";
 import {
+  BillableType,
+  EngagementType,
+  HandoffTier,
+  PricingMode,
+  RequestPaymentStatus,
+} from "@/generated/prisma/client";
+import {
+  assertRequestBasedBillableWorkAllowed,
   getRequestPricingState,
   getRequestPricingStateLabel,
   isRequestBasedPricingComplete,
@@ -46,5 +53,35 @@ describe("request pricing state", () => {
   it("maps state to stable labels", () => {
     expect(getRequestPricingStateLabel("pending_review").toLowerCase()).toContain("pending");
     expect(getRequestPricingStateLabel("fixed_fee_ready").toLowerCase()).toContain("fixed");
+  });
+
+  it("blocks fixed-fee billable work when payment is pending", () => {
+    const result = assertRequestBasedBillableWorkAllowed({
+      engagementType: EngagementType.REQUEST_BASED,
+      request: {
+        handoffTier: HandoffTier.CLEAN,
+        pricingMode: PricingMode.FLAT,
+        flatPriceCents: 25000,
+        paymentStatus: RequestPaymentStatus.PENDING,
+      },
+      billableType: BillableType.INCLUDED,
+    });
+
+    expect(result.ok).toBe(false);
+  });
+
+  it("allows fixed-fee billable work when payment is paid", () => {
+    const result = assertRequestBasedBillableWorkAllowed({
+      engagementType: EngagementType.REQUEST_BASED,
+      request: {
+        handoffTier: HandoffTier.CLEAN,
+        pricingMode: PricingMode.FLAT,
+        flatPriceCents: 25000,
+        paymentStatus: RequestPaymentStatus.PAID,
+      },
+      billableType: BillableType.INCLUDED,
+    });
+
+    expect(result).toEqual({ ok: true });
   });
 });

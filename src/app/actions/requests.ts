@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requestHelpSchema, RequestHelpInput, updateRequestHandoffPricingSchema } from "@/lib/validations";
 import {
+  BillableType,
+  RequestPaymentStatus,
   PricingMode,
   RequestStatus,
   OverflowStatus,
@@ -22,6 +24,7 @@ import { isRequestStatusValue, isOverflowStatusValue } from "@/lib/ui-enums";
 import { checkRateLimit, getRateLimitIdentifier } from "@/lib/rate-limit";
 import { revalidateAdminClientPage } from "@/lib/revalidate-paths";
 import {
+  assertRequestBasedBillableWorkAllowed,
   isRequestBasedPricingComplete,
   REQUEST_BASED_PRICING_REQUIRED_ERROR,
 } from "@/lib/engagement";
@@ -32,7 +35,12 @@ import { formatUrgencyLabel } from "@/lib/ui-enums";
 import { writeAuditLog } from "@/lib/audit-log";
 import { ensureDiscoverySchedulingLink } from "@/lib/discovery-scheduling/ensure-scheduling-link";
 import { getDiscoverySchedulingReadiness } from "@/lib/discovery-scheduling/scheduling-readiness";
-import { checkClientCanStartWork } from "@/lib/client-work-eligibility-guard";
+import {
+  checkClientCanStartWork,
+  checkClientWorkTaskSubmit,
+  loadClientCatalogContext,
+} from "@/lib/client-work-eligibility-guard";
+import { resolveWorkLaneForTask } from "@/lib/client-service-model";
 import { logRequestPricingEvent } from "@/lib/request-pricing-events";
 
 export type DiscoverySubmissionSummary = {
@@ -217,7 +225,15 @@ export async function updateRequest(
   try {
     const existing = await prisma.supportRequest.findUnique({
       where: { id },
-      include: { client: { select: { engagementType: true } } },
+      include: {
+        client: {
+          select: {
+            engagementType: true,
+            serviceModels: { select: { modelType: true, isActive: true } },
+            approvedWorkTasks: { select: { workTaskId: true } },
+          },
+        },
+      },
     });
 
     if (!existing) {
@@ -228,10 +244,23 @@ export async function updateRequest(
       updateData.status === RequestStatus.IN_PROGRESS &&
       existing.status !== RequestStatus.IN_PROGRESS;
     if (transitionsToInProgress) {
-      if (existing.client.engagementType === EngagementType.REQUEST_BASED) {
+      const workLane = resolveWorkLaneForTask({
+        client: existing.client,
+        workTaskId: existing.workTaskId,
+      });
+
+      if (workLane === "REQUEST_BASED") {
         const merged = { ...existing, ...updateData };
         if (!isRequestBasedPricingComplete(merged)) {
           return { error: REQUEST_BASED_PRICING_REQUIRED_ERROR };
+        }
+        const billingGate = assertRequestBasedBillableWorkAllowed({
+          engagementType: EngagementType.REQUEST_BASED,
+          request: merged,
+          billableType: BillableType.INCLUDED,
+        });
+        if (!billingGate.ok) {
+          return { error: billingGate.error };
         }
       }
 
@@ -242,6 +271,27 @@ export async function updateRequest(
       });
       if (!workGate.ok) {
         return { error: workGate.message };
+      }
+
+      if (existing.workTaskId) {
+        const catalogClient = await loadClientCatalogContext(existing.clientId);
+        if (!catalogClient) {
+          return { error: "Client not found." };
+        }
+        const taskGate = await checkClientWorkTaskSubmit({
+          clientId: existing.clientId,
+          client: catalogClient,
+          workTaskId: existing.workTaskId,
+          options: {
+            entryPoint: "admin_request_in_progress",
+            actorId: session.user.id,
+            requestId: id,
+            workTaskId: existing.workTaskId,
+          },
+        });
+        if (!taskGate.ok) {
+          return { error: taskGate.error };
+        }
       }
     }
 
@@ -373,17 +423,30 @@ export async function updateRequestHandoffPricing(data: {
       select: {
         id: true,
         clientId: true,
-        client: { select: { engagementType: true } },
+        workTaskId: true,
+        client: {
+          select: {
+            engagementType: true,
+            serviceModels: { select: { modelType: true, isActive: true } },
+            approvedWorkTasks: { select: { workTaskId: true } },
+          },
+        },
         handoffTier: true,
         pricingMode: true,
         flatPriceCents: true,
+        paymentStatus: true,
       },
     });
 
     if (!existing) {
       return { error: "Request not found." };
     }
-    if (existing.client.engagementType !== EngagementType.REQUEST_BASED) {
+    const workLane = resolveWorkLaneForTask({
+      client: existing.client,
+      workTaskId: existing.workTaskId,
+    });
+
+    if (workLane !== "REQUEST_BASED") {
       return { error: "Handoff and pricing are only required for Request-Based work." };
     }
 
@@ -393,6 +456,13 @@ export async function updateRequestHandoffPricing(data: {
         handoffTier,
         pricingMode,
         flatPriceCents,
+        paymentStatus:
+          pricingMode === PricingMode.FLAT
+            ? existing.paymentStatus === RequestPaymentStatus.PAID ||
+              existing.paymentStatus === RequestPaymentStatus.WAIVED
+              ? existing.paymentStatus
+              : RequestPaymentStatus.PENDING
+            : RequestPaymentStatus.NOT_REQUIRED,
       },
       include: { client: true },
     });
@@ -438,6 +508,61 @@ export async function updateRequestHandoffPricing(data: {
   } catch (error) {
     console.error("Error updating handoff/pricing:", error);
     return { error: "Failed to update handoff and pricing." };
+  }
+}
+
+export async function updateRequestPaymentStatus(data: {
+  requestId: string;
+  paymentStatus: "PENDING" | "PAID" | "WAIVED" | "NOT_REQUIRED";
+}) {
+  const authResult = await authorizeStaffAction("billing.manage");
+  if (!authResult.ok) {
+    return { error: authResult.error };
+  }
+
+  const nextStatus = data.paymentStatus as RequestPaymentStatus;
+  try {
+    const request = await prisma.supportRequest.findUnique({
+      where: { id: data.requestId },
+      select: {
+        id: true,
+        clientId: true,
+        pricingMode: true,
+        client: { select: { engagementType: true } },
+      },
+    });
+
+    if (!request) {
+      return { error: "Request not found." };
+    }
+
+    if (request.client.engagementType !== EngagementType.REQUEST_BASED) {
+      return { error: "Payment status is only used for Fixed-Fee requests." };
+    }
+
+    if (request.pricingMode !== PricingMode.FLAT && nextStatus !== RequestPaymentStatus.NOT_REQUIRED) {
+      return { error: "Only fixed-fee requests can be marked paid or waived." };
+    }
+
+    const updated = await prisma.supportRequest.update({
+      where: { id: data.requestId },
+      data: {
+        paymentStatus: nextStatus,
+      },
+      select: {
+        id: true,
+        paymentStatus: true,
+      },
+    });
+
+    revalidatePath(`/admin/requests/${data.requestId}`);
+    revalidatePath(`/portal/requests/${data.requestId}`);
+    revalidatePath("/admin/requests");
+
+    return { success: true, request: updated };
+  } catch (error) {
+    console.error("Error updating request payment status:", error);
+    return { error: "Failed to update request payment status." };
   }
 }
 

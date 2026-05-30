@@ -8,48 +8,61 @@ import {
   EngagementType,
   HandoffTier,
   PricingMode,
+  RequestPaymentStatus,
   TimeEntryStatus,
 } from "@/generated/prisma/client";
-import { isRequestBasedPricingComplete } from "@/lib/engagement";
+import { assertRequestBasedBillableWorkAllowed } from "@/lib/engagement";
 import {
   assertClientCanStartWork,
   checkClientCanStartWork,
+  checkClientWorkTaskSubmit,
+  loadClientCatalogContext,
 } from "@/lib/client-work-eligibility-guard";
 
 type TimerRequestContext = {
   timerStartedAt: Date | null;
   clientId: string;
+  workTaskId: string | null;
   handoffTier: HandoffTier | null;
   pricingMode: PricingMode | null;
   flatPriceCents: number | null;
+  paymentStatus: RequestPaymentStatus;
   client: { engagementType: EngagementType };
 };
 
 const timerRequestSelect = {
   timerStartedAt: true,
   clientId: true,
+  workTaskId: true,
   handoffTier: true,
   pricingMode: true,
   flatPriceCents: true,
+  paymentStatus: true,
   client: { select: { engagementType: true } },
 } as const;
 
 function billableTypeForTimerEntry(request: TimerRequestContext): BillableType {
-  if (request.client.engagementType !== EngagementType.REQUEST_BASED) {
-    return BillableType.INCLUDED;
-  }
-
-  if (!isRequestBasedPricingComplete(request)) {
+  const billableGate = assertRequestBasedBillableWorkAllowed({
+    engagementType: request.client.engagementType,
+    request,
+    billableType: BillableType.INCLUDED,
+  });
+  if (!billableGate.ok) {
     return BillableType.NON_BILLABLE;
   }
 
   return BillableType.INCLUDED;
 }
 
-async function assertWorkAllowedForRequest(requestId: string) {
+async function assertWorkAllowedForRequest(params: {
+  requestId: string;
+  actorId: string;
+  entryPoint: "admin_start_timer" | "admin_pause_timer" | "admin_stop_timer";
+}) {
+  const { requestId, actorId, entryPoint } = params;
   const request = await prisma.supportRequest.findUnique({
     where: { id: requestId },
-    select: { clientId: true },
+    select: { clientId: true, workTaskId: true },
   });
 
   if (!request) {
@@ -57,15 +70,44 @@ async function assertWorkAllowedForRequest(requestId: string) {
   }
 
   await assertClientCanStartWork(request.clientId, {
-    entryPoint: "admin_start_timer",
+    entryPoint,
+    actorId,
     requestId,
   });
+
+  if (!request.workTaskId) {
+    return;
+  }
+
+  const catalogClient = await loadClientCatalogContext(request.clientId);
+  if (!catalogClient) {
+    throw new Error("Client not found.");
+  }
+
+  const taskGate = await checkClientWorkTaskSubmit({
+    clientId: request.clientId,
+    client: catalogClient,
+    workTaskId: request.workTaskId,
+    options: {
+      entryPoint,
+      actorId,
+      requestId,
+      workTaskId: request.workTaskId,
+    },
+  });
+  if (!taskGate.ok) {
+    throw new Error(taskGate.error);
+  }
 }
 
 export async function startTimer(requestId: string) {
-  await requireStaff("ops.full");
+  const session = await requireStaff("ops.full");
 
-  await assertWorkAllowedForRequest(requestId);
+  await assertWorkAllowedForRequest({
+    requestId,
+    actorId: session.user.id,
+    entryPoint: "admin_start_timer",
+  });
 
   await prisma.supportRequest.update({
     where: { id: requestId },
@@ -95,6 +137,30 @@ export async function pauseTimer(requestId: string, reason: string) {
 
   let blockedMessage: string | null = null;
   if (elapsedMinutes > 0) {
+    if (request.workTaskId) {
+      const catalogClient = await loadClientCatalogContext(request.clientId);
+      if (!catalogClient) {
+        throw new Error("Client not found.");
+      }
+      const taskGate = await checkClientWorkTaskSubmit({
+        clientId: request.clientId,
+        client: catalogClient,
+        workTaskId: request.workTaskId,
+        options: {
+          entryPoint: "admin_pause_timer",
+          requestId,
+          actorId: session.user.id,
+          workTaskId: request.workTaskId,
+        },
+      });
+      if (!taskGate.ok) {
+        blockedMessage = taskGate.error;
+      }
+    }
+
+    if (blockedMessage) {
+      // no-op; blocker message already populated
+    } else {
     const workGate = await checkClientCanStartWork(request.clientId, {
       entryPoint: "admin_pause_timer",
       requestId,
@@ -115,6 +181,7 @@ export async function pauseTimer(requestId: string, reason: string) {
           createdById: session.user.id,
         },
       });
+    }
     }
   }
 
@@ -159,6 +226,30 @@ export async function stopTimer(requestId: string) {
   let blockedMessage: string | null = null;
   let timeEntryId = null;
   if (elapsedMinutes > 0) {
+    if (request.workTaskId) {
+      const catalogClient = await loadClientCatalogContext(request.clientId);
+      if (!catalogClient) {
+        throw new Error("Client not found.");
+      }
+      const taskGate = await checkClientWorkTaskSubmit({
+        clientId: request.clientId,
+        client: catalogClient,
+        workTaskId: request.workTaskId,
+        options: {
+          entryPoint: "admin_stop_timer",
+          requestId,
+          actorId: session.user.id,
+          workTaskId: request.workTaskId,
+        },
+      });
+      if (!taskGate.ok) {
+        blockedMessage = taskGate.error;
+      }
+    }
+
+    if (blockedMessage) {
+      // no-op; blocker message already populated
+    } else {
     const workGate = await checkClientCanStartWork(request.clientId, {
       entryPoint: "admin_stop_timer",
       requestId,
@@ -180,6 +271,7 @@ export async function stopTimer(requestId: string) {
         },
       });
       timeEntryId = entry.id;
+    }
     }
   }
 

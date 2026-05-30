@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { BillingMode, PlanType } from "@/generated/prisma/client";
+import { BillingMode, PlanType, RequestPaymentStatus } from "@/generated/prisma/client";
 import { getWeeklyHoursForPlanType } from "@/lib/support-plan-hours";
 
 export const dynamic = "force-dynamic";
@@ -37,20 +37,33 @@ export async function POST(req: Request) {
   try {
     switch (event.type) {
       case "checkout.session.completed": {
-        const subscriptionId = session.subscription as string;
-        const clientId = session.metadata?.clientId;
-        const planType = session.metadata?.planType as PlanType;
+        if (session.mode === "payment" && session.metadata?.paymentType === "fixed_fee") {
+          const requestId = session.metadata?.requestId;
+          if (requestId) {
+            await prisma.supportRequest.updateMany({
+              where: { id: requestId },
+              data: {
+                paymentStatus: RequestPaymentStatus.PAID,
+                stripeCheckoutSessionId: session.id,
+              },
+            });
+          }
+        } else {
+          const subscriptionId = session.subscription as string;
+          const clientId = session.metadata?.clientId;
+          const planType = session.metadata?.planType as PlanType;
 
-        if (clientId) {
-          await prisma.client.updateMany({
-            where: { id: clientId, billingMode: BillingMode.STRIPE },
-            data: {
-              stripeSubscriptionId: subscriptionId,
-              subscriptionStatus: "active",
-              planType: planType || PlanType.LIGHT,
-              weeklyHours: planType ? getWeeklyHoursForPlanType(planType) : 2,
-            },
-          });
+          if (clientId) {
+            await prisma.client.updateMany({
+              where: { id: clientId, billingMode: BillingMode.STRIPE },
+              data: {
+                stripeSubscriptionId: subscriptionId,
+                subscriptionStatus: "active",
+                planType: planType || PlanType.LIGHT,
+                weeklyHours: planType ? getWeeklyHoursForPlanType(planType) : 2,
+              },
+            });
+          }
         }
         break;
       }

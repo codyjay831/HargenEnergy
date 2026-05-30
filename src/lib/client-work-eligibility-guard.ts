@@ -10,6 +10,9 @@ import {
   assertWorkTaskEligibleForClient,
   type ClientCatalogApprovals,
 } from "@/lib/client-catalog-eligibility";
+import { isPaymentMadeForSubmit } from "@/lib/client-billing-readiness";
+import { getClientServicePaths } from "@/lib/client-service-model";
+import { EngagementType } from "@/generated/prisma/client";
 import { resolveActiveWorkTask } from "@/lib/engagement";
 import {
   logWorkGateEvent,
@@ -219,7 +222,11 @@ export async function checkClientWorkTaskSubmit(params: {
   options: WorkGateCheckOptions;
 }): Promise<
   | { ok: true; workTask: { id: string; name: string } }
-  | { ok: false; error: string; reasonCode: "task_inactive" | "task_not_in_scope" }
+  | {
+      ok: false;
+      error: string;
+      reasonCode: "task_inactive" | "task_not_in_scope" | "payment_not_ready";
+    }
 > {
   const { clientId, client, workTaskId, allowAdminOverride, options } = params;
   const gateOptions = { ...options, workTaskId };
@@ -240,6 +247,63 @@ export async function checkClientWorkTaskSubmit(params: {
   if (!allowed.ok) {
     recordWorkGateForClient(clientId, "blocked", gateOptions, "task_not_in_scope");
     return { ok: false, error: allowed.error, reasonCode: "task_not_in_scope" };
+  }
+
+  if (!allowAdminOverride) {
+    const servicePaths = getClientServicePaths(client);
+    const approvedWorkTaskIds =
+      client.approvedWorkTasks?.map((entry) => entry.workTaskId) ?? [];
+    const isSupportBlockTask =
+      servicePaths.hasSupportBlock && approvedWorkTaskIds.includes(workTaskId);
+
+    if (isSupportBlockTask) {
+      const billingClient = await prisma.client.findUnique({
+        where: { id: clientId },
+        select: {
+          billingMode: true,
+          billingOverrideReason: true,
+          billingOverrideExpiresAt: true,
+          billingOverrideCreatedAt: true,
+          billingOverrideCreatedById: true,
+          stripeCustomerId: true,
+          stripeSubscriptionId: true,
+          subscriptionStatus: true,
+          subscriptionCurrentPeriodEnd: true,
+        },
+      });
+
+      if (!billingClient) {
+        recordWorkGateForClient(clientId, "blocked", gateOptions, "client_not_found");
+        return {
+          ok: false,
+          error: "Client record not found.",
+          reasonCode: "payment_not_ready",
+        };
+      }
+
+      const supportBlockBillingReady = isPaymentMadeForSubmit({
+        engagementType: EngagementType.SUPPORT_BLOCK,
+        billingMode: billingClient.billingMode,
+        billingOverrideReason: billingClient.billingOverrideReason,
+        billingOverrideExpiresAt: billingClient.billingOverrideExpiresAt,
+        billingOverrideCreatedAt: billingClient.billingOverrideCreatedAt,
+        billingOverrideCreatedById: billingClient.billingOverrideCreatedById,
+        stripeCustomerId: billingClient.stripeCustomerId,
+        stripeSubscriptionId: billingClient.stripeSubscriptionId,
+        subscriptionStatus: billingClient.subscriptionStatus,
+        subscriptionCurrentPeriodEnd: billingClient.subscriptionCurrentPeriodEnd,
+      });
+
+      if (!supportBlockBillingReady) {
+        recordWorkGateForClient(clientId, "blocked", gateOptions, "payment_not_made");
+        return {
+          ok: false,
+          error:
+            "Support Block payment is not ready for this account. Complete billing before starting this work.",
+          reasonCode: "payment_not_ready",
+        };
+      }
+    }
   }
 
   return {

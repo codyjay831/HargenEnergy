@@ -14,14 +14,22 @@ import { ExternalLink, AlertTriangle } from "lucide-react";
 import { calculateWeeklyUsage } from "@/lib/usage";
 import { cn } from "@/lib/utils";
 import { adminClientTabHref } from "@/lib/admin-client-tabs";
-import { OverflowStatus, BillingMode, EngagementType } from "@/generated/prisma/client";
+import { OverflowStatus, BillingMode } from "@/generated/prisma/client";
 import { BillingStatusBadge } from "@/components/admin/BillingStatusBadge";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminBilling() {
   const clients = await prisma.client.findMany({
-    where: { engagementType: EngagementType.SUPPORT_BLOCK },
+    where: {
+      OR: [
+        { serviceModels: { some: { modelType: "SUPPORT_BLOCK", isActive: true } } },
+        {
+          engagementType: "SUPPORT_BLOCK",
+          serviceModels: { none: {} },
+        },
+      ],
+    },
     include: {
       timeEntries: {
         where: {

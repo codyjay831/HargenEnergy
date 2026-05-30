@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CreditCard } from "lucide-react";
 import { PortalBillingPortalButton } from "@/components/forms/PortalBillingPortalButton";
+import { PortalStartCheckoutButton } from "@/components/forms/PortalStartCheckoutButton";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { BillingMode } from "@/generated/prisma/client";
 import type { ClientPortalSupportSetup } from "@/lib/portal-support";
@@ -146,10 +147,10 @@ export function PortalSupportSetupCard({
                 <PortalBillingPortalButton />
               ) : (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs leading-relaxed text-slate-600">
-                    Retainer billing will appear here after your account manager enables Stripe
-                    billing.
+                  <p className="mb-3 text-xs leading-relaxed text-slate-600">
+                    Start billing to unlock Support Block work submission.
                   </p>
+                  <PortalStartCheckoutButton />
                 </div>
               ))}
           </>

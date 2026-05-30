@@ -9,12 +9,14 @@ import { getPortalWorkSubmitEligibility } from "@/lib/portal-submit-eligibility"
 import {
   ADMIN_WORK_BLOCK_MESSAGES,
   assertClientCanStartWork,
+  checkClientWorkTaskSubmit,
   checkClientCanStartWork,
   checkPortalWorkSubmit,
   toAdminWorkBlock,
 } from "@/lib/client-work-eligibility-guard";
 const mockFindUnique = vi.fn();
 const mockWorkTaskCount = vi.fn();
+const mockWorkTaskFindUnique = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -23,7 +25,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     workTask: {
       count: (...args: unknown[]) => mockWorkTaskCount(...args),
-      findUnique: vi.fn(),
+      findUnique: (...args: unknown[]) => mockWorkTaskFindUnique(...args),
     },
   },
 }));
@@ -99,6 +101,11 @@ describe("toAdminWorkBlock", () => {
 describe("checkClientCanStartWork", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWorkTaskFindUnique.mockResolvedValue({
+      id: "task-1",
+      name: "Permit package",
+      isActive: true,
+    });
     mockWorkTaskCount.mockImplementation(async (args: { where?: { id?: { in?: string[] } } }) => {
       if (args?.where?.id?.in) {
         return args.where.id.in.length;
@@ -135,6 +142,55 @@ describe("checkClientCanStartWork", () => {
       ok: false,
       reasonCode: "client_not_found",
       message: "Client not found.",
+    });
+  });
+});
+
+describe("checkClientWorkTaskSubmit", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockWorkTaskFindUnique.mockResolvedValue({
+      id: "task-1",
+      name: "Permit package",
+      isActive: true,
+    });
+  });
+
+  it("blocks support-block scoped task when support-block billing is unpaid, even if fixed-fee is active", async () => {
+    mockFindUnique.mockResolvedValue({
+      billingMode: BillingMode.STRIPE,
+      billingOverrideReason: null,
+      billingOverrideExpiresAt: null,
+      billingOverrideCreatedAt: null,
+      billingOverrideCreatedById: null,
+      stripeCustomerId: "cus_123",
+      stripeSubscriptionId: "sub_123",
+      subscriptionStatus: "incomplete",
+      subscriptionCurrentPeriodEnd: new Date("2026-06-01"),
+    });
+
+    const result = await checkClientWorkTaskSubmit({
+      clientId: "client-1",
+      client: {
+        engagementType: EngagementType.SUPPORT_BLOCK,
+        serviceModels: [
+          { modelType: "SUPPORT_BLOCK", isActive: true },
+          { modelType: "REQUEST_BASED", isActive: true },
+        ],
+        approvedWorkTasks: [{ workTaskId: "task-1" }],
+      },
+      workTaskId: "task-1",
+      options: {
+        entryPoint: "portal_submit",
+        actorId: "user-1",
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reasonCode: "payment_not_ready",
+      error:
+        "Support Block payment is not ready for this account. Complete billing before starting this work.",
     });
   });
 });

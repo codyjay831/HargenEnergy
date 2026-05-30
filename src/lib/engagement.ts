@@ -9,6 +9,7 @@ import {
   EngagementType,
   HandoffTier,
   PricingMode,
+  RequestPaymentStatus,
   type Client,
   type ClientServiceModel,
   type SupportRequest,
@@ -210,10 +211,15 @@ export function canSubmitPortalWork(client: ClientWithApprovals): {
 
 export const REQUEST_BASED_PRICING_REQUIRED_ERROR =
   "Set handoff tier and pricing on this request before continuing billable work.";
+export const REQUEST_BASED_PAYMENT_REQUIRED_ERROR =
+  "Collect or waive fixed-fee payment on this request before continuing billable work.";
 
 export function assertRequestBasedBillableWorkAllowed(params: {
   engagementType: EngagementType;
-  request: Pick<SupportRequest, "handoffTier" | "pricingMode" | "flatPriceCents">;
+  request: Pick<
+    SupportRequest,
+    "handoffTier" | "pricingMode" | "flatPriceCents" | "paymentStatus"
+  >;
   billableType: BillableType;
 }): { ok: true } | { ok: false; error: string } {
   const { engagementType, request, billableType } = params;
@@ -228,6 +234,14 @@ export function assertRequestBasedBillableWorkAllowed(params: {
 
   if (!isRequestBasedPricingComplete(request)) {
     return { ok: false, error: REQUEST_BASED_PRICING_REQUIRED_ERROR };
+  }
+
+  if (
+    request.pricingMode === PricingMode.FLAT &&
+    request.paymentStatus !== RequestPaymentStatus.PAID &&
+    request.paymentStatus !== RequestPaymentStatus.WAIVED
+  ) {
+    return { ok: false, error: REQUEST_BASED_PAYMENT_REQUIRED_ERROR };
   }
 
   return { ok: true };

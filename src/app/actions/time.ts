@@ -9,7 +9,11 @@ import { revalidatePath } from "next/cache";
 import { isBillableTypeValue } from "@/lib/ui-enums";
 import { writeAuditLog } from "@/lib/audit-log";
 import { revalidateAdminClientPage } from "@/lib/revalidate-paths";
-import { checkClientCanStartWork } from "@/lib/client-work-eligibility-guard";
+import {
+  checkClientCanStartWork,
+  checkClientWorkTaskSubmit,
+  loadClientCatalogContext,
+} from "@/lib/client-work-eligibility-guard";
 
 export async function createTimeEntry(data: {
   clientId: string;
@@ -58,6 +62,8 @@ export async function createTimeEntry(data: {
           handoffTier: true,
           pricingMode: true,
           flatPriceCents: true,
+          paymentStatus: true,
+          workTaskId: true,
           client: { select: { engagementType: true } },
         },
       });
@@ -83,6 +89,27 @@ export async function createTimeEntry(data: {
       });
       if (!rbError.ok) {
         return { error: rbError.error };
+      }
+
+      if (request.workTaskId) {
+        const catalogClient = await loadClientCatalogContext(request.clientId);
+        if (!catalogClient) {
+          return { error: "Client not found." };
+        }
+        const taskGate = await checkClientWorkTaskSubmit({
+          clientId: request.clientId,
+          client: catalogClient,
+          workTaskId: request.workTaskId,
+          options: {
+            entryPoint: "admin_create_time_entry",
+            actorId: session.user.id,
+            requestId: data.supportRequestId,
+            workTaskId: request.workTaskId,
+          },
+        });
+        if (!taskGate.ok) {
+          return { error: taskGate.error };
+        }
       }
     }
 
@@ -174,6 +201,33 @@ export async function confirmTimeEntry(id: string) {
       return { error: workGate.message };
     }
 
+    if (existing.supportRequestId) {
+      const request = await prisma.supportRequest.findUnique({
+        where: { id: existing.supportRequestId },
+        select: { workTaskId: true },
+      });
+      if (request?.workTaskId) {
+        const catalogClient = await loadClientCatalogContext(existing.clientId);
+        if (!catalogClient) {
+          return { error: "Client not found." };
+        }
+        const taskGate = await checkClientWorkTaskSubmit({
+          clientId: existing.clientId,
+          client: catalogClient,
+          workTaskId: request.workTaskId,
+          options: {
+            entryPoint: "admin_update_time_entry",
+            actorId: session.user.id,
+            requestId: existing.supportRequestId,
+            workTaskId: request.workTaskId,
+          },
+        });
+        if (!taskGate.ok) {
+          return { error: taskGate.error };
+        }
+      }
+    }
+
     const timeEntry = await prisma.timeEntry.update({
       where: { id },
       data: { status: TimeEntryStatus.CONFIRMED },
@@ -227,6 +281,8 @@ export async function updateTimeEntry(id: string, data: {
             handoffTier: true,
             pricingMode: true,
             flatPriceCents: true,
+            paymentStatus: true,
+            workTaskId: true,
             client: { select: { engagementType: true } },
           },
         },
@@ -261,6 +317,27 @@ export async function updateTimeEntry(id: string, data: {
       });
       if (!rbError.ok) {
         return { error: rbError.error };
+      }
+
+      if (existing.supportRequest.workTaskId) {
+        const catalogClient = await loadClientCatalogContext(existing.clientId);
+        if (!catalogClient) {
+          return { error: "Client not found." };
+        }
+        const taskGate = await checkClientWorkTaskSubmit({
+          clientId: existing.clientId,
+          client: catalogClient,
+          workTaskId: existing.supportRequest.workTaskId,
+          options: {
+            entryPoint: "admin_update_time_entry",
+            actorId: session.user.id,
+            requestId: existing.supportRequestId ?? undefined,
+            workTaskId: existing.supportRequest.workTaskId,
+          },
+        });
+        if (!taskGate.ok) {
+          return { error: taskGate.error };
+        }
       }
     }
 
