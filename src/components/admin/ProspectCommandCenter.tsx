@@ -2,11 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, Circle } from "lucide-react";
+import { CheckCircle2, Circle, CircleHelp } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SetupProgressRail } from "@/components/setup-guide/SetupProgressRail";
+import { ProspectOnboardingGuideDialog } from "@/components/admin/ProspectOnboardingGuideDialog";
 import { RequestMoreInfoDialog } from "@/components/admin/RequestMoreInfoDialog";
 import { ActivateClientButton } from "@/components/forms/ActivateClientButton";
 import {
@@ -86,6 +87,7 @@ export function ProspectCommandCenter({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [needsInfoDialogOpen, setNeedsInfoDialogOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const stage = deriveDiscoveryPipelineStage({
     clientStatus,
@@ -186,7 +188,20 @@ export function ProspectCommandCenter({
       <Card className="border-sky-200/80 shadow-sm">
         <CardContent className="pt-6 space-y-5">
           <div className="space-y-3">
-            <h2 className="text-lg font-semibold">Prospect onboarding</h2>
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-lg font-semibold">Prospect onboarding</h2>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+                aria-label="How prospect onboarding works"
+                onClick={() => setGuideOpen(true)}
+              >
+                <CircleHelp className="h-4 w-4" aria-hidden />
+                How this works
+              </Button>
+            </div>
             {readiness.blockers.length > 0 && (
               <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 space-y-1">
                 {readiness.blockers.map((blocker) => (
@@ -358,6 +373,12 @@ export function ProspectCommandCenter({
         contactName={contactName}
         companyName={companyName}
         defaultMessage={clientVisibleUpdate}
+      />
+
+      <ProspectOnboardingGuideDialog
+        open={guideOpen}
+        onOpenChange={setGuideOpen}
+        currentStage={stage}
       />
     </>
   );
