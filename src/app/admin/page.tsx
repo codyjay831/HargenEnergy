@@ -14,6 +14,7 @@ import {
 } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { calculateWeeklyUsage } from "@/lib/usage";
+import { adminClientTabHref } from "@/lib/admin-client-tabs";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -474,7 +475,7 @@ export default async function AdminDashboard() {
                 clientsWithHealth.map((client, index) => (
                   <Link
                     key={client.id}
-                    href={`/admin/clients/${client.id}`}
+                    href={adminClientTabHref(client.id, "overview")}
                     className={cn(
                       "grid gap-2 rounded-lg border border-slate-200 bg-white p-3 transition-all",
                       "md:grid-cols-[1.5fr_1fr_1fr_auto_auto] md:items-center",

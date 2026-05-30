@@ -11,6 +11,7 @@ import {
   SupportRequestKind,
 } from "@/generated/prisma/client";
 import { cn } from "@/lib/utils";
+import { adminClientTabHref } from "@/lib/admin-client-tabs";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { BillingStatusBadge } from "@/components/admin/BillingStatusBadge";
 import {
@@ -249,7 +250,7 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
             return (
               <Link
                 key={client.id}
-                href={`/admin/clients/${client.id}`}
+                href={adminClientTabHref(client.id, "overview")}
                 className={cn(
                   "grid gap-2 rounded-lg border border-slate-200 bg-white p-3 transition-all",
                   "md:grid-cols-[1.5fr_1fr_1fr_auto_auto] md:items-center",
@@ -310,7 +311,12 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
                 latestRequest?.status === "NEW" &&
                 !latestAppointment &&
                 latestRequest.discoverySchedulingLink?.status !== "ACTIVE";
-              const clientHref = `/admin/clients/${client.id}${hasUnreviewedDiscovery ? "?tab=discovery" : ""}`;
+              const clientHref = adminClientTabHref(
+                client.id,
+                client.status === ClientStatus.LEAD || hasUnreviewedDiscovery
+                  ? "discovery"
+                  : "overview",
+              );
 
               return (
                 <div
@@ -426,7 +432,12 @@ export default async function AdminClients({ searchParams }: AdminClientsPagePro
                   !latestAppointment &&
                   latestRequest.discoverySchedulingLink?.status !== "ACTIVE";
 
-                const clientHref = `/admin/clients/${client.id}${hasUnreviewedDiscovery ? "?tab=discovery" : ""}`;
+                const clientHref = adminClientTabHref(
+                client.id,
+                client.status === ClientStatus.LEAD || hasUnreviewedDiscovery
+                  ? "discovery"
+                  : "overview",
+              );
 
                 return (
                   <tr

@@ -32,7 +32,7 @@ interface DiscoveryClientPanelProps {
     status: DiscoverySchedulingLinkStatus;
     sentAt: Date | null;
     openedAt: Date | null;
-    expiresAt: Date;
+    expiresAt: Date | null;
   } | null;
   appointment: {
     id: string;

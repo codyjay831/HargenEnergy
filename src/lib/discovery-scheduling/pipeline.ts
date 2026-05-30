@@ -269,11 +269,11 @@ export function getDiscoveryStageConfig(
       };
     case "proposal_setup":
       return {
-        heading: "Ready to activate",
+        heading: "Ready to approve",
         description:
-          "Configure approved scope and billing on the Setup & access tab. Activate the client when ready to send portal access.",
-        primaryLabel: "Configure scope / billing",
-        secondaryLabels: ["Open setup"],
+          "Configure approved scope and billing on the pre-activation tabs, then approve as client to send portal access.",
+        primaryLabel: "Approve as Client",
+        secondaryLabels: ["Pre-activation setup", "Access & billing"],
       };
     case "active_client":
       return {

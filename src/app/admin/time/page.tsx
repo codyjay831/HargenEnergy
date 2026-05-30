@@ -9,6 +9,7 @@ import {
 import { buttonVariants } from "@/components/ui/button";
 import { Plus, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { adminClientTabHref } from "@/lib/admin-client-tabs";
 import Link from "next/link";
 import { TimeReview } from "@/components/admin/TimeReview";
 
@@ -56,7 +57,7 @@ export default async function AdminTime() {
                     {clients.map(client => (
                       <Link 
                         key={client.id}
-                        href={`/admin/clients/${client.id}`}
+                        href={adminClientTabHref(client.id, "overview")}
                         className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors"
                       >
                         <span className="font-medium text-sm">{client.companyName}</span>

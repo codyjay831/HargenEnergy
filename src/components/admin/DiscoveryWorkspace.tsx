@@ -71,7 +71,7 @@ interface DiscoveryWorkspaceProps {
     status: string;
     sentAt: Date | string | null;
     openedAt: Date | string | null;
-    expiresAt: Date | string;
+    expiresAt: Date | string | null;
   } | null;
   appointment?: {
     id: string;
@@ -273,7 +273,11 @@ export function DiscoveryWorkspace({
                 {schedulingLink.openedAt && (
                   <span>Opened {format(new Date(schedulingLink.openedAt), "MMM d, yyyy")}</span>
                 )}
-                <span>Expires {format(new Date(schedulingLink.expiresAt), "MMM d, yyyy")}</span>
+                {schedulingLink.expiresAt && (
+                  <span>
+                    Expires {format(new Date(schedulingLink.expiresAt), "MMM d, yyyy")}
+                  </span>
+                )}
               </div>
             )}
 

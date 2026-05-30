@@ -13,6 +13,7 @@ import {
 import { ExternalLink, AlertTriangle } from "lucide-react";
 import { calculateWeeklyUsage } from "@/lib/usage";
 import { cn } from "@/lib/utils";
+import { adminClientTabHref } from "@/lib/admin-client-tabs";
 import { OverflowStatus, BillingMode, EngagementType } from "@/generated/prisma/client";
 import { BillingStatusBadge } from "@/components/admin/BillingStatusBadge";
 
@@ -171,7 +172,7 @@ export default async function AdminBilling() {
                     </TableCell>
                     <TableCell className="text-right">
                       <Link 
-                        href={`/admin/clients/${client.id}`}
+                        href={adminClientTabHref(client.id, "billing")}
                         className="text-primary hover:underline text-sm font-medium inline-flex items-center"
                       >
                         Manage <ExternalLink className="ml-1 h-3 w-3" />

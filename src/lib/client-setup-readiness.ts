@@ -28,6 +28,7 @@ import {
   type SubmitBlocker,
   type SubmitBlockerSummary,
 } from "@/lib/submit-blockers";
+import { adminClientTabHref } from "@/lib/admin-client-tabs";
 import type { ServiceModelTypeValue } from "@/lib/client-service-model";
 import {
   getClientAgreementReadiness,
@@ -179,19 +180,18 @@ export type SetupGuideHrefs = {
 };
 
 export function buildSetupGuideHrefs(clientId: string): SetupGuideHrefs {
-  const adminBase = `/admin/clients/${clientId}`;
   return {
-    adminClient: adminBase,
-    discovery: `${adminBase}?tab=discovery`,
-    activation: `${adminBase}?tab=setup`,
-    engagement: `${adminBase}?tab=setup`,
-    approvedWork: `${adminBase}?tab=setup`,
-    billing: `${adminBase}?tab=billing`,
-    agreement: `${adminBase}?tab=setup`,
-    systemAccess: `${adminBase}?tab=setup`,
-    portalAccessAdmin: `${adminBase}?tab=billing`,
-    workRequests: adminBase,
-    clientDetails: adminBase,
+    adminClient: adminClientTabHref(clientId, "overview"),
+    discovery: adminClientTabHref(clientId, "discovery"),
+    activation: adminClientTabHref(clientId, "setup"),
+    engagement: adminClientTabHref(clientId, "setup"),
+    approvedWork: adminClientTabHref(clientId, "setup"),
+    billing: adminClientTabHref(clientId, "billing"),
+    agreement: adminClientTabHref(clientId, "setup"),
+    systemAccess: adminClientTabHref(clientId, "setup"),
+    portalAccessAdmin: adminClientTabHref(clientId, "billing"),
+    workRequests: adminClientTabHref(clientId, "overview"),
+    clientDetails: adminClientTabHref(clientId, "overview"),
     portalDashboard: "/portal",
     portalAccount: "/portal/account",
     portalAccess: "/portal/access",

@@ -1,62 +1,43 @@
-import { type ComponentType, type ReactNode, Suspense } from "react";
 import { prisma } from "@/lib/prisma";
-import { notFound } from "next/navigation";
-import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
 import { format } from "date-fns";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { User, Mail, Phone, Globe, MapPin, CreditCard, Clock } from "lucide-react";
-import { cn, safeExternalHref } from "@/lib/utils";
-import { buttonVariants } from "@/components/ui/button";
-import { ClientBillingManager } from "@/components/forms/ClientBillingManager";
-import { ClientBrandingManager } from "@/components/forms/ClientBrandingManager";
-import { ClientPortalAccessManager } from "@/components/forms/ClientPortalAccessManager";
-import { ClientSystemAccessManager } from "@/components/forms/ClientSystemAccessManager";
 import {
   ClientStatus,
   Role,
   SupportRequestKind,
-  Client,
-  SupportRequest,
-  TimeEntry,
   ClientSystemAccess,
   EngagementType,
   RequestStatus,
 } from "@/generated/prisma/client";
 import type { ServiceModelTypeValue } from "@/lib/client-service-model";
-import { ClientEngagementManager } from "@/components/admin/ClientEngagementManager";
 import { getEngagementLabel } from "@/lib/engagement";
-import { ActivateClientButton } from "@/components/forms/ActivateClientButton";
-import { calculateWeeklyUsage, type WeeklyUsage } from "@/lib/usage";
-import { DiscoveryClientPanel } from "@/components/onboarding/DiscoveryClientPanel";
-import { PRODUCT_LANGUAGE } from "@/lib/product-language";
-import { formatIntakePlanLabel } from "@/lib/intake-plan";
-import { DiscoveryCommandCenter } from "@/components/admin/DiscoveryCommandCenter";
-import { ClientCommandBar } from "@/components/admin/ClientCommandBar";
-import { ClientDetailTabs } from "@/components/admin/ClientDetailTabs";
+import { calculateWeeklyUsage } from "@/lib/usage";
 import { ArchiveClientPanel } from "@/components/admin/ArchiveClientPanel";
 import { DeleteClientPanel } from "@/components/admin/DeleteClientPanel";
 import { ClientDetailHeader } from "@/components/admin/ClientDetailHeader";
 import { DangerZoneAccordion } from "@/components/admin/DangerZoneAccordion";
+import { ProspectOnboardingView } from "@/components/admin/client-detail/ProspectOnboardingView";
+import { ActiveClientView } from "@/components/admin/client-detail/ActiveClientView";
 import { getDiscoverySchedulingReadiness } from "@/lib/discovery-scheduling/scheduling-readiness";
 import {
   deriveDiscoveryPipelineStage,
-  getDiscoveryPipelineStageBadgeVariant,
-  getDiscoveryPipelineStageLabel,
   pickDiscoveryAppointmentForPipeline,
 } from "@/lib/discovery-scheduling/pipeline";
 import { getClientSetupReadiness } from "@/lib/client-setup-readiness";
 import { getClientSystemAccessForAdmin } from "@/app/actions/system-access";
-import { adminClientTabHref, resolveAdminClientTab } from "@/lib/admin-client-tabs";
-import { hasServiceModel } from "@/lib/client-service-model";
 import {
-  loadClientBlockWork,
-  toBlockWorkTaskOptions,
-} from "@/lib/block-work";
+  ACTIVE_DEFAULT_TAB,
+  adminClientTabHref,
+  PROSPECT_DEFAULT_TAB,
+  resolveProspectClientTab,
+  resolveVisibleAdminClientTab,
+} from "@/lib/admin-client-tabs";
+import { hasServiceModel } from "@/lib/client-service-model";
+import { loadClientBlockWork, toBlockWorkTaskOptions } from "@/lib/block-work";
 import { isBlockWorkboardEnabled } from "@/lib/block-work-policy";
-import { ClientWorkTab } from "@/components/admin/client-work/ClientWorkTab";
 import { auth } from "@/auth";
 import { resolveStaffRole } from "@/lib/permissions";
+import type { Client, SupportRequest, TimeEntry } from "@/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -111,7 +92,7 @@ export default async function ClientDetailPage({
     session?.user?.role === "ADMIN" &&
     resolveStaffRole(session.user.staffRole ?? null) === "OWNER";
 
-  const client = await prisma.client.findUnique({
+  const client = (await prisma.client.findUnique({
     where: { id },
     include: {
       billingOverrideCreatedBy: {
@@ -130,14 +111,14 @@ export default async function ClientDetailPage({
       },
       requests: {
         orderBy: { createdAt: "desc" },
-        take: 5
+        take: 5,
       },
       timeEntries: {
         orderBy: { date: "desc" },
-        take: 10
-      }
-    }
-  }) as (ClientWithRelations & {
+        take: 10,
+      },
+    },
+  })) as (ClientWithRelations & {
     engagementType: EngagementType;
     approvedWorkTasks: { workTaskId: string }[];
   }) | null;
@@ -234,7 +215,6 @@ export default async function ClientDetailPage({
     discoveryMetadata?.intakePlan === "request-based" ||
     discoveryMetadata?.intakePlan === "one-time";
   const approvedWorkTaskCount = client.approvedWorkTasks.length;
-  const planInterestLabel = formatIntakePlanLabel(discoveryMetadata?.intakePlan);
   const setupReadinessResult = await getClientSetupReadiness(client.id);
 
   let decryptedSystemAccesses: ClientSystemAccess[] = [];
@@ -246,7 +226,8 @@ export default async function ClientDetailPage({
       clientId: client.id,
       error,
     });
-    systemAccessLoadError = "System access records could not be decrypted. Check FIELD_ENCRYPTION_KEY or contact support.";
+    systemAccessLoadError =
+      "System access records could not be decrypted. Check FIELD_ENCRYPTION_KEY or contact support.";
   }
 
   if ("error" in setupReadinessResult) {
@@ -266,9 +247,7 @@ export default async function ClientDetailPage({
           fitDecision: latestAppointment?.fitDecision ?? null,
           recapSentAt: latestAppointment?.recapSentAt ?? null,
         });
-  const readyForClientSetup = discoveryStage === "proposal_setup";
-  const showSetupTab = !isProspect || readyForClientSetup;
-  const showBillingTab = !isProspect || readyForClientSetup;
+  const showPreActivationTabs = isProspect && discoveryStage === "proposal_setup";
   const statusDateLabel =
     client.status === ClientStatus.ACTIVE && client.activatedAt
       ? `Active since ${format(new Date(client.activatedAt), "MMMM d, yyyy")}`
@@ -282,34 +261,51 @@ export default async function ClientDetailPage({
       },
     },
   });
-  let initialTab = resolveAdminClientTab(resolvedSearchParams.tab);
-  if (isProspect && showDiscoveryTab && !resolvedSearchParams.tab) {
-    initialTab = "discovery";
-  }
-  if (initialTab === "discovery" && !showDiscoveryTab) {
-    initialTab = "overview";
-  }
-  if (initialTab === "work" && !showWorkTab) {
-    initialTab = "overview";
-  }
-  if (initialTab === "setup" && !showSetupTab) {
-    initialTab = showDiscoveryTab ? "discovery" : "overview";
-  }
-  if (initialTab === "billing" && !showBillingTab) {
-    initialTab = showSetupTab ? "setup" : showDiscoveryTab ? "discovery" : "overview";
+
+  const defaultTab = isProspect ? PROSPECT_DEFAULT_TAB : ACTIVE_DEFAULT_TAB;
+  const resolvedTab = isProspect
+    ? resolveProspectClientTab(resolvedSearchParams.tab, defaultTab, {
+        showSetupTab: showPreActivationTabs,
+        showBillingTab: showPreActivationTabs,
+      })
+    : resolveVisibleAdminClientTab(resolvedSearchParams.tab, defaultTab, {
+        showDiscoveryTab,
+        showWorkTab,
+        showSetupTab: true,
+        showBillingTab: true,
+      });
+
+  if (!resolvedSearchParams.tab || resolvedSearchParams.tab !== resolvedTab) {
+    redirect(adminClientTabHref(id, resolvedTab));
   }
 
-  const engagementPanel = (
-    <ClientEngagementManager
-      clientId={client.id}
-      engagementType={client.engagementType}
-      serviceModels={client.serviceModels?.filter((m) => m.isActive).map((m) => m.modelType) ?? []}
-      approvedWorkTaskIds={client.approvedWorkTasks.map((a) => a.workTaskId)}
-      suggestedWorkTaskIds={suggestedWorkTaskIds}
-      categories={catalogCategories}
-      discoveryPlanRequestBased={discoveryPlanRequestBased}
-    />
-  );
+  const schedulingLinkProps = schedulingLink
+    ? {
+        status: schedulingLink.status,
+        sentAt: schedulingLink.sentAt,
+        openedAt: schedulingLink.openedAt,
+        expiresAt: schedulingLink.expiresAt,
+      }
+    : null;
+
+  const appointmentProps = latestAppointment
+    ? {
+        id: latestAppointment.id,
+        status: latestAppointment.status,
+        canceledAt: latestAppointment.canceledAt,
+        scheduledStartUtc: latestAppointment.scheduledStartUtc,
+        scheduledEndUtc: latestAppointment.scheduledEndUtc,
+        timezone: latestAppointment.timezone,
+        meetingUrl: latestAppointment.meetingUrl,
+        discoveryNotes: latestAppointment.discoveryNotes,
+        fitDecision: latestAppointment.fitDecision,
+        fitDecisionReason: latestAppointment.fitDecisionReason,
+        recapContent: latestAppointment.recapContent,
+        recapSentAt: latestAppointment.recapSentAt,
+        googleSyncStatus: latestAppointment.googleSyncStatus,
+        googleSyncError: latestAppointment.googleSyncError,
+      }
+    : null;
 
   return (
     <div className="space-y-5">
@@ -325,214 +321,55 @@ export default async function ClientDetailPage({
       />
 
       <div id="setup-guide" className="scroll-mt-8">
-        {isProspect && latestDiscovery ? (
-          <DiscoveryCommandCenter
-            clientId={client.id}
-            clientStatus={client.status}
-            supportRequestId={latestDiscovery.id}
-            requestStatus={latestDiscovery.status}
-            linkStatus={schedulingLink?.status ?? null}
-            appointmentStatus={latestAppointment?.status ?? null}
-            fitDecision={latestAppointment?.fitDecision ?? null}
-            recapSentAt={latestAppointment?.recapSentAt ?? null}
-            readiness={schedulingReadiness}
-            prospectEmail={client.email}
-            contactName={client.contactName}
-            companyName={client.companyName}
-            clientVisibleUpdate={latestDiscovery.clientVisibleUpdate}
+        {isProspect ? (
+          <ProspectOnboardingView
+            client={client}
+            latestDiscovery={
+              latestDiscovery
+                ? {
+                    id: latestDiscovery.id,
+                    status: latestDiscovery.status,
+                    clientVisibleUpdate: latestDiscovery.clientVisibleUpdate,
+                  }
+                : null
+            }
+            discoveryRequestForDrawer={discoveryRequestForDrawer}
+            discoveryMetadata={discoveryMetadata}
+            schedulingReadiness={schedulingReadiness}
+            schedulingLink={schedulingLinkProps}
+            latestAppointment={appointmentProps}
+            showPreActivationTabs={showPreActivationTabs}
+            suggestedWorkTaskIds={suggestedWorkTaskIds}
+            discoveryPlanRequestBased={discoveryPlanRequestBased}
+            catalogCategories={catalogCategories}
+            decryptedSystemAccesses={decryptedSystemAccesses}
+            systemAccessLoadError={systemAccessLoadError}
           />
         ) : (
-          <ClientCommandBar
-            readiness={setupReadiness}
+          <ActiveClientView
+            client={client}
+            defaultTab={resolvedTab}
+            setupReadiness={setupReadiness}
             openRequestCount={openRequestCount}
-            hoursUsed={usage.includedMinutesThisWeek / 60}
-            hoursReserved={client.weeklyHours}
-            isNearLimit={usage.isNearLimit}
-            isOverLimit={usage.isOverLimit}
-            client={{
-              id: client.id,
-              companyName: client.companyName,
-              contactName: client.contactName,
-              email: client.email,
-              phone: client.phone,
-              role: client.role,
-              website: client.website,
-              serviceArea: client.serviceArea,
-              currentTools: client.currentTools,
-              status: client.status,
-              planType: client.planType,
-              engagementType: client.engagementType,
-              serviceModels:
-                client.serviceModels?.filter((m) => m.isActive).map((m) => m.modelType) ?? [],
-              billingMode: client.billingMode,
-              billingOverrideReason: client.billingOverrideReason,
-              billingOverrideExpiresAt: client.billingOverrideExpiresAt,
-              billingOverrideCreatedAt: client.billingOverrideCreatedAt,
-              billingOverrideCreatedById: client.billingOverrideCreatedById,
-              billingOverrideCreatedByName: client.billingOverrideCreatedBy?.name ?? null,
-              billingOverrideCreatedByEmail: client.billingOverrideCreatedBy?.email ?? null,
-              subscriptionStatus: client.subscriptionStatus,
-              stripeCustomerId: client.stripeCustomerId,
-              stripeSubscriptionId: client.stripeSubscriptionId,
-              subscriptionCurrentPeriodEnd: client.subscriptionCurrentPeriodEnd,
-              agreementStatus: client.agreementStatus,
-              agreementSentAt: client.agreementSentAt,
-              agreementSignedAt: client.agreementSignedAt,
-              agreementUrl: client.agreementUrl,
-              agreementNotes: client.agreementNotes,
-              agreementOverrideReason: client.agreementOverrideReason,
-              approvedWorkTaskCount,
-              users: client.users,
-            }}
-            engagement={{
-              approvedWorkTaskIds: client.approvedWorkTasks.map((a) => a.workTaskId),
-              suggestedWorkTaskIds,
-              categories: catalogCategories,
-              discoveryPlanRequestBased,
-            }}
-            systemAccessRecords={decryptedSystemAccesses}
-            adminRequestsHref={`/admin/requests?clientId=${client.id}`}
+            usage={usage}
+            showWorkTab={showWorkTab}
+            showDiscoveryTab={showDiscoveryTab}
+            blockWorkData={blockWorkData}
+            workTabRequests={workTabRequests}
+            discoveryRequestForDrawer={discoveryRequestForDrawer}
+            discoveryMetadata={discoveryMetadata}
+            schedulingReadiness={schedulingReadiness}
+            schedulingLink={schedulingLinkProps}
+            latestAppointment={appointmentProps}
+            suggestedWorkTaskIds={suggestedWorkTaskIds}
+            discoveryPlanRequestBased={discoveryPlanRequestBased}
+            catalogCategories={catalogCategories}
+            decryptedSystemAccesses={decryptedSystemAccesses}
+            systemAccessLoadError={systemAccessLoadError}
+            approvedWorkTaskCount={approvedWorkTaskCount}
           />
         )}
       </div>
-
-      <Suspense
-        fallback={
-          <div className="h-10 max-w-2xl animate-pulse rounded-lg bg-muted" aria-hidden />
-        }
-      >
-        <ClientDetailTabs
-          clientId={client.id}
-          initialTab={initialTab}
-          showDiscoveryTab={showDiscoveryTab}
-          discoveryTabLabel={isProspect ? "Prospect onboarding" : "Discovery call"}
-          showWorkTab={showWorkTab}
-          showSetupTab={showSetupTab}
-          showBillingTab={showBillingTab}
-          work={
-            showWorkTab ? (
-              <ClientWorkTab
-                clientId={client.id}
-                items={blockWorkData.items}
-                timeline={blockWorkData.timeline}
-                requests={workTabRequests}
-              />
-            ) : null
-          }
-          overview={
-            isProspect ? (
-              <div className="space-y-6">
-                {renderProspectOnboardingOverview({
-                  client,
-                  discoveryRequestForDrawer,
-                  discoveryPlanRequestBased,
-                  planInterestLabel,
-                  latestAppointment,
-                  discoveryStage,
-                })}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                <div className="lg:col-span-2 space-y-6">
-                  {renderRecentRequests(client, { showWorkTab, clientId: client.id })}
-                  {renderCompanyDetailsCard(client)}
-                  {client.notes && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Internal Notes</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm text-slate-700 whitespace-pre-wrap">{client.notes}</p>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-                <div className="space-y-6">
-                  {client.engagementType === EngagementType.SUPPORT_BLOCK &&
-                    renderUsageCard(client, usage)}
-                </div>
-              </div>
-            )
-          }
-          discovery={
-            discoveryRequestForDrawer ? (
-            <div id="discovery-workspace">
-            <DiscoveryClientPanel
-              intakeClient={{
-                companyName: client.companyName,
-                contactName: client.contactName,
-                email: client.email,
-                phone: client.phone,
-                role: client.role,
-                website: client.website,
-                serviceArea: client.serviceArea,
-                currentTools: client.currentTools,
-              }}
-              discoveryMetadata={discoveryMetadata}
-              latestDiscoveryRequest={discoveryRequestForDrawer}
-              schedulingReadiness={schedulingReadiness}
-              schedulingLink={
-                schedulingLink
-                  ? {
-                      status: schedulingLink.status,
-                      sentAt: schedulingLink.sentAt,
-                      openedAt: schedulingLink.openedAt,
-                      expiresAt: schedulingLink.expiresAt,
-                    }
-                  : null
-              }
-              appointment={
-                latestAppointment
-                  ? {
-                      id: latestAppointment.id,
-                      status: latestAppointment.status,
-                      canceledAt: latestAppointment.canceledAt,
-                      scheduledStartUtc: latestAppointment.scheduledStartUtc,
-                      scheduledEndUtc: latestAppointment.scheduledEndUtc,
-                      timezone: latestAppointment.timezone,
-                      meetingUrl: latestAppointment.meetingUrl,
-                      discoveryNotes: latestAppointment.discoveryNotes,
-                      fitDecision: latestAppointment.fitDecision,
-                      fitDecisionReason: latestAppointment.fitDecisionReason,
-                      recapContent: latestAppointment.recapContent,
-                      recapSentAt: latestAppointment.recapSentAt,
-                      googleSyncStatus: latestAppointment.googleSyncStatus,
-                      googleSyncError: latestAppointment.googleSyncError,
-                    }
-                  : null
-              }
-            />
-            </div>
-            ) : (
-              <Card>
-                <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                  Discovery intake data is unavailable for this client.
-                </CardContent>
-              </Card>
-            )
-          }
-          setup={
-            <div className="space-y-8 max-w-3xl">
-              {systemAccessLoadError && (
-                <Card className="border-amber-200 bg-amber-50/40">
-                  <CardContent className="py-4 text-sm text-amber-900">
-                    {systemAccessLoadError}
-                  </CardContent>
-                </Card>
-              )}
-              {engagementPanel}
-              {renderSystemAccess(client.id, decryptedSystemAccesses)}
-              {renderBranding(client)}
-            </div>
-          }
-          billing={
-            <div className="space-y-8 max-w-3xl">
-              {renderBilling(client)}
-              {renderPortalAccess(client)}
-            </div>
-          }
-        />
-      </Suspense>
 
       <DangerZoneAccordion>
         <ArchiveClientPanel
@@ -549,544 +386,5 @@ export default async function ClientDetailPage({
         />
       </DangerZoneAccordion>
     </div>
-  );
-}
-
-// Helper render functions for active client view
-function renderCompanyDetails(client: Client) {
-  const details: Array<{ label: string; value: ReactNode; icon: ComponentType<{ className?: string }> }> = [
-    {
-      label: "Primary Contact",
-      value: (
-        <>
-          <p className="text-sm font-medium">{client.contactName}</p>
-          <p className="text-xs text-muted-foreground">{client.role || "Contact Person"}</p>
-        </>
-      ),
-      icon: User,
-    },
-    {
-      label: "Email",
-      value: <p className="text-sm font-medium">{client.email}</p>,
-      icon: Mail,
-    },
-  ];
-
-  if (client.phone) {
-    details.push({
-      label: "Phone",
-      value: <p className="text-sm font-medium">{client.phone}</p>,
-      icon: Phone,
-    });
-  }
-
-  if (client.website) {
-    details.push({
-      label: "Website",
-      value: (
-        <a
-          href={safeExternalHref(client.website) ?? undefined}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm font-medium text-primary hover:underline"
-        >
-          {client.website}
-        </a>
-      ),
-      icon: Globe,
-    });
-  }
-
-  if (client.serviceArea) {
-    details.push({
-      label: "Service Area",
-      value: <p className="text-sm font-medium">{client.serviceArea}</p>,
-      icon: MapPin,
-    });
-  }
-
-  if (client.currentTools) {
-    details.push({
-      label: "Current Tools",
-      value: <p className="text-sm font-medium whitespace-pre-wrap">{client.currentTools}</p>,
-      icon: Clock,
-    });
-  }
-
-  return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      {details.map((detail) => {
-        const Icon = detail.icon;
-        return (
-          <div key={detail.label} className="rounded-lg border border-slate-200 p-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {detail.label}
-            </p>
-            <div className="flex items-start gap-2">
-              <Icon className="mt-0.5 h-4 w-4 text-muted-foreground" />
-              <div>{detail.value}</div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function renderCompanyDetailsCard(client: Client) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Company Details</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">{renderCompanyDetails(client)}</CardContent>
-    </Card>
-  );
-}
-
-function renderProspectOnboardingOverview({
-  client,
-  discoveryRequestForDrawer,
-  discoveryPlanRequestBased,
-  planInterestLabel,
-  latestAppointment,
-  discoveryStage,
-}: {
-  client: Client;
-  discoveryRequestForDrawer: {
-    id: string;
-    supportNeeded: string | null;
-    description: string;
-    mostHelpful: string | null;
-    urgency: string;
-    requestedTasks: Array<{ name: string; description?: string | null }>;
-  } | null;
-  discoveryPlanRequestBased: boolean;
-  planInterestLabel: string;
-  latestAppointment: {
-    status: string;
-    fitDecision: "GOOD_FIT" | "MAYBE_FIT" | "NOT_A_FIT" | null;
-    fitDecisionReason: string | null;
-    recapContent: string | null;
-    recapSentAt: Date | null;
-    scheduledStartUtc: Date;
-    timezone: string;
-  } | null;
-  discoveryStage:
-    | "new_request"
-    | "awaiting_info"
-    | "qualified"
-    | "link_sent"
-    | "booking_canceled"
-    | "scheduled"
-    | "completed"
-    | "recap"
-    | "proposal_setup"
-    | "active_client"
-    | "not_a_fit"
-    | null;
-}) {
-  const discoveryTabHref = `/admin/clients/${client.id}?tab=discovery`;
-  const fitDecisionLabel =
-    latestAppointment?.fitDecision === "GOOD_FIT"
-      ? "Good fit"
-      : latestAppointment?.fitDecision === "MAYBE_FIT"
-        ? "Needs follow-up"
-        : latestAppointment?.fitDecision === "NOT_A_FIT"
-          ? "Not a fit"
-          : "Not recorded yet";
-  const stageLabel = discoveryStage
-    ? getDiscoveryPipelineStageLabel(discoveryStage)
-    : "Needs review";
-  const stageVariant = discoveryStage
-    ? getDiscoveryPipelineStageBadgeVariant(discoveryStage)
-    : "secondary";
-  const primaryActionLabel =
-    discoveryStage === "qualified" || discoveryStage === "link_sent"
-      ? "Send or confirm scheduling link"
-      : discoveryStage === "scheduled" || discoveryStage === "completed" || discoveryStage === "recap"
-        ? "Record fit decision"
-        : "Review discovery request";
-
-  return (
-    <>
-      <Card className="border-sky-200/80">
-        <CardHeader>
-          <CardTitle>Prospect onboarding</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary">{PRODUCT_LANGUAGE.prospect.badge}</Badge>
-            <Badge variant={stageVariant}>{stageLabel}</Badge>
-            {discoveryPlanRequestBased && <Badge variant="outline">Request-based plan interest</Badge>}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Discovery and fit review happen here before approval. Full client setup, billing, and
-            portal management are available only after approval.
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Link href={discoveryTabHref} className={cn(buttonVariants(), "justify-center")}>
-              {primaryActionLabel}
-            </Link>
-            <ActivateClientButton
-              clientId={client.id}
-              buttonLabel="Approve as Client"
-              isLoadingLabel="Approving..."
-              successMessage="Company approved as active client. Continue setup in active client view."
-              confirmMessage={
-                latestAppointment?.fitDecision
-                  ? undefined
-                  : "No fit decision has been recorded yet. Approve this company as a client anyway?"
-              }
-            />
-          </div>
-          <div className="flex flex-wrap gap-2 text-xs">
-            <Link href={discoveryTabHref} className="text-primary hover:underline">
-              Record fit decision
-            </Link>
-            <Link href={discoveryTabHref} className="text-primary hover:underline">
-              Mark Needs follow-up
-            </Link>
-            <Link href={discoveryTabHref} className="text-primary hover:underline">
-              Mark Not a Fit
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-
-      {renderCompanyDetailsCard(client)}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Discovery request summary</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Plan interest
-            </p>
-            <p className="text-sm mt-1">{planInterestLabel}</p>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Selected tasks
-            </p>
-            {discoveryRequestForDrawer?.requestedTasks?.length ? (
-              <ul className="mt-2 list-disc pl-5 space-y-1 text-sm text-slate-700">
-                {discoveryRequestForDrawer.requestedTasks.map((task) => (
-                  <li key={task.name}>
-                    <span className="font-medium">{task.name}</span>
-                    {task.description ? ` — ${task.description}` : ""}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground mt-1">No catalog tasks selected.</p>
-            )}
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Bottleneck
-              </p>
-              <p className="text-sm whitespace-pre-wrap mt-1">
-                {discoveryRequestForDrawer?.description ?? "Not provided"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Urgency
-              </p>
-              <p className="text-sm mt-1">{discoveryRequestForDrawer?.urgency ?? "Not specified"}</p>
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Submitted notes
-            </p>
-            <p className="text-sm whitespace-pre-wrap mt-1">
-              {discoveryRequestForDrawer?.mostHelpful ?? "No additional notes submitted."}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Meeting and decision</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Scheduling status
-              </p>
-              <p className="text-sm mt-1">{latestAppointment?.status ?? "Not scheduled yet"}</p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Fit decision
-              </p>
-              <p className="text-sm mt-1">{fitDecisionLabel}</p>
-              {latestAppointment?.fitDecisionReason && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Reason: {latestAppointment.fitDecisionReason}
-                </p>
-              )}
-            </div>
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Recap notes
-            </p>
-            <p className="text-sm whitespace-pre-wrap mt-1">
-              {latestAppointment?.recapContent ?? "No recap notes yet."}
-            </p>
-            {latestAppointment?.recapSentAt && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Recap sent {format(new Date(latestAppointment.recapSentAt), "MMM d, yyyy")}
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </>
-  );
-}
-
-function renderRecentRequests(
-  client: ClientWithRelations,
-  options?: { showWorkTab?: boolean; clientId?: string },
-) {
-  if (options?.showWorkTab && options.clientId) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Work</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Block activity, subscribed tasks, and priced requests are on the{" "}
-            <Link
-              href={adminClientTabHref(options.clientId, "work")}
-              className="text-primary hover:underline font-medium"
-            >
-              Work tab
-            </Link>
-            .
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const clientRequests = client.requests.filter((r: SupportRequest) => r.kind === "CLIENT_OPS");
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Recent {PRODUCT_LANGUAGE.workRequest.plural}</CardTitle>
-        <Link href="/admin/requests" className="text-xs text-primary hover:underline font-medium">
-          View All
-        </Link>
-      </CardHeader>
-      <CardContent>
-        {clientRequests.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">No work requests yet.</p>
-        ) : (
-          <div className="space-y-4">
-            {clientRequests.map((request: SupportRequest) => (
-              <Link
-                key={request.id}
-                href={`/admin/requests/${request.id}`}
-                className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                <div>
-                  <p className="font-medium text-sm">{request.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {format(new Date(request.createdAt), "MMM d, yyyy")} • {request.status.replace("_", " ")}
-                  </p>
-                </div>
-                <span className="text-primary text-sm">Open →</span>
-              </Link>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function renderUsageCard(client: Client, usage: WeeklyUsage) {
-  return (
-    <Card className="border-primary/20">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Clock className="h-5 w-5 text-primary" />
-          Weekly Capacity
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground uppercase">Reserved</p>
-            <p className="text-xl font-bold">{client.weeklyHours} hrs</p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground uppercase">Used</p>
-            <p className={cn("text-xl font-bold", usage.isOverLimit ? "text-red-600" : usage.isNearLimit ? "text-orange-600" : "text-green-600")}>
-              {(usage.includedMinutesThisWeek / 60).toFixed(1)} hrs
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs">
-            <span>Usage</span>
-            <span>{usage.percentUsed.toFixed(0)}%</span>
-          </div>
-          <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-            <div 
-              className={cn("h-full transition-all", usage.isOverLimit ? "bg-red-500" : usage.isNearLimit ? "bg-orange-500" : "bg-primary")} 
-              style={{ width: `${Math.min(usage.percentUsed, 100)}%` }}
-            />
-          </div>
-        </div>
-
-        <div className="pt-4 border-t space-y-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Remaining:</span>
-            <span className="font-medium">{(usage.remainingIncludedMinutes / 60).toFixed(1)} hrs</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Overflow:</span>
-            <span className="font-medium text-orange-600">{(usage.overflowMinutesThisWeek / 60).toFixed(1)} hrs</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Non-billable:</span>
-            <span className="font-medium">{(usage.nonBillableMinutesThisWeek / 60).toFixed(1)} hrs</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function renderSystemAccess(
-  clientId: string,
-  records: ClientSystemAccess[],
-) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">System Access</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ClientSystemAccessManager clientId={clientId} records={records} />
-      </CardContent>
-    </Card>
-  );
-}
-
-function renderBranding(client: Client) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Branding</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ClientBrandingManager
-          clientId={client.id}
-          website={client.website}
-          logoUrl={client.logoUrl}
-          brandAccent={client.brandAccent}
-        />
-      </CardContent>
-    </Card>
-  );
-}
-
-function renderBilling(
-  client: Client & {
-    engagementType: EngagementType;
-    billingOverrideCreatedBy?: { name: string | null; email: string } | null;
-  },
-) {
-  const isRequestBased = client.engagementType === EngagementType.REQUEST_BASED;
-
-  return (
-    <Card className="border-slate-200">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <CreditCard className="h-4 w-4 text-primary" />
-          {isRequestBased ? "Billing" : "Billing & Subscription"}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {isRequestBased ? (
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            Request-Based Work clients are priced per request after review.
-          </p>
-        ) : (
-          <>
-            <ClientBillingManager
-              clientId={client.id}
-              engagementType={client.engagementType}
-              billingMode={client.billingMode}
-              billingOverrideReason={client.billingOverrideReason}
-              billingOverrideExpiresAt={client.billingOverrideExpiresAt}
-              billingOverrideCreatedAt={client.billingOverrideCreatedAt}
-              billingOverrideCreatedById={client.billingOverrideCreatedById}
-              billingOverrideCreatedByName={client.billingOverrideCreatedBy?.name}
-              billingOverrideCreatedByEmail={client.billingOverrideCreatedBy?.email}
-              currentPlan={client.planType}
-              subscriptionStatus={client.subscriptionStatus}
-              stripeCustomerId={client.stripeCustomerId}
-              stripeSubscriptionId={client.stripeSubscriptionId}
-            />
-
-            {client.subscriptionCurrentPeriodEnd && (
-              <div className="mt-6 pt-6 border-t text-sm">
-                <p className="text-muted-foreground flex justify-between">
-                  <span>Period End:</span>
-                  <span className="text-slate-900 font-medium">
-                    {format(new Date(client.subscriptionCurrentPeriodEnd), "MMM d, yyyy")}
-                  </span>
-                </p>
-              </div>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function renderPortalAccess(
-  client: ClientWithRelations & {
-    engagementType: EngagementType;
-    approvedWorkTasks: { workTaskId: string }[];
-  },
-) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Mail className="h-4 w-4 text-primary" />
-          Portal Access
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ClientPortalAccessManager
-          clientId={client.id}
-          clientStatus={client.status}
-          defaultEmail={client.email}
-          defaultName={client.contactName}
-          users={client.users}
-        />
-      </CardContent>
-    </Card>
   );
 }

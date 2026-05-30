@@ -31,9 +31,9 @@ export function portalRequestUrl(requestId: string): string {
   return `${baseUrl()}/portal/requests/${encodeURIComponent(requestId)}`;
 }
 
-// Admin client detail
+// Admin client detail (active client overview)
 export function adminClientUrl(clientId: string): string {
-  return `${baseUrl()}/admin/clients/${encodeURIComponent(clientId)}`;
+  return `${baseUrl()}/admin/clients/${encodeURIComponent(clientId)}?tab=overview`;
 }
 
 export function discoverySchedulingUrl(rawToken: string): string {

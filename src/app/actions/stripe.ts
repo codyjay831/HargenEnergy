@@ -87,7 +87,7 @@ export async function createCheckoutSession(clientId: string, planTypeRaw: strin
     ],
     mode: "subscription",
     success_url: `${APP_URL}/admin/clients/${client.id}?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${APP_URL}/admin/clients/${client.id}`,
+    cancel_url: `${APP_URL}/admin/clients/${client.id}?tab=billing`,
     metadata: {
       clientId: client.id,
       planType,

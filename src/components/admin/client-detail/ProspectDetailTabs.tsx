@@ -4,48 +4,36 @@ import { useCallback, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ACTIVE_DEFAULT_TAB,
   adminClientTabHref,
   isAdminClientTab,
-  resolveVisibleAdminClientTab,
+  PROSPECT_DEFAULT_TAB,
+  resolveProspectClientTab,
   type AdminClientTab,
 } from "@/lib/admin-client-tabs";
 
-type ClientDetailTabsProps = {
+type ProspectDetailTabsProps = {
   clientId: string;
   defaultTab?: AdminClientTab;
-  showDiscoveryTab: boolean;
-  discoveryTabLabel?: string;
-  showWorkTab?: boolean;
-  showSetupTab?: boolean;
-  showBillingTab?: boolean;
-  overview: React.ReactNode;
-  work?: React.ReactNode;
+  showSetupTab: boolean;
+  showBillingTab: boolean;
   discovery: React.ReactNode;
   setup: React.ReactNode;
   billing: React.ReactNode;
 };
 
-export function ClientDetailTabs({
+export function ProspectDetailTabs({
   clientId,
-  defaultTab = ACTIVE_DEFAULT_TAB,
-  showDiscoveryTab,
-  discoveryTabLabel = "Discovery call",
-  showWorkTab = false,
-  showSetupTab = true,
-  showBillingTab = true,
-  overview,
-  work,
+  defaultTab = PROSPECT_DEFAULT_TAB,
+  showSetupTab,
+  showBillingTab,
   discovery,
   setup,
   billing,
-}: ClientDetailTabsProps) {
+}: ProspectDetailTabsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams?.get("tab");
-  const activeTab = resolveVisibleAdminClientTab(tabParam, defaultTab, {
-    showDiscoveryTab,
-    showWorkTab,
+  const activeTab = resolveProspectClientTab(tabParam, defaultTab, {
     showSetupTab,
     showBillingTab,
   });
@@ -61,49 +49,32 @@ export function ClientDetailTabs({
       if (typeof value !== "string" || !isAdminClientTab(value)) {
         return;
       }
-      if (value === "discovery" && !showDiscoveryTab) {
-        return;
-      }
-      if (value === "work" && !showWorkTab) {
-        return;
-      }
       if (value === "setup" && !showSetupTab) {
         return;
       }
       if (value === "billing" && !showBillingTab) {
         return;
       }
+      if (value === "overview" || value === "work") {
+        return;
+      }
 
       router.replace(adminClientTabHref(clientId, value), { scroll: false });
     },
-    [clientId, router, showBillingTab, showDiscoveryTab, showSetupTab, showWorkTab],
+    [clientId, router, showBillingTab, showSetupTab],
   );
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
       <TabsList className="w-full max-w-2xl flex-wrap h-auto">
-        <TabsTrigger value="overview">Overview</TabsTrigger>
-        {showWorkTab && <TabsTrigger value="work">Work</TabsTrigger>}
-        {showDiscoveryTab && <TabsTrigger value="discovery">{discoveryTabLabel}</TabsTrigger>}
-        {showSetupTab && <TabsTrigger value="setup">Setup & access</TabsTrigger>}
-        {showBillingTab && <TabsTrigger value="billing">Billing</TabsTrigger>}
+        <TabsTrigger value="discovery">Discovery</TabsTrigger>
+        {showSetupTab && <TabsTrigger value="setup">Pre-activation setup</TabsTrigger>}
+        {showBillingTab && <TabsTrigger value="billing">Access & billing</TabsTrigger>}
       </TabsList>
 
-      <TabsContent value="overview" className="mt-0">
-        {overview}
+      <TabsContent value="discovery" className="mt-0">
+        {discovery}
       </TabsContent>
-
-      {showWorkTab && work && (
-        <TabsContent value="work" className="mt-0">
-          {work}
-        </TabsContent>
-      )}
-
-      {showDiscoveryTab && (
-        <TabsContent value="discovery" className="mt-0">
-          {discovery}
-        </TabsContent>
-      )}
 
       {showSetupTab && (
         <TabsContent value="setup" className="mt-0">
