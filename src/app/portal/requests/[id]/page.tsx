@@ -10,7 +10,9 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PortalDisbursementPanel } from "@/components/forms/PortalDisbursementPanel";
 import { RequestCommentForm } from "@/components/forms/RequestCommentForm";
+import { ProvideInfoForm } from "@/components/forms/ProvideInfoForm";
 import { RequestAttachmentsList } from "@/components/requests/RequestAttachmentsList";
+import { ScrollToHash } from "@/components/portal/ScrollToHash";
 import { EngagementType, OverflowStatus } from "@/generated/prisma/client";
 import {
   formatFlatPrice,
@@ -83,9 +85,11 @@ export default async function PortalRequestDetailPage({ params }: PortalRequestD
     clientRecord?.engagementType === EngagementType.REQUEST_BASED;
   const pricingSet = isRequestBasedPricingComplete(request);
   const pricingState = isRequestBased ? getRequestPricingState(request) : null;
+  const needsInfoActive = request.needsInfo || request.status === "NEEDS_INFO";
 
   return (
     <div className="space-y-8">
+      <ScrollToHash hash="#provide-info" />
       <div className="flex items-center gap-4">
         <Link 
           href="/portal/requests" 
@@ -102,14 +106,34 @@ export default async function PortalRequestDetailPage({ params }: PortalRequestD
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column: Request Info & Comments */}
         <div className="lg:col-span-2 space-y-8">
-          {(request.status === "NEEDS_INFO" || request.needsInfo) && (
+          {needsInfoActive && (
             <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg flex items-start gap-3 text-orange-800">
               <AlertCircle className="h-5 w-5 mt-0.5" />
               <div>
                 <p className="font-bold">Information Needed</p>
-                <p className="text-sm mt-1">Hargen Energy has requested more information to proceed with this request. Please review the update below and reply using the message form.</p>
+                <p className="text-sm mt-1">
+                  Hargen Energy has requested more information to proceed with this request.
+                  Upload files, photos, or a written response below.
+                </p>
               </div>
             </div>
+          )}
+
+          {needsInfoActive && (
+            <Card id="provide-info" className="border-orange-200 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-bold uppercase tracking-wider text-orange-900">
+                  Provide Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ProvideInfoForm
+                  requestId={request.id}
+                  clientId={clientId}
+                  staffMessage={request.clientVisibleUpdate}
+                />
+              </CardContent>
+            </Card>
           )}
 
           <Card>
@@ -149,7 +173,7 @@ export default async function PortalRequestDetailPage({ params }: PortalRequestD
                 <p className="mt-1 text-slate-900 whitespace-pre-wrap text-sm">{request.description}</p>
               </div>
 
-              {request.clientVisibleUpdate && (
+              {request.clientVisibleUpdate && !needsInfoActive && (
                 <div className="pt-6 border-t">
                   <Label className="text-primary font-bold">Latest Update from Hargen Energy</Label>
                   <div className="mt-2 p-4 bg-slate-50 rounded-lg border border-slate-200">
@@ -197,14 +221,16 @@ export default async function PortalRequestDetailPage({ params }: PortalRequestD
               )}
             </div>
 
-            <Card className="mt-8 border-primary/20">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-bold uppercase tracking-wider">Send a Message</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <RequestCommentForm requestId={request.id} />
-              </CardContent>
-            </Card>
+            {!needsInfoActive && (
+              <Card className="mt-8 border-primary/20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-bold uppercase tracking-wider">Send a Message</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <RequestCommentForm requestId={request.id} />
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
 

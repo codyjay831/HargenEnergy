@@ -153,6 +153,30 @@ export const portalAddCommentSchema = z.object({
 
 export type PortalAddCommentInput = z.infer<typeof portalAddCommentSchema>;
 
+export function createPortalSubmitInfoResponseSchema(clientId: string) {
+  return z
+    .object({
+      requestId: trimmedString.min(1).max(128),
+      body: trimmedString.max(10_000).optional(),
+      attachments: z
+        .array(createPortalAttachmentSchema(clientId))
+        .max(MAX_PORTAL_ATTACHMENTS)
+        .optional(),
+    })
+    .refine(
+      (data) => {
+        const hasBody = Boolean(data.body?.trim());
+        const hasAttachments = Boolean(data.attachments?.length);
+        return hasBody || hasAttachments;
+      },
+      { message: "Please provide a message or at least one attachment." },
+    );
+}
+
+export type PortalSubmitInfoResponseInput = z.infer<
+  ReturnType<typeof createPortalSubmitInfoResponseSchema>
+>;
+
 export const updateClientEngagementSchema = z.object({
   clientId: z.string().min(1).max(128),
   engagementType: z.string().refine(isEngagementTypeValue, {

@@ -23,12 +23,19 @@ import {
 } from "@/lib/email";
 import {
   createPortalSubmitRequestSchema,
+  createPortalSubmitInfoResponseSchema,
   portalAddCommentSchema,
   requestScopeChangeSchema,
 } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { requireClientUser } from "@/lib/auth-guards";
 import { validateRequestedDiscoveryTaskIds } from "@/lib/discovery-catalog";
+import { writeAuditLog } from "@/lib/audit-log";
+import {
+  buildInfoResponseCommentBody,
+  isNeedsInfoActive,
+  resolveStatusAfterInfoResponse,
+} from "@/lib/portal-info-response";
 
 const PORTAL_VALIDATION_ERROR =
   "Please shorten your input or fix the required fields and try again.";
@@ -395,6 +402,12 @@ export async function addRequestComment(data: {
       return { error: "Unauthorized. You do not have access to this request." };
     }
 
+    if (!isAdmin && isNeedsInfoActive(request)) {
+      return {
+        error: "Please use the Provide Information form to respond to this request.",
+      };
+    }
+
     const comment = await prisma.requestComment.create({
       data: {
         supportRequestId: requestId,
@@ -425,5 +438,134 @@ export async function addRequestComment(data: {
   } catch (error) {
     console.error("Error adding comment:", error);
     return { error: "Failed to add comment." };
+  }
+}
+
+export async function submitInfoResponse(data: {
+  requestId: string;
+  body?: string;
+  attachments?: Array<{ url: string; name: string; type: string; size?: number }>;
+}) {
+  const session = await auth();
+  if (!session?.user) return { error: "Unauthorized." };
+
+  await requireClientUser("portal.work");
+
+  const clientId = session.user.clientId;
+  if (!clientId) return { error: "Unauthorized." };
+
+  const parsed = createPortalSubmitInfoResponseSchema(clientId).safeParse(data);
+  if (!parsed.success) {
+    return { error: PORTAL_VALIDATION_ERROR };
+  }
+
+  const commentLimit = await checkRateLimit(
+    "portal-comment",
+    `user:${session.user.id}`,
+  );
+  if (!commentLimit.allowed) {
+    return { error: PORTAL_RATE_LIMIT_ERROR };
+  }
+
+  const { requestId, body, attachments } = parsed.data;
+
+  try {
+    const request = await prisma.supportRequest.findUnique({
+      where: { id: requestId },
+      include: { client: true },
+    });
+
+    if (!request || request.clientId !== clientId) {
+      return { error: "Request not found." };
+    }
+
+    if (!isNeedsInfoActive(request)) {
+      return { error: "This request no longer needs information." };
+    }
+
+    const fileNames = attachments?.map((file) => file.name) ?? [];
+    const commentBody = buildInfoResponseCommentBody(body, fileNames);
+    const statusAfter = resolveStatusAfterInfoResponse(request.status);
+
+    await prisma.$transaction(async (tx) => {
+      const current = await tx.supportRequest.findUnique({
+        where: { id: requestId },
+      });
+
+      if (!current || !isNeedsInfoActive(current)) {
+        throw new Error("NEEDS_INFO_STALE");
+      }
+
+      await tx.requestComment.create({
+        data: {
+          supportRequestId: requestId,
+          authorUserId: session.user!.id,
+          authorType: AuthorType.CLIENT,
+          body: commentBody,
+          isInternal: false,
+        },
+      });
+
+      if (attachments?.length) {
+        await tx.attachment.createMany({
+          data: attachments.map((file) => ({
+            clientId,
+            supportRequestId: requestId,
+            fileName: file.name,
+            fileUrl: file.url,
+            fileType: file.type,
+            uploadedById: session.user!.id,
+          })),
+        });
+      }
+
+      await tx.supportRequest.update({
+        where: { id: requestId },
+        data: {
+          needsInfo: false,
+          ...(statusAfter !== current.status ? { status: statusAfter } : {}),
+        },
+      });
+    });
+
+    if (statusAfter !== request.status) {
+      await writeAuditLog({
+        actorUserId: session.user.id,
+        action: "request.info_response",
+        entityType: "SupportRequest",
+        entityId: requestId,
+        metadata: {
+          statusBefore: request.status,
+          statusAfter,
+          attachmentCount: attachments?.length ?? 0,
+        },
+      });
+    }
+
+    try {
+      await sendInternalClientCommentAlert({
+        companyName: request.client.companyName,
+        requestTitle: request.title,
+        requestId,
+        commentBody,
+        isInfoResponse: true,
+        attachmentNames: fileNames,
+      });
+    } catch (emailError) {
+      console.error("Failed to send info response alert:", emailError);
+    }
+
+    revalidatePath("/portal");
+    revalidatePath("/portal/requests");
+    revalidatePath(`/portal/requests/${requestId}`);
+    revalidatePath(`/admin/requests/${requestId}`);
+
+    return { success: true };
+  } catch (error) {
+    if (error instanceof Error && error.message === "NEEDS_INFO_STALE") {
+      return { error: "This request no longer needs information." };
+    }
+    console.error("Error submitting info response:", error);
+    return { error: "Failed to submit your response. Please try again." };
   }
 }

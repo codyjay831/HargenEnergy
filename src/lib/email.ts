@@ -683,6 +683,8 @@ export async function sendInternalClientCommentAlert(data: {
   requestTitle: string;
   requestId: string;
   commentBody: string;
+  isInfoResponse?: boolean;
+  attachmentNames?: string[];
 }) {
   const config = validateEmailConfig();
   if ("error" in config) return { error: config.error };
@@ -696,20 +698,36 @@ export async function sendInternalClientCommentAlert(data: {
   const safeComment = escapeHtml(data.commentBody);
   const adminUrl = escapeHtml(adminRequestUrl(data.requestId));
 
+  const attachmentList =
+    data.attachmentNames && data.attachmentNames.length > 0
+      ? `<ul style="margin: 8px 0 0 0; padding-left: 20px;">${data.attachmentNames
+          .map((name) => `<li>${escapeHtml(name)}</li>`)
+          .join("")}</ul>`
+      : "";
+
+  const heading = data.isInfoResponse
+    ? "Client provided requested information"
+    : "New client comment";
+
+  const subjectPrefix = data.isInfoResponse
+    ? "Client provided requested info"
+    : "Client reply";
+
   try {
     await resend.emails.send({
       from: fromEmail,
       to: ADMIN_EMAIL,
       subject: sanitizeEmailSubjectFragment(
-        `Client reply: ${data.companyName} — ${data.requestTitle}`,
+        `${subjectPrefix}: ${data.companyName} — ${data.requestTitle}`,
         200,
       ),
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
-          <h2 style="color: #0f172a;">New client comment</h2>
+          <h2 style="color: #0f172a;">${heading}</h2>
           <p><strong>Company:</strong> ${safeCompany}</p>
           <p><strong>Request:</strong> ${safeTitle}</p>
           <p style="background: #f8fafc; padding: 15px; border-radius: 4px; border-left: 4px solid #e2e8f0;">${safeComment}</p>
+          ${attachmentList ? `<p><strong>Attachments:</strong>${attachmentList}</p>` : ""}
           <p style="margin-top: 20px;">
             <a href="${adminUrl}" style="background: #0f172a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">View in admin</a>
           </p>

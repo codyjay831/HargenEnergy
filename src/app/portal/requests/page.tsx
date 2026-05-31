@@ -158,7 +158,11 @@ export default async function PortalRequests() {
                     </TableCell>
                     <TableCell className="text-right">
                       <Link
-                        href={`/portal/requests/${request.id}`}
+                        href={
+                          request.status === "NEEDS_INFO" || request.needsInfo
+                            ? `/portal/requests/${request.id}#provide-info`
+                            : `/portal/requests/${request.id}`
+                        }
                         className="text-primary hover:underline text-sm font-medium"
                       >
                         View Details

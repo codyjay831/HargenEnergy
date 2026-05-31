@@ -342,7 +342,7 @@ export default async function PortalDashboard() {
                   </div>
                 </div>
                 <Link 
-                  href={`/portal/requests/${request.id}`}
+                  href={`/portal/requests/${request.id}#provide-info`}
                   className={cn(
                     buttonVariants({ variant: "default", size: "sm" }), 
                     "bg-orange-600 hover:bg-orange-700 text-white border-none"
@@ -512,7 +512,11 @@ export default async function PortalDashboard() {
                 {client.requests.map((request) => (
                   <Link 
                     key={request.id} 
-                    href={`/portal/requests/${request.id}`}
+                    href={
+                      request.status === "NEEDS_INFO" || request.needsInfo
+                        ? `/portal/requests/${request.id}#provide-info`
+                        : `/portal/requests/${request.id}`
+                    }
                     className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors"
                   >
                     <div>
