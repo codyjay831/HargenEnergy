@@ -11,7 +11,7 @@ import {
   supersedeAgreementPacket,
 } from "@/app/actions/agreement-packet";
 import { adminAgreementPdfDownloadUrl } from "@/lib/app-url";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -78,11 +78,12 @@ export function AgreementPacketDetailActions({
         )}
 
         {hasUnsignedPdf && hasSnapshot && (
-          <Button variant="outline" asChild>
-            <Link href={adminAgreementPdfDownloadUrl(packetId, "unsigned")}>
-              Download unsigned PDF
-            </Link>
-          </Button>
+          <Link
+            href={adminAgreementPdfDownloadUrl(packetId, "unsigned")}
+            className={buttonVariants({ variant: "outline" })}
+          >
+            Download unsigned PDF
+          </Link>
         )}
 
         {canMarkSentManually(status) && (

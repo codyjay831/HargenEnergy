@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { AgreementPacketStatus, AgreementServiceType } from "@/generated/prisma/client";
+import {
+  AgreementPacketStatus,
+  AgreementServiceType,
+  Prisma,
+} from "@/generated/prisma/client";
 import { requireStaff } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit-log";
@@ -141,8 +145,12 @@ export async function createAgreementPacket(
         signerEmail: parsed.data.signerEmail.trim().toLowerCase(),
         serviceType: parsed.data.serviceType,
         selectedScopeJson: parsed.data.selectedScopeJson as SupportBlockScope | RequestBasedScope | CustomScope,
-        pricingJson: parsed.data.pricingJson ?? undefined,
-        billingJson: parsed.data.billingJson ?? undefined,
+        pricingJson: (parsed.data.pricingJson ?? undefined) as
+          | Prisma.InputJsonValue
+          | undefined,
+        billingJson: (parsed.data.billingJson ?? undefined) as
+          | Prisma.InputJsonValue
+          | undefined,
         createdByUserId: session.user.id!,
       },
     });
@@ -210,8 +218,12 @@ export async function updateAgreementPacketDraft(input: {
         signerEmail: parsed.data.signerEmail.trim().toLowerCase(),
         serviceType: parsed.data.serviceType,
         selectedScopeJson: parsed.data.selectedScopeJson as SupportBlockScope | RequestBasedScope | CustomScope,
-        pricingJson: parsed.data.pricingJson ?? undefined,
-        billingJson: parsed.data.billingJson ?? undefined,
+        pricingJson: (parsed.data.pricingJson ?? undefined) as
+          | Prisma.InputJsonValue
+          | undefined,
+        billingJson: (parsed.data.billingJson ?? undefined) as
+          | Prisma.InputJsonValue
+          | undefined,
       },
     });
 
@@ -336,7 +348,7 @@ export async function returnAgreementPacketToDraft(input: {
       where: { id: packet.id },
       data: {
         status: AgreementPacketStatus.DRAFT,
-        acceptanceSnapshotJson: null,
+        acceptanceSnapshotJson: Prisma.JsonNull,
         snapshotAt: null,
         unsignedPdfFileId: null,
         sentAt: null,

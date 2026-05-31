@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ensureDefaultLegalTemplates } from "@/lib/agreements/ensure-templates";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -19,6 +19,7 @@ import { adminAgreementPacketUrl, adminAgreementsUrl } from "@/lib/app-url";
 import { adminBtnPrimary } from "@/lib/admin-ui/tokens";
 import { format } from "date-fns";
 import { adminClientTabHref } from "@/lib/admin-client-tabs";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -74,11 +75,12 @@ export default async function AdminAgreementsPage({
             </p>
           )}
         </div>
-        <Button asChild className={adminBtnPrimary}>
-          <Link href={`/admin/agreements/new${clientId ? `?clientId=${clientId}` : ""}`}>
-            New agreement packet
-          </Link>
-        </Button>
+        <Link
+          href={`/admin/agreements/new${clientId ? `?clientId=${clientId}` : ""}`}
+          className={cn(buttonVariants(), adminBtnPrimary)}
+        >
+          New agreement packet
+        </Link>
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white">

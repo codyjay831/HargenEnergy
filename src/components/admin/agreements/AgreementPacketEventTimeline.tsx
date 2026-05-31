@@ -72,7 +72,7 @@ export function AgreementPacketEventTimeline({
             {note && (
               <p className="text-sm text-slate-700 mt-2 whitespace-pre-wrap">{note}</p>
             )}
-            {metadata?.sha256Hash && typeof metadata.sha256Hash === "string" && (
+            {typeof metadata?.sha256Hash === "string" && (
               <p className="text-xs text-muted-foreground mt-1 font-mono truncate">
                 SHA-256: {metadata.sha256Hash}
               </p>

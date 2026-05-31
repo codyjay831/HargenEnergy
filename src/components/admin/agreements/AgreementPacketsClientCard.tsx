@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { adminAgreementsUrl } from "@/lib/app-url";
 import { adminBtnPrimary } from "@/lib/admin-ui/tokens";
+import { cn } from "@/lib/utils";
 
 type AgreementPacketsClientCardProps = {
   clientId: string;
@@ -35,14 +36,18 @@ export function AgreementPacketsClientCard({
           </p>
         )}
         <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm" className={adminBtnPrimary}>
-            <Link href={`/admin/agreements/new?clientId=${clientId}`}>
-              New packet
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href={adminAgreementsUrl(clientId)}>View packets</Link>
-          </Button>
+          <Link
+            href={`/admin/agreements/new?clientId=${clientId}`}
+            className={cn(buttonVariants({ size: "sm" }), adminBtnPrimary)}
+          >
+            New packet
+          </Link>
+          <Link
+            href={adminAgreementsUrl(clientId)}
+            className={buttonVariants({ size: "sm", variant: "outline" })}
+          >
+            View packets
+          </Link>
         </div>
       </CardContent>
     </Card>

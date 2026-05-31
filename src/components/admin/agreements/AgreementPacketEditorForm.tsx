@@ -26,6 +26,14 @@ import type {
 } from "@/lib/agreements/types";
 import { Loader2 } from "lucide-react";
 
+function onSelectString(setter: (value: string) => void) {
+  return (value: string | null) => {
+    if (value != null) {
+      setter(value);
+    }
+  };
+}
+
 type TemplateOption = {
   id: string;
   version: string;
@@ -167,7 +175,10 @@ export function AgreementPacketEditorForm({
       : DEFAULT_CUSTOM_SCOPE,
   );
 
-  const onClientChange = (nextClientId: string) => {
+  const onClientChange = (nextClientId: string | null) => {
+    if (!nextClientId) {
+      return;
+    }
     setClientId(nextClientId);
     const client = clients.find((c) => c.id === nextClientId);
     if (!client || mode === "edit") {
@@ -298,7 +309,10 @@ export function AgreementPacketEditorForm({
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label>Client Services Agreement</Label>
-            <Select value={clientServicesTemplateId} onValueChange={setClientServicesTemplateId}>
+            <Select
+              value={clientServicesTemplateId}
+              onValueChange={onSelectString(setClientServicesTemplateId)}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -313,7 +327,10 @@ export function AgreementPacketEditorForm({
           </div>
           <div className="space-y-2">
             <Label>Work Authorization</Label>
-            <Select value={workAuthorizationTemplateId} onValueChange={setWorkAuthorizationTemplateId}>
+            <Select
+              value={workAuthorizationTemplateId}
+              onValueChange={onSelectString(setWorkAuthorizationTemplateId)}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -333,7 +350,11 @@ export function AgreementPacketEditorForm({
         <h2 className="text-base font-semibold text-slate-900">Service type & scope</h2>
         <Select
           value={serviceType}
-          onValueChange={(value) => setServiceType(value as AgreementServiceType)}
+          onValueChange={(value) => {
+            if (value != null) {
+              setServiceType(value as AgreementServiceType);
+            }
+          }}
         >
           <SelectTrigger className="max-w-xs">
             <SelectValue />
@@ -373,12 +394,14 @@ export function AgreementPacketEditorForm({
               <Label>Period</Label>
               <Select
                 value={supportScope.period}
-                onValueChange={(value) =>
-                  setSupportScope({
-                    ...supportScope,
-                    period: value as "WEEKLY" | "MONTHLY",
-                  })
-                }
+                onValueChange={(value) => {
+                  if (value != null) {
+                    setSupportScope({
+                      ...supportScope,
+                      period: value as "WEEKLY" | "MONTHLY",
+                    });
+                  }
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
