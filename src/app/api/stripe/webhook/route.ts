@@ -3,8 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { BillingMode, PlanType, RequestPaymentStatus } from "@/generated/prisma/client";
-import { getWeeklyHoursForPlanType } from "@/lib/support-plan-hours";
+import { BillingMode, OverageInvoiceStatus, RequestPaymentStatus } from "@/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +50,6 @@ export async function POST(req: Request) {
         } else {
           const subscriptionId = session.subscription as string;
           const clientId = session.metadata?.clientId;
-          const planType = session.metadata?.planType as PlanType;
 
           if (clientId) {
             await prisma.client.updateMany({
@@ -59,8 +57,6 @@ export async function POST(req: Request) {
               data: {
                 stripeSubscriptionId: subscriptionId,
                 subscriptionStatus: "active",
-                planType: planType || PlanType.LIGHT,
-                weeklyHours: planType ? getWeeklyHoursForPlanType(planType) : 2,
               },
             });
           }
@@ -72,7 +68,6 @@ export async function POST(req: Request) {
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription & { current_period_end: number };
         const clientId = subscription.metadata?.clientId;
-        const planType = subscription.metadata?.planType as PlanType;
 
         if (clientId) {
           await prisma.client.updateMany({
@@ -81,8 +76,6 @@ export async function POST(req: Request) {
               stripeSubscriptionId: subscription.id,
               subscriptionStatus: subscription.status,
               subscriptionCurrentPeriodEnd: new Date(subscription.current_period_end * 1000),
-              planType: planType || undefined,
-              weeklyHours: planType ? getWeeklyHoursForPlanType(planType) : undefined,
             },
           });
         }
@@ -98,24 +91,49 @@ export async function POST(req: Request) {
             where: { id: clientId, billingMode: BillingMode.STRIPE },
             data: {
               subscriptionStatus: "canceled",
-              planType: PlanType.LIGHT, // Reset to light or keep as is?
-              weeklyHours: 0,
             },
           });
         }
         break;
       }
 
+      case "invoice.paid": {
+        const invoice = event.data.object as Stripe.Invoice;
+        if (invoice.metadata?.billingType === "overflow") {
+          const requestId = invoice.metadata?.requestId;
+          if (requestId) {
+            await prisma.supportRequest.updateMany({
+              where: { id: requestId, stripeOverageInvoiceId: invoice.id },
+              data: {
+                overageInvoiceStatus: OverageInvoiceStatus.PAID,
+              },
+            });
+          }
+        }
+        break;
+      }
+
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
-        const customerId = invoice.customer as string;
-
-        await prisma.client.updateMany({
-          where: { stripeCustomerId: customerId, billingMode: BillingMode.STRIPE },
-          data: {
-            subscriptionStatus: "past_due",
-          },
-        });
+        if (invoice.metadata?.billingType === "overflow") {
+          const requestId = invoice.metadata?.requestId;
+          if (requestId) {
+            await prisma.supportRequest.updateMany({
+              where: { id: requestId, stripeOverageInvoiceId: invoice.id },
+              data: {
+                overageInvoiceStatus: OverageInvoiceStatus.OPEN,
+              },
+            });
+          }
+        } else {
+          const customerId = invoice.customer as string;
+          await prisma.client.updateMany({
+            where: { stripeCustomerId: customerId, billingMode: BillingMode.STRIPE },
+            data: {
+              subscriptionStatus: "past_due",
+            },
+          });
+        }
         break;
       }
     }

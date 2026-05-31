@@ -26,10 +26,10 @@ const steps = [
       "Send a request with your bottlenecks. Utility pile, messy CRM, permits going quiet. We read it like a handoff, not a sales form.",
   },
   {
-    title: "Choose a support level",
+    title: "Choose your weekly hours",
     icon: Layers,
     description:
-      "Pick the operations support level that fits your workload. No long-term contract. When volume shifts, we adjust with you.",
+      "Pick the prepaid weekly hours that fit your workload. No long-term contract. When volume shifts, we adjust with you.",
   },
   {
     title: "We start with what moves jobs",
@@ -122,17 +122,17 @@ export default function HowItWorksPage() {
             <div className={cn(marketingCardBase, "p-6 md:p-8")}>
               <h2 className={marketingH2}>Capacity-based support</h2>
               <p className="mt-3 text-sm text-stone-600 leading-relaxed">
-                You reserve weekly operations capacity at your support level, not unlimited hours. If the list is longer than your level allows, we start with what moves jobs the fastest. The rest can roll forward or go through overflow approval.
+                You reserve weekly operations capacity in prepaid hours, not unlimited help. If the list is longer than your reserved hours allow, we start with what moves jobs the fastest. The rest can roll forward or go through overflow approval.
               </p>
               <p className="mt-4 border-l-2 border-amber-200 pl-3 text-sm italic text-stone-600 leading-relaxed">
-                Clients choose a support level based on workload, not unlimited help. If requested work exceeds your level, we help prioritize the highest-impact items first.
+                Clients choose weekly hours based on workload, not unlimited help. If requested work exceeds available hours, we prioritize the highest-impact items first.
               </p>
             </div>
             <div className="flex flex-col justify-between rounded-xl border border-stone-800 bg-zinc-950 p-6 text-white shadow-[0_8px_40px_rgba(0,0,0,0.12)] md:p-8">
               <div>
                 <h3 className="font-heading text-lg font-semibold text-white">Ready to start?</h3>
                 <p className="mt-2 text-sm text-zinc-400 leading-relaxed">
-                  Share your backlog. We will reply with next steps and the right support level for your workload.
+                  Share your backlog. We will reply with next steps and the right prepaid weekly hours for your workload.
                 </p>
               </div>
               <Link

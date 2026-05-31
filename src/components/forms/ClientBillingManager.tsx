@@ -14,11 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  SUPPORT_PLANS,
-  type ClientPlanType,
-  type SupportPlanType,
-} from "@/lib/billing-options";
 import { createCheckoutSession } from "@/app/actions/stripe";
 import { updateClientBillingMode } from "@/app/actions/clients";
 import { BillingMode, EngagementType } from "@/generated/prisma/client";
@@ -33,10 +28,7 @@ import { cn } from "@/lib/utils";
 import { CreditCard, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-function initialCheckoutPlan(plan: ClientPlanType): SupportPlanType {
-  const match = SUPPORT_PLANS.find((p) => p.value === plan);
-  return match ? match.value : "LIGHT";
-}
+const WEEKS_PER_MONTH = 52 / 12;
 
 function formatDateInputValue(value?: Date | null): string {
   if (!value) return "";
@@ -53,7 +45,8 @@ interface ClientBillingManagerProps {
   billingOverrideCreatedById?: string | null;
   billingOverrideCreatedByName?: string | null;
   billingOverrideCreatedByEmail?: string | null;
-  currentPlan: ClientPlanType;
+  weeklyHours: number;
+  hourlyRateCents: number | null;
   subscriptionStatus: string | null;
   stripeCustomerId: string | null;
   stripeSubscriptionId?: string | null;
@@ -69,15 +62,17 @@ export function ClientBillingManager({
   billingOverrideCreatedById,
   billingOverrideCreatedByName,
   billingOverrideCreatedByEmail,
-  currentPlan,
+  weeklyHours,
+  hourlyRateCents,
   subscriptionStatus,
   stripeCustomerId,
   stripeSubscriptionId,
 }: ClientBillingManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [plan, setPlan] = useState<SupportPlanType>(() =>
-    initialCheckoutPlan(currentPlan),
+  const [weeklyHoursInput, setWeeklyHoursInput] = useState(String(weeklyHours || ""));
+  const [hourlyRateInput, setHourlyRateInput] = useState(
+    hourlyRateCents ? (hourlyRateCents / 100).toFixed(2) : "",
   );
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
 
@@ -112,11 +107,48 @@ export function ClientBillingManager({
     billingOverrideCreatedByEmail ||
     billingOverrideCreatedById;
   const nonStripeModeLabel = BILLING_MODE_ADMIN_LABELS[billing.billingMode];
+  const weeklyHoursValue = Number(weeklyHoursInput);
+  const hourlyRateDollars = Number(hourlyRateInput);
+  const hourlyRateCentsValue = Math.round(hourlyRateDollars * 100);
+  const monthlyPreview =
+    Number.isFinite(weeklyHoursValue) &&
+    weeklyHoursValue > 0 &&
+    Number.isFinite(hourlyRateDollars) &&
+    hourlyRateDollars > 0
+      ? Math.round(weeklyHoursValue * hourlyRateCentsValue * WEEKS_PER_MONTH)
+      : null;
+
+  const getPricingPayload = () => {
+    if (!Number.isFinite(weeklyHoursValue) || weeklyHoursValue <= 0) {
+      toast.error("Weekly hours must be greater than 0.");
+      return null;
+    }
+    if (!Number.isFinite(hourlyRateDollars) || hourlyRateDollars <= 0) {
+      toast.error("Hourly rate must be greater than 0.");
+      return null;
+    }
+    return {
+      weeklyHours: weeklyHoursValue,
+      hourlyRateCents: hourlyRateCentsValue,
+    };
+  };
 
   const handleCreateCheckout = async () => {
+    const pricing = getPricingPayload();
+    if (!pricing) return;
+
     setIsCheckoutLoading(true);
     try {
-      const result = await createCheckoutSession(clientId, plan);
+      const updateResult = await updateClientBillingMode({
+        clientId,
+        billingMode: BillingMode.STRIPE,
+        ...pricing,
+      });
+      if ("error" in updateResult && updateResult.error) {
+        throw new Error(updateResult.error);
+      }
+
+      const result = await createCheckoutSession(clientId);
       if (result.url) {
         window.location.href = result.url;
       }
@@ -130,6 +162,9 @@ export function ClientBillingManager({
   };
 
   const saveBillingMode = (mode: BillingMode, modeReason?: string, modeExpiresAt?: string) => {
+    const pricing = getPricingPayload();
+    if (!pricing) return;
+
     startTransition(async () => {
       try {
         const result = await updateClientBillingMode({
@@ -137,10 +172,7 @@ export function ClientBillingManager({
           billingMode: mode,
           reason: modeReason,
           expiresAt: modeExpiresAt,
-          ...(mode !== BillingMode.STRIPE &&
-          engagementType === EngagementType.SUPPORT_BLOCK
-            ? { planType: plan }
-            : {}),
+          ...pricing,
         });
 
         if ("error" in result && result.error) {
@@ -243,6 +275,44 @@ export function ClientBillingManager({
           </p>
         </div>
 
+        <div className="grid grid-cols-1 gap-4 border-t border-slate-200 pt-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="weekly-hours">Weekly reserved hours</Label>
+            <Input
+              id="weekly-hours"
+              type="number"
+              min={1}
+              step="0.25"
+              value={weeklyHoursInput}
+              onChange={(event) => setWeeklyHoursInput(event.target.value)}
+              disabled={isPending || isCheckoutLoading}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="hourly-rate">Hourly rate (USD)</Label>
+            <Input
+              id="hourly-rate"
+              type="number"
+              min={1}
+              step="0.01"
+              value={hourlyRateInput}
+              onChange={(event) => setHourlyRateInput(event.target.value)}
+              disabled={isPending || isCheckoutLoading}
+            />
+          </div>
+          <div className="sm:col-span-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+            Monthly prepaid preview:{" "}
+            <span className="font-semibold">
+              {monthlyPreview == null
+                ? "Set hours and rate"
+                : new Intl.NumberFormat("en-US", {
+                    style: "currency",
+                    currency: "USD",
+                  }).format(monthlyPreview / 100)}
+            </span>
+          </div>
+        </div>
+
         <div className="space-y-3 border-t border-slate-200 pt-4">
           <div className="space-y-2">
             <Label htmlFor="billing-mode">Change billing mode</Label>
@@ -322,26 +392,6 @@ export function ClientBillingManager({
 
       {isStripeAuthoritative ? (
         <>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Support Block / Plan</label>
-            <Select
-              value={plan}
-              onValueChange={(v) => setPlan(v as SupportPlanType)}
-              disabled={checkoutLocked || isCheckoutLoading || isPending}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SUPPORT_PLANS.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>
-                    {p.label} ({p.weeklyHours} hrs/wk)
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           {!checkoutLocked ? (
             <>
               <Button
@@ -366,7 +416,9 @@ export function ClientBillingManager({
                 <span className="mr-2 h-2 w-2 rounded-full bg-green-500" />
                 {billing.statusLabel}
               </p>
-              <p className="mt-1 text-xs text-green-600">Plan: {currentPlan}</p>
+              <p className="mt-1 text-xs text-green-600">
+                Reserved: {weeklyHoursInput || "0"} hrs/week at ${hourlyRateInput || "0"}/hr
+              </p>
               <p className="mt-2 text-xs text-green-700/80">{billing.description}</p>
             </div>
           )}
@@ -415,34 +467,16 @@ export function ClientBillingManager({
                 </p>
               )}
               <p className="text-muted-foreground">
-                Plan on file: {currentPlan}. Stripe fields are preserved but not authoritative
-                while {nonStripeModeLabel.toLowerCase()} is active.
+                Reserved capacity on file: {weeklyHoursInput || "0"} hrs/week at $
+                {hourlyRateInput || "0"}/hr. Stripe fields are preserved but not
+                authoritative while {nonStripeModeLabel.toLowerCase()} is active.
               </p>
             </div>
           )}
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Support Block / Plan</label>
-            <Select
-              value={plan}
-              onValueChange={(v) => setPlan(v as SupportPlanType)}
-              disabled={isPending}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SUPPORT_PLANS.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>
-                    {p.label} ({p.weeklyHours} hrs/wk)
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Sets weekly reserved hours for capacity tracking (Demo, Manual, or Comped).
-            </p>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Weekly hours and hourly rate still control reserved capacity in non-Stripe modes.
+          </p>
 
           <Button className="w-full" variant="outline" disabled>
             <CreditCard className="mr-2 h-4 w-4" />

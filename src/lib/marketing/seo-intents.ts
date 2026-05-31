@@ -19,16 +19,16 @@ export const PAGE_INTENTS = {
   howItWorks: {
     path: "/how-it-works",
     primaryKeyword: "how solar operations support works",
-    title: "How Solar Operations Support Works | Flexible Support Levels",
+    title: "How Solar Operations Support Works | Flexible Prepaid Hours",
     description:
-      "See how Hargen Energy onboards solar companies, matches support levels to workload, and keeps permit, utility, and customer work moving forward.",
+      "See how Hargen Energy onboards solar companies, matches prepaid weekly hours to workload, and keeps permit, utility, and customer work moving forward.",
   },
   pricing: {
     path: "/pricing",
     primaryKeyword: "solar operations support pricing",
-    title: "Solar Operations Support Pricing | Flexible Support Levels",
+    title: "Solar Operations Support Pricing | Flexible Prepaid Hours",
     description:
-      "Flexible solar operations support levels for residential solar companies. Light, steady, and heavy capacity options with honest overflow handling.",
+      "Flexible prepaid weekly solar operations support for residential solar companies. Choose custom weekly hours with honest overflow handling.",
   },
   about: {
     path: "/about",

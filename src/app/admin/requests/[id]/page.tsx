@@ -239,10 +239,10 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
                   </div>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Preferred Support Level</Label>
+                  <Label className="text-muted-foreground">Prepaid Weekly Hours</Label>
                   <div className="mt-1 flex items-center gap-2">
                     <Clock className="h-4 w-4 text-primary" />
-                    <span className="font-medium">{request.client.planType} Support</span>
+                    <span className="font-medium">{request.client.weeklyHours} hrs/week</span>
                   </div>
                 </div>
               </div>

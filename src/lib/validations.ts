@@ -19,7 +19,7 @@ const trimmedString = z.string().trim();
 
 const phoneCharsRegex = /^[\d\s+().-]{7,40}$/;
 
-export const requestHelpSchema = z.object({
+const requestHelpSchemaBase = z.object({
   companyName: trimmedString
     .min(1, "Company name is required")
     .max(200, "Company name must be at most 200 characters."),
@@ -56,7 +56,12 @@ export const requestHelpSchema = z.object({
   bottleneck: trimmedString
     .min(1, "Please describe your current bottleneck")
     .max(8000, "Description must be at most 8000 characters."),
-  plan: z.enum(["light", "core", "priority", "not-sure", "request-based"]),
+  plan: z.enum(["hours-target", "not-sure", "request-based"]),
+  desiredWeeklyHours: z
+    .number()
+    .min(1, "Weekly hours must be at least 1.")
+    .max(80, "Weekly hours must be at most 80.")
+    .optional(),
   urgency: z.enum(["normal", "this-week", "urgent", "ongoing"]),
   tools: trimmedString
     .max(4000, "Tools field must be at most 4000 characters.")
@@ -68,9 +73,19 @@ export const requestHelpSchema = z.object({
   websiteUrlHoneypot: z.string().max(512).optional(),
 });
 
+export const requestHelpSchema = requestHelpSchemaBase.superRefine((data, ctx) => {
+  if (data.plan === "hours-target" && !data.desiredWeeklyHours) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Please enter your target weekly hours.",
+      path: ["desiredWeeklyHours"],
+    });
+  }
+});
+
 export type RequestHelpInput = z.infer<typeof requestHelpSchema>;
 
-export const requestHelpStep1Schema = requestHelpSchema.pick({
+export const requestHelpStep1Schema = requestHelpSchemaBase.pick({
   companyName: true,
   name: true,
   email: true,

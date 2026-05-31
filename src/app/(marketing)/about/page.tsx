@@ -76,7 +76,7 @@ export default function AboutPage() {
               <ul className="mt-3 space-y-2.5 text-sm text-stone-600">
                 {[
                   "Solar operations desk for contractors",
-                  "Flexible operations support levels",
+                  "Flexible prepaid weekly hours",
                   "US-based work on your systems and tools",
                 ].map((line) => (
                   <li key={line} className="flex items-start gap-2.5">

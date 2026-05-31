@@ -47,12 +47,6 @@ export type IntakeEmailPayload = {
 
 export function mapIntakePlanType(plan: string): PlanType | null {
   switch (plan) {
-    case "light":
-      return PlanType.LIGHT;
-    case "core":
-      return PlanType.CORE;
-    case "priority":
-      return PlanType.PRIORITY;
     default:
       return null;
   }
@@ -143,6 +137,7 @@ export async function persistPublicIntake(
     plan,
     urgency,
     takeOffPlate,
+    desiredWeeklyHours,
     resolvedTasks,
   } = data;
 
@@ -177,6 +172,11 @@ export async function persistPublicIntake(
                   planType: mappedPlanType,
                   weeklyHours: getWeeklyHoursForPlanType(mappedPlanType),
                 }
+              : desiredWeeklyHours
+                ? {
+                    planType: PlanType.CUSTOM,
+                    weeklyHours: desiredWeeklyHours,
+                  }
               : {}),
           },
         })
@@ -196,6 +196,11 @@ export async function persistPublicIntake(
                     planType: mappedPlanType,
                     weeklyHours: getWeeklyHoursForPlanType(mappedPlanType),
                   }
+                : desiredWeeklyHours
+                  ? {
+                      planType: PlanType.CUSTOM,
+                      weeklyHours: desiredWeeklyHours,
+                    }
                 : {}),
             },
           })

@@ -3,8 +3,6 @@ import { ChevronRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PRIMARY_CTA } from "@/lib/marketing/constants";
-import { supportPlans } from "@/lib/marketing/plans";
-import { SupportPlanBlocks } from "@/components/marketing/SupportPlanBlocks";
 import {
   marketingAmberCta,
   marketingBandWarm,
@@ -25,12 +23,14 @@ export function HomePricingTeaser() {
           <h2 className={marketingH2}>Flexible operations support based on your workload.</h2>
           <p className={cn(marketingLead, "mt-3")}>
             Not every solar company needs another full-time hire. Hargen Energy offers
-            flexible support levels based on how much project follow-up, coordination, and
-            cleanup your team needs.
+            prepaid weekly hours based on how much project follow-up, coordination, and
+            cleanup your team needs right now.
           </p>
         </div>
-
-        <SupportPlanBlocks plans={supportPlans} className="mb-8" />
+        <div className="mb-8 rounded-xl border border-stone-200 bg-white p-5 text-sm text-stone-700">
+          Start with the hours you need today, then increase or decrease over time. Overflow
+          can be approved case-by-case and invoiced separately.
+        </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
           <Link

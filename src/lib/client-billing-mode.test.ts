@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { BillingMode, PlanType } from "@/generated/prisma/client";
+import { BillingMode } from "@/generated/prisma/client";
 import { validateClientBillingModeUpdate } from "@/lib/client-billing-mode";
 
 const futureDate = () => {
@@ -9,55 +9,60 @@ const futureDate = () => {
 };
 
 describe("validateClientBillingModeUpdate", () => {
-  it("ignores planType when returning to Stripe", () => {
+  it("accepts weekly hours/rate when returning to Stripe", () => {
     const result = validateClientBillingModeUpdate(
       {
         clientId: "c1",
         billingMode: BillingMode.STRIPE,
-        planType: "LIGHT",
+        weeklyHours: 5,
+        hourlyRateCents: 9000,
       },
       { requiresSupportBlockPlan: true },
     );
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.data.planType).toBeUndefined();
+      expect(result.data.weeklyHours).toBe(5);
+      expect(result.data.hourlyRateCents).toBe(9000);
     }
   });
 
-  it("requires planType for non-Stripe Support Block saves", () => {
+  it("requires weeklyHours for non-Stripe Support Block saves", () => {
     const result = validateClientBillingModeUpdate(
       {
         clientId: "c1",
         billingMode: BillingMode.DEMO,
         reason: "Demo account",
         expiresAt: futureDate(),
+        hourlyRateCents: 9000,
       },
       { requiresSupportBlockPlan: true },
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toContain("Support Block plan is required");
+      expect(result.error).toContain("Weekly reserved hours");
     }
   });
 
-  it("accepts demo mode with planType when Support Block plan required", () => {
+  it("accepts demo mode with pricing inputs for Support Block", () => {
     const result = validateClientBillingModeUpdate(
       {
         clientId: "c1",
         billingMode: BillingMode.DEMO,
         reason: "Demo account",
         expiresAt: futureDate(),
-        planType: "LIGHT",
+        weeklyHours: 5,
+        hourlyRateCents: 8500,
       },
       { requiresSupportBlockPlan: true },
     );
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.data.planType).toBe(PlanType.LIGHT);
+      expect(result.data.weeklyHours).toBe(5);
+      expect(result.data.hourlyRateCents).toBe(8500);
     }
   });
 
-  it("does not require planType when Support Block plan not required", () => {
+  it("does not require pricing inputs when Support Block plan not required", () => {
     const result = validateClientBillingModeUpdate({
       clientId: "c1",
       billingMode: BillingMode.MANUAL,
@@ -65,7 +70,8 @@ describe("validateClientBillingModeUpdate", () => {
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.data.planType).toBeUndefined();
+      expect(result.data.weeklyHours).toBeUndefined();
+      expect(result.data.hourlyRateCents).toBeUndefined();
     }
   });
 });

@@ -1,8 +1,7 @@
 import { format } from "date-fns";
 
-import { BillingMode, PlanType } from "@/generated/prisma/client";
+import { BillingMode } from "@/generated/prisma/client";
 import type { ClientBillingReadiness } from "@/lib/client-billing-readiness";
-import { parseSupportPlanType } from "@/lib/support-plan-hours";
 
 const BILLING_MODE_SET = new Set<string>([
   BillingMode.STRIPE,
@@ -16,7 +15,8 @@ export type UpdateClientBillingModeInput = {
   billingMode: string;
   reason?: string | null;
   expiresAt?: string | null;
-  planType?: string | null;
+  weeklyHours?: number | null;
+  hourlyRateCents?: number | null;
 };
 
 export type ValidateClientBillingModeOptions = {
@@ -27,7 +27,8 @@ export type ValidatedBillingModeUpdate = {
   billingMode: BillingMode;
   billingOverrideReason: string | null;
   billingOverrideExpiresAt: Date | null;
-  planType?: PlanType;
+  weeklyHours?: number;
+  hourlyRateCents?: number;
 };
 
 function parseFutureExpiration(value?: string | null): Date | null | "invalid" | "past" {
@@ -60,6 +61,33 @@ export function validateClientBillingModeUpdate(
   }
 
   const billingMode = input.billingMode as BillingMode;
+  let weeklyHours: number | undefined;
+  let hourlyRateCents: number | undefined;
+
+  if (options?.requiresSupportBlockPlan) {
+    if (
+      !Number.isFinite(input.weeklyHours) ||
+      input.weeklyHours == null ||
+      input.weeklyHours <= 0
+    ) {
+      return {
+        ok: false,
+        error: "Weekly reserved hours are required for Support Block clients.",
+      };
+    }
+    if (
+      !Number.isInteger(input.hourlyRateCents) ||
+      input.hourlyRateCents == null ||
+      input.hourlyRateCents <= 0
+    ) {
+      return {
+        ok: false,
+        error: "Hourly rate is required for Support Block clients.",
+      };
+    }
+    weeklyHours = Number(input.weeklyHours);
+    hourlyRateCents = Number(input.hourlyRateCents);
+  }
 
   if (billingMode === BillingMode.STRIPE) {
     return {
@@ -68,20 +96,10 @@ export function validateClientBillingModeUpdate(
         billingMode,
         billingOverrideReason: null,
         billingOverrideExpiresAt: null,
+        weeklyHours,
+        hourlyRateCents,
       },
     };
-  }
-
-  let planType: PlanType | undefined;
-  if (options?.requiresSupportBlockPlan) {
-    const parsed = parseSupportPlanType(input.planType);
-    if (!parsed) {
-      return {
-        ok: false,
-        error: "Support Block plan is required (Light, Core, or Priority).",
-      };
-    }
-    planType = parsed;
   }
 
   const reason = input.reason?.trim() ?? "";
@@ -111,7 +129,8 @@ export function validateClientBillingModeUpdate(
         billingMode,
         billingOverrideReason: reason,
         billingOverrideExpiresAt: expiration,
-        planType,
+        weeklyHours,
+        hourlyRateCents,
       },
     };
   }
@@ -129,7 +148,8 @@ export function validateClientBillingModeUpdate(
       billingMode,
       billingOverrideReason: reason,
       billingOverrideExpiresAt: expiration,
-      planType,
+      weeklyHours,
+      hourlyRateCents,
     },
   };
 }

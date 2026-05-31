@@ -330,7 +330,8 @@ export function BillingCard({
               billingOverrideCreatedById={client.billingOverrideCreatedById}
               billingOverrideCreatedByName={client.billingOverrideCreatedBy?.name}
               billingOverrideCreatedByEmail={client.billingOverrideCreatedBy?.email}
-              currentPlan={client.planType}
+              weeklyHours={client.weeklyHours}
+              hourlyRateCents={client.hourlyRateCents}
               subscriptionStatus={client.subscriptionStatus}
               stripeCustomerId={client.stripeCustomerId}
               stripeSubscriptionId={client.stripeSubscriptionId}

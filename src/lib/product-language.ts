@@ -212,7 +212,7 @@ export const FORM_COPY = {
       "If we could move one thing forward this week, what would it be?",
     tools: "Current tools (CRM, proposal software, etc.)",
     toolsPlaceholder: "e.g. Aurora, Solo, HubSpot, Sighten...",
-    plan: "Preferred support level",
+    plan: "Preferred billing approach",
     urgency: "Urgency",
     continue: "Continue",
     back: "Back",
@@ -230,7 +230,7 @@ export const FORM_COPY = {
       },
       review: {
         title: "Review & alignment",
-        body: "We'll reach out within 1 business day to discuss your bottleneck, scope, and support level.",
+        body: "We'll reach out within 1 business day to discuss your bottleneck, scope, and weekly prepaid hours.",
       },
       activation: {
         title: "Activation",

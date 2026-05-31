@@ -62,5 +62,5 @@ export const supportPlans: SupportPlan[] = [
 
 export const capacityNote = {
   title: "How capacity works",
-  body: "Support levels reserve weekly operations capacity, not unlimited hours. If work exceeds your level, we prioritize what moves revenue and schedules first. Remaining items can roll to the next week or be approved as overflow.",
+  body: "Prepaid blocks reserve weekly operations capacity, not unlimited hours. If work exceeds your reserved hours, we prioritize what moves revenue and schedules first. Remaining items can roll to next week or be approved as overflow.",
 };

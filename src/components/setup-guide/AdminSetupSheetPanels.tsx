@@ -17,7 +17,6 @@ import {
   EngagementType,
 } from "@/generated/prisma/client";
 import type { ServiceModelTypeValue } from "@/lib/client-service-model";
-import { ClientPlanType } from "@/lib/billing-options";
 import { BillingMode } from "@/generated/prisma/client";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { cn, safeExternalHref } from "@/lib/utils";
@@ -62,6 +61,8 @@ export type AdminSetupSheetPanelsProps = {
     agreementUrl?: string | null;
     agreementNotes?: string | null;
     agreementOverrideReason?: string | null;
+    weeklyHours: number;
+    hourlyRateCents: number | null;
     approvedWorkTaskCount: number;
     users: { id: string; email: string; name: string | null }[];
   };
@@ -159,7 +160,8 @@ export function AdminSetupSheetPanels({
             billingOverrideCreatedById={client.billingOverrideCreatedById}
             billingOverrideCreatedByName={client.billingOverrideCreatedByName}
             billingOverrideCreatedByEmail={client.billingOverrideCreatedByEmail}
-            currentPlan={client.planType as ClientPlanType}
+            weeklyHours={client.weeklyHours}
+            hourlyRateCents={client.hourlyRateCents}
             subscriptionStatus={client.subscriptionStatus ?? null}
             stripeCustomerId={client.stripeCustomerId ?? null}
             stripeSubscriptionId={client.stripeSubscriptionId ?? null}

@@ -37,6 +37,7 @@ export function OverflowPrioritizationForm({ request }: OverflowPrioritizationFo
   );
   const [sendOverflowEmail, setSendOverflowEmail] = useState(false);
   const [sendDeferredEmail, setSendDeferredEmail] = useState(false);
+  const [sendOverageInvoice, setSendOverageInvoice] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -50,6 +51,8 @@ export function OverflowPrioritizationForm({ request }: OverflowPrioritizationFo
       priorityRank: parseInt(formData.get("priorityRank") as string) || null,
       sendOverflowEmail,
       sendDeferredEmail,
+      sendOverageInvoice,
+      overageInvoiceMinutes: parseInt(formData.get("overageInvoiceMinutes") as string) || null,
     };
 
     const result = await updateRequest(request.id, data);
@@ -60,6 +63,7 @@ export function OverflowPrioritizationForm({ request }: OverflowPrioritizationFo
       }
       setSendOverflowEmail(false);
       setSendDeferredEmail(false);
+      setSendOverageInvoice(false);
       router.refresh();
     } else {
       alert(result.error || "Failed to update overflow status.");
@@ -125,6 +129,18 @@ export function OverflowPrioritizationForm({ request }: OverflowPrioritizationFo
         </div>
       </div>
 
+      <div className="space-y-2">
+        <Label htmlFor="overageInvoiceMinutes">Overage Minutes To Invoice (Optional)</Label>
+        <Input
+          id="overageInvoiceMinutes"
+          name="overageInvoiceMinutes"
+          type="number"
+          min={1}
+          placeholder="e.g. 120"
+          disabled={overflowStatus !== OVERFLOW_STATUSES.APPROVED}
+        />
+      </div>
+
       <div className="space-y-3">
         <div className="flex items-center space-x-2 p-3 bg-orange-50 rounded-lg border border-orange-100">
           <Checkbox 
@@ -173,6 +189,29 @@ export function OverflowPrioritizationForm({ request }: OverflowPrioritizationFo
             </Label>
             <p className="text-[10px] text-muted-foreground">
               Notifies client that work has been deferred.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg border border-green-100">
+          <Checkbox
+            id="sendOverageInvoice"
+            checked={sendOverageInvoice}
+            onCheckedChange={(checked) => setSendOverageInvoice(!!checked)}
+            disabled={overflowStatus !== OVERFLOW_STATUSES.APPROVED}
+          />
+          <div className="grid gap-1.5 leading-none">
+            <Label
+              htmlFor="sendOverageInvoice"
+              className={cn(
+                "cursor-pointer",
+                overflowStatus !== OVERFLOW_STATUSES.APPROVED && "opacity-50"
+              )}
+            >
+              Create and send overage invoice now
+            </Label>
+            <p className="text-[10px] text-muted-foreground">
+              Uses the client hourly rate and sends a Stripe invoice after approval.
             </p>
           </div>
         </div>

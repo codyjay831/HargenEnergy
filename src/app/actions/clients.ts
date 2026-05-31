@@ -40,7 +40,6 @@ import {
 } from "@/lib/revalidate-paths";
 import { resolveStaffRole } from "@/lib/permissions";
 import { syncBlockWorkItemsForClient } from "@/lib/block-work";
-import { getWeeklyHoursForPlanType } from "@/lib/support-plan-hours";
 import type { Prisma } from "@/generated/prisma/client";
 import { getClientActivationReadiness } from "@/lib/client-activation-readiness";
 
@@ -49,7 +48,8 @@ export async function updateClientBillingMode(data: {
   billingMode: string;
   reason?: string | null;
   expiresAt?: string | null;
-  planType?: string | null;
+  weeklyHours?: number | null;
+  hourlyRateCents?: number | null;
 }) {
   const session = await requireStaff("billing.manage");
 
@@ -68,17 +68,23 @@ export async function updateClientBillingMode(data: {
     return { error: validated.error };
   }
 
-  const { billingMode, billingOverrideReason, billingOverrideExpiresAt, planType } =
+  const {
+    billingMode,
+    billingOverrideReason,
+    billingOverrideExpiresAt,
+    weeklyHours,
+    hourlyRateCents,
+  } =
     validated.data;
   const now = new Date();
 
   const planCapacityUpdate =
     requiresSupportBlockPlan &&
-    billingMode !== BillingMode.STRIPE &&
-    planType != null
+    weeklyHours != null &&
+    hourlyRateCents != null
       ? {
-          planType,
-          weeklyHours: getWeeklyHoursForPlanType(planType),
+          weeklyHours,
+          hourlyRateCents,
         }
       : {};
 
@@ -121,6 +127,7 @@ export async function updateClientBillingMode(data: {
           billingOverrideExpiresAt: client.billingOverrideExpiresAt?.toISOString() ?? null,
           planType: client.planType,
           weeklyHours: client.weeklyHours,
+          hourlyRateCents: client.hourlyRateCents,
         },
         after: {
           billingMode: updated.billingMode,
@@ -128,6 +135,7 @@ export async function updateClientBillingMode(data: {
           billingOverrideExpiresAt: updated.billingOverrideExpiresAt?.toISOString() ?? null,
           planType: updated.planType,
           weeklyHours: updated.weeklyHours,
+          hourlyRateCents: updated.hourlyRateCents,
         },
       },
     });

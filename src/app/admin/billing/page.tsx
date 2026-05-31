@@ -97,7 +97,7 @@ export default async function AdminBilling() {
 
       {clients.length === 0 ? (
         <div className="bg-white border rounded-lg p-12 text-center text-muted-foreground">
-          No Support Block clients yet. Clients appear here once they are on a Support Block plan.
+          No Support Block clients yet. Clients appear here once they are on prepaid weekly hours.
         </div>
       ) : (
         <div className="bg-white border rounded-lg overflow-hidden">
@@ -105,7 +105,7 @@ export default async function AdminBilling() {
             <TableHeader>
               <TableRow>
                 <TableHead>Company</TableHead>
-                <TableHead>Support Block</TableHead>
+                <TableHead>Prepaid Block</TableHead>
                 <TableHead>Usage (This Week)</TableHead>
                 <TableHead>Overflow</TableHead>
                 <TableHead>Status</TableHead>
@@ -122,7 +122,14 @@ export default async function AdminBilling() {
                   <TableRow key={client.id}>
                     <TableCell className="font-medium">{client.companyName}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{client.planType}</Badge>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="outline">{client.weeklyHours} hrs/week</Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {client.hourlyRateCents
+                            ? `$${(client.hourlyRateCents / 100).toFixed(2)}/hr`
+                            : "Rate not set"}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1">

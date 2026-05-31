@@ -11,7 +11,7 @@ Click-by-click QA checklist for the first Support Block paying client. Run this 
 | Step | Action | Expected |
 |------|--------|----------|
 | 0.1 | Open `GET /api/health` | `{ ok: true, checks.db.ok: true }` |
-| 0.2 | Confirm env vars: `DATABASE_URL`, `AUTH_SECRET`, `APP_URL`, `NEXT_PUBLIC_APP_URL`, Stripe test keys + 3 price IDs, `STRIPE_WEBHOOK_SECRET`, Resend keys | Build/deploy succeeds |
+| 0.2 | Confirm env vars: `DATABASE_URL`, `AUTH_SECRET`, `APP_URL`, `NEXT_PUBLIC_APP_URL`, Stripe test keys, `STRIPE_WEBHOOK_SECRET`, optional `STRIPE_SUPPORT_PRODUCT_ID`, Resend keys | Build/deploy succeeds |
 | 0.2b | After deploy: confirm migration `20260531023000_add_fixed_fee_payment_fields` applied (`prisma migrate deploy` at build) | Fixed-fee payment fields exist on `SupportRequest` |
 | 0.3 | Stripe CLI or dashboard webhook pointed at `{APP_URL}/api/stripe/webhook` | Webhook receives events |
 | 0.4 | Admin signed in at `/login` | Admin dashboard loads |
@@ -38,7 +38,7 @@ Click-by-click QA checklist for the first Support Block paying client. Run this 
 |------|--------|----------|
 | 2.1 | On prospect page: record fit decision (**Good fit**) | Saved |
 | 2.2 | **Engagement & approved work**: enable **Support Block** only; select approved work tasks; Save | Scope saved |
-| 2.3 | Set plan (Light / Core / Priority) and weekly hours if prompted in client setup | Matches intended block size |
+| 2.3 | Set prepaid weekly hours and hourly rate in client billing setup | Matches intended block size and monthly prepaid amount |
 | 2.4 | Click **Approve as Client** | `Client.status` → ACTIVE |
 | 2.5 | Confirm page switches to **Active client** view with setup checklist | Next steps visible (scope, agreement, billing, invite) |
 

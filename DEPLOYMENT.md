@@ -25,7 +25,7 @@ Ensure all required environment variables are set in your production environment
 ### Required for Stripe
 - `STRIPE_SECRET_KEY`: Your Stripe secret key (Live or Test).
 - `STRIPE_WEBHOOK_SECRET`: Your Stripe webhook signing secret.
-- `STRIPE_LIGHT_PRICE_ID` / `STRIPE_CORE_PRICE_ID` / `STRIPE_PRIORITY_PRICE_ID`: Price IDs for support blocks.
+- `STRIPE_SUPPORT_PRODUCT_ID`: Optional reusable product for prepaid support blocks. If omitted, the app creates inline checkout product data dynamically.
 
 ### Required for File Uploads (Vercel Blob)
 - `BLOB_READ_WRITE_TOKEN`: Read/write token for your Vercel Blob store (server-only). Auto-injected when the store is linked to the project on Vercel; copy into local `.env` for development.
@@ -95,11 +95,14 @@ Signed-in admins can change their password under `/admin/account`. The form requ
         - `customer.subscription.created`
         - `customer.subscription.updated`
         - `customer.subscription.deleted`
+        - `invoice.paid`
         - `invoice.payment_failed`
     - Copy the Webhook Signing Secret to `STRIPE_WEBHOOK_SECRET`.
 
-2. **Price IDs**:
-    - Ensure the Price IDs in your environment variables match the products you've created in Stripe (Subscriptions, not one-time).
+2. **Prepaid support block setup**:
+    - Configure weekly reserved hours and hourly rate per client in admin billing.
+    - Stripe monthly prepaid subscription amounts are calculated per client from those values.
+    - Optional: set `STRIPE_SUPPORT_PRODUCT_ID` to reuse a single Stripe product for prepaid block subscriptions.
 
 ## 4. Resend Configuration
 

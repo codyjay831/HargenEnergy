@@ -124,7 +124,7 @@ export default async function PortalDashboard() {
     ? "/portal/account#support-setup"
     : "/portal/requests/new";
   const primaryLabel = paymentBlocked
-    ? "Start subscription"
+    ? "Start billing"
     : PRODUCT_LANGUAGE.workRequest.action;
   const primaryDisabled = setupBlocked && !paymentBlocked && !agreementBlocked;
 
@@ -214,7 +214,7 @@ export default async function PortalDashboard() {
                   href="/portal/account#support-setup"
                   className="inline-block text-sm font-medium underline underline-offset-2"
                 >
-                  Start subscription
+                  Start billing
                 </Link>
               )}
             </CardContent>
@@ -232,7 +232,7 @@ export default async function PortalDashboard() {
           <p className="text-muted-foreground">
             {client.companyName} •{" "}
             {isSupportBlock
-              ? `${client.planType} ${PRODUCT_LANGUAGE.engagement.supportBlock}`
+              ? `${client.weeklyHours} hrs/week ${PRODUCT_LANGUAGE.engagement.supportBlock}`
               : PRODUCT_LANGUAGE.engagement.requestBased}
           </p>
         </div>
@@ -292,7 +292,7 @@ export default async function PortalDashboard() {
               className="mt-3 inline-block text-sm font-medium text-amber-900 underline underline-offset-2"
             >
               {paymentBlocked
-                ? "Start subscription"
+                ? "Start billing"
                 : PRODUCT_LANGUAGE.supportSetup.viewSetupLink}
             </Link>
           )}

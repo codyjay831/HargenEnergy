@@ -47,6 +47,10 @@ enum BillingMode {
   DEMO
 }
 
+enum BillingCycle {
+  MONTHLY
+}
+
 enum Urgency {
   NORMAL
   THIS_WEEK
@@ -149,6 +153,14 @@ enum OverflowStatus {
   APPROVED
   DECLINED
   DEFERRED
+}
+
+enum OverageInvoiceStatus {
+  NOT_INVOICED
+  DRAFT
+  OPEN
+  PAID
+  VOID
 }
 
 enum AuthorType {
@@ -337,6 +349,8 @@ model Client {
   engagementType     EngagementType   @default(SUPPORT_BLOCK)
   planType           PlanType         @default(LIGHT)
   weeklyHours        Float            @default(0)
+  hourlyRateCents    Int?
+  billingCycle       BillingCycle     @default(MONTHLY)
   billingMode        BillingMode      @default(STRIPE)
   billingOverrideReason String?
   billingOverrideExpiresAt DateTime?
@@ -345,6 +359,7 @@ model Client {
   billingOverrideCreatedBy User? @relation("ClientBillingOverrideCreatedBy", fields: [billingOverrideCreatedById], references: [id], onDelete: SetNull)
   stripeCustomerId   String?
   stripeSubscriptionId String?
+  stripePrepaidPriceId String?
   subscriptionStatus String?
   subscriptionCurrentPeriodEnd DateTime?
   logoUrl            String?
@@ -454,6 +469,11 @@ model SupportRequest {
   flatPriceCents      Int?
   paymentStatus       RequestPaymentStatus @default(NOT_REQUIRED)
   stripeCheckoutSessionId String?
+  overageMinutesInvoiced Int @default(0)
+  overageRateCentsSnapshot Int?
+  overageInvoiceStatus OverageInvoiceStatus @default(NOT_INVOICED)
+  stripeOverageInvoiceId String?
+  overageInvoicedAt DateTime?
   requestedWorkTasks  SupportRequestWorkTask[]
   timeEntries         TimeEntry[]
   attachments         Attachment[]

@@ -3,9 +3,7 @@
  */
 
 const INTAKE_PLAN_LABELS: Record<string, string> = {
-  light: "Light Operations Support",
-  core: "Steady Operations Support",
-  priority: "Heavy Operations Support",
+  "hours-target": "Prepaid weekly hours",
   "request-based": "Request-Based Work",
   "one-time": "One-time / request-based",
   "not-sure": "Not sure yet",

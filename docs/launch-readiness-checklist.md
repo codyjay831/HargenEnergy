@@ -70,7 +70,7 @@ Possible with: DB, Resend, honeypot intake, admin for discovery queue. Stripe/po
 - [ ] ⬜ `APP_URL` and `NEXT_PUBLIC_APP_URL` match production domain (email links, Stripe redirects)
 - [ ] ⬜ `ADMIN_SETUP_TOKEN` set for first deploy only; removed after first admin created
 - [ ] ⬜ Resend: `RESEND_API_KEY`, verified `RESEND_FROM_EMAIL`, `SUPPORT_NOTIFICATION_EMAIL`
-- [ ] ⬜ Stripe live: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, three price IDs
+- [ ] ⬜ Stripe live: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, optional `STRIPE_SUPPORT_PRODUCT_ID`
 - [ ] ⬜ Vercel Blob: store linked; `BLOB_READ_WRITE_TOKEN` locally for dev
 - [ ] 🔴 ⬜ **Upstash Redis:** `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (see §5.1)
 

@@ -162,6 +162,8 @@ export function ActiveClientView({
           currentTools: client.currentTools,
           status: client.status,
           planType: client.planType,
+          weeklyHours: client.weeklyHours,
+          hourlyRateCents: client.hourlyRateCents,
           engagementType: client.engagementType,
           serviceModels:
             client.serviceModels?.filter((m) => m.isActive).map((m) => m.modelType) ?? [],

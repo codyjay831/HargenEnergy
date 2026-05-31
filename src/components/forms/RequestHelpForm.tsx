@@ -53,6 +53,7 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [selectedSupport, setSelectedSupport] = useState<string[]>([]);
   const [plan, setPlan] = useState<RequestHelpInput["plan"]>("not-sure");
+  const [desiredWeeklyHours, setDesiredWeeklyHours] = useState("");
   const [urgency, setUrgency] = useState<RequestHelpInput["urgency"]>("normal");
 
   const [step1Values, setStep1Values] = useState({
@@ -137,6 +138,10 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
       requestedWorkTaskIds: selectedSupport,
       bottleneck: step1Values.bottleneck,
       plan,
+      desiredWeeklyHours:
+        plan === "hours-target" && desiredWeeklyHours
+          ? Number(desiredWeeklyHours)
+          : undefined,
       urgency,
       tools: (formData.get("tools") as string) || undefined,
       takeOffPlate: (formData.get("takeOffPlate") as string) || undefined,
@@ -208,6 +213,7 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
     setStep1Values({ companyName: "", name: "", email: "", phone: "", bottleneck: "" });
     setSelectedSupport([]);
     setPlan("not-sure");
+    setDesiredWeeklyHours("");
     setUrgency("normal");
     setFieldErrors({});
     setError(null);
@@ -641,16 +647,32 @@ export function RequestHelpForm({ catalog }: RequestHelpFormProps) {
               <Label htmlFor="plan">{COPY.plan}</Label>
               <Select value={plan} onValueChange={(v) => setPlan(v as RequestHelpInput["plan"])}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a support level" />
+                  <SelectValue placeholder="Select billing approach" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="light">{formatIntakePlanLabel("light")}</SelectItem>
-                  <SelectItem value="core">{formatIntakePlanLabel("core")}</SelectItem>
-                  <SelectItem value="priority">{formatIntakePlanLabel("priority")}</SelectItem>
+                  <SelectItem value="hours-target">
+                    {formatIntakePlanLabel("hours-target")}
+                  </SelectItem>
                   <SelectItem value="not-sure">Not sure yet</SelectItem>
                   <SelectItem value="request-based">Request-based work</SelectItem>
                 </SelectContent>
               </Select>
+              {plan === "hours-target" && (
+                <div className="mt-3 space-y-2">
+                  <Label htmlFor="desiredWeeklyHours">Target weekly hours</Label>
+                  <Input
+                    id="desiredWeeklyHours"
+                    type="number"
+                    min={1}
+                    step={1}
+                    placeholder="e.g. 5"
+                    value={desiredWeeklyHours}
+                    onChange={(event) => setDesiredWeeklyHours(event.target.value)}
+                  />
+                  <FieldError message={fieldErrors.desiredWeeklyHours} />
+                </div>
+              )}
+              <FieldError message={fieldErrors.plan} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="urgency">{COPY.urgency}</Label>

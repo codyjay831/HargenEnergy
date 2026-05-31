@@ -157,18 +157,19 @@ describe("persistPublicIntake", () => {
     expect(result.emailPayload.subjectPrefix).toBe("[Re-intake]");
   });
 
-  it("maps light plan to PlanType on create", async () => {
+  it("applies custom weekly hours when hours-target is selected", async () => {
     const { prisma } = createMockPrisma();
 
     await persistPublicIntake(asIntakePrisma(prisma), {
       ...baseInput,
-      plan: "light",
+      plan: "hours-target",
+      desiredWeeklyHours: 6,
       resolvedTasks,
     });
 
     expect(prisma.client.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ planType: "LIGHT", weeklyHours: 2 }),
+        data: expect.objectContaining({ planType: "CUSTOM", weeklyHours: 6 }),
       }),
     );
   });
@@ -189,9 +190,9 @@ describe("requestHelpSchema honeypot behavior", () => {
 });
 
 describe("mapIntakePlanType", () => {
-  it("maps core and priority", () => {
-    expect(mapIntakePlanType("core")).toBe("CORE");
-    expect(mapIntakePlanType("priority")).toBe("PRIORITY");
+  it("returns null for non-tier intake plans", () => {
+    expect(mapIntakePlanType("hours-target")).toBeNull();
+    expect(mapIntakePlanType("not-sure")).toBeNull();
     expect(mapIntakePlanType("request-based")).toBeNull();
   });
 });

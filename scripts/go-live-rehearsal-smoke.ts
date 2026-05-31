@@ -42,7 +42,6 @@ import {
   getClientServicePaths,
   pickPrimaryEngagementType,
 } from "@/lib/client-service-model";
-import { getWeeklyHoursForPlanType } from "@/lib/support-plan-hours";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000";
 const RUN_ID = Date.now().toString(36);
@@ -78,8 +77,7 @@ async function fetchOk(path: string): Promise<{ ok: boolean; status: number }> {
   try {
     const res = await fetch(`${APP_URL}${path}`, { redirect: "manual" });
     return { ok: res.status >= 200 && res.status < 400, status: res.status };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "fetch failed";
+  } catch {
     return { ok: false, status: 0 };
   }
 }
@@ -249,15 +247,26 @@ async function configureSupportBlockClient(clientId: string, workTaskIds: string
       where: { id: clientId },
       data: {
         engagementType: pickPrimaryEngagementType(["SUPPORT_BLOCK"]),
-        weeklyHours: client.weeklyHours || getWeeklyHoursForPlanType(PlanType.LIGHT),
-        planType: client.planType === PlanType.CUSTOM ? PlanType.LIGHT : client.planType,
+        weeklyHours: client.weeklyHours || 5,
+        hourlyRateCents: client.hourlyRateCents || 8500,
+        planType: client.planType === PlanType.CUSTOM ? PlanType.CUSTOM : client.planType,
       },
     });
   });
 }
 
 function stripeConfigured(): boolean {
-  return envPresent("STRIPE_SECRET_KEY") && envPresent("STRIPE_LIGHT_PRICE_ID");
+  return envPresent("STRIPE_SECRET_KEY");
+}
+
+async function resolveSupportProductId(
+  stripe: Stripe,
+  fallbackName: string,
+): Promise<string> {
+  const envProductId = process.env.STRIPE_SUPPORT_PRODUCT_ID?.trim();
+  if (envProductId) return envProductId;
+  const product = await stripe.products.create({ name: fallbackName });
+  return product.id;
 }
 
 async function simulatePaidSubscription(clientId: string) {
@@ -269,8 +278,8 @@ async function simulatePaidSubscription(clientId: string) {
       stripeSubscriptionId: `sub_smoke_${RUN_ID}`,
       subscriptionStatus: "active",
       subscriptionCurrentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      planType: PlanType.LIGHT,
-      weeklyHours: getWeeklyHoursForPlanType(PlanType.LIGHT),
+      weeklyHours: 5,
+      hourlyRateCents: 8500,
     },
   });
   return { subscriptionId: `sub_smoke_${RUN_ID}` };
@@ -278,7 +287,10 @@ async function simulatePaidSubscription(clientId: string) {
 async function activateStripeSubscription(clientId: string) {
   const client = await prisma.client.findUniqueOrThrow({ where: { id: clientId } });
   const stripe = getStripeClient();
-  const priceId = process.env.STRIPE_LIGHT_PRICE_ID!.trim();
+  const supportProductId = await resolveSupportProductId(
+    stripe,
+    `Smoke prepaid block ${RUN_ID}`,
+  );
 
   let stripeCustomerId = client.stripeCustomerId;
   if (!stripeCustomerId) {
@@ -313,8 +325,17 @@ async function activateStripeSubscription(clientId: string) {
 
   const subscription = (await stripe.subscriptions.create({
     customer: stripeCustomerId,
-    items: [{ price: priceId }],
-    metadata: { clientId, planType: PlanType.LIGHT },
+    items: [
+      {
+        price_data: {
+          currency: "usd",
+          unit_amount: Math.round((client.weeklyHours || 5) * (client.hourlyRateCents || 8500) * (52 / 12)),
+          recurring: { interval: "month" },
+          product: supportProductId,
+        },
+      },
+    ],
+    metadata: { clientId, weeklyHours: String(client.weeklyHours || 5) },
     default_payment_method: paymentMethod.id,
   })) as unknown as Stripe.Subscription & { current_period_end: number };
 
@@ -324,8 +345,8 @@ async function activateStripeSubscription(clientId: string) {
       stripeSubscriptionId: subscription.id,
       subscriptionStatus: subscription.status,
       subscriptionCurrentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      planType: PlanType.LIGHT,
-      weeklyHours: getWeeklyHoursForPlanType(PlanType.LIGHT),
+      weeklyHours: client.weeklyHours || 5,
+      hourlyRateCents: client.hourlyRateCents || 8500,
     },
   });
 
@@ -347,9 +368,6 @@ async function section0Preflight() {
   const missingDb = dbEnv.filter((k) => !envPresent(k));
   const stripeEnv = [
     "STRIPE_SECRET_KEY",
-    "STRIPE_LIGHT_PRICE_ID",
-    "STRIPE_CORE_PRICE_ID",
-    "STRIPE_PRIORITY_PRICE_ID",
     "STRIPE_WEBHOOK_SECRET",
   ];
   const missingStripe = stripeEnv.filter((k) => !envPresent(k));
@@ -402,7 +420,8 @@ async function section1Intake(): Promise<{ clientId: string; requestId: string; 
     website: undefined,
     phone: "555-0100",
     bottleneck: "Smoke test intake",
-    plan: "light",
+    plan: "hours-target",
+    desiredWeeklyHours: 5,
     urgency: "normal",
     requestedWorkTaskIds: [discoveryTask.id],
     normalizedEmail: SMOKE_EMAIL,
@@ -422,7 +441,7 @@ async function section2Approve(clientId: string, workTaskId: string) {
   record("2.1-2.2 scope", true, "Support Block + approved task");
 
   const client = await prisma.client.findUniqueOrThrow({ where: { id: clientId } });
-  record("2.3 plan", client.planType === PlanType.LIGHT, `plan=${client.planType}`);
+  record("2.3 plan", client.weeklyHours > 0, `weeklyHours=${client.weeklyHours}`);
 
   await prisma.client.update({
     where: { id: clientId },
@@ -483,7 +502,10 @@ async function section5Subscription(clientId: string) {
   if (stripeConfigured()) {
     const client = await prisma.client.findUniqueOrThrow({ where: { id: clientId } });
     const stripe = getStripeClient();
-    const priceId = process.env.STRIPE_LIGHT_PRICE_ID!;
+    const supportProductId = await resolveSupportProductId(
+      stripe,
+      `${client.companyName} prepaid block`,
+    );
     let stripeCustomerId = client.stripeCustomerId;
     if (!stripeCustomerId) {
       const customer = await stripe.customers.create({
@@ -499,12 +521,22 @@ async function section5Subscription(clientId: string) {
     }
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
-      line_items: [{ price: priceId, quantity: 1 }],
+      line_items: [
+        {
+          price_data: {
+            currency: "usd",
+            unit_amount: Math.round((client.weeklyHours || 5) * (client.hourlyRateCents || 8500) * (52 / 12)),
+            recurring: { interval: "month" },
+            product: supportProductId,
+          },
+          quantity: 1,
+        },
+      ],
       mode: "subscription",
       success_url: `${APP_URL}/portal/account?checkout=success`,
       cancel_url: `${APP_URL}/portal/account#support-setup`,
-      metadata: { clientId, planType: PlanType.LIGHT },
-      subscription_data: { metadata: { clientId, planType: PlanType.LIGHT } },
+      metadata: { clientId, weeklyHours: String(client.weeklyHours || 5) },
+      subscription_data: { metadata: { clientId, weeklyHours: String(client.weeklyHours || 5) } },
     });
     record("5.2 checkout session", Boolean(checkoutSession.url), checkoutSession.url ? "URL created" : "No URL");
   } else {

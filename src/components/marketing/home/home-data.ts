@@ -100,7 +100,7 @@ export const steps = [
   {
     n: "2",
     title: "We organize the work",
-    desc: "We identify priorities, missing info, and next actions for your support level.",
+    desc: "We identify priorities, missing info, and next actions for your prepaid weekly hours.",
   },
   {
     n: "3",

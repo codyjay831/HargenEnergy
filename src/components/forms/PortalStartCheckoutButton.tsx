@@ -36,7 +36,7 @@ export function PortalStartCheckoutButton() {
         ) : (
           <CreditCard className="h-4 w-4" />
         )}
-        <span className="ml-2">Start subscription</span>
+        <span className="ml-2">Start billing</span>
       </Button>
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>

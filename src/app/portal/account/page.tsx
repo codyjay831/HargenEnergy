@@ -46,7 +46,7 @@ export default async function PortalAccount() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Account Settings</h1>
         <p className="text-muted-foreground">
-          View your company profile and support plan details.
+          View your company profile and prepaid support block details.
         </p>
       </div>
 

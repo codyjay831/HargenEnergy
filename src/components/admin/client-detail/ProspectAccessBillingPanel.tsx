@@ -4,7 +4,6 @@ import { ClientPortalAccessManager } from "@/components/forms/ClientPortalAccess
 import { CreditCard, Mail } from "lucide-react";
 import { format } from "date-fns";
 import { EngagementType, ClientStatus } from "@/generated/prisma/client";
-import type { ClientPlanType } from "@/lib/billing-options";
 
 type ProspectAccessBillingPanelProps = {
   client: {
@@ -20,7 +19,8 @@ type ProspectAccessBillingPanelProps = {
     billingOverrideCreatedById: string | null;
     billingOverrideCreatedByName?: string | null;
     billingOverrideCreatedByEmail?: string | null;
-    planType: ClientPlanType;
+    weeklyHours: number;
+    hourlyRateCents: number | null;
     subscriptionStatus: string | null;
     stripeCustomerId: string | null;
     stripeSubscriptionId: string | null;
@@ -75,7 +75,8 @@ export function ProspectAccessBillingPanel({
                 billingOverrideCreatedById={client.billingOverrideCreatedById}
                 billingOverrideCreatedByName={client.billingOverrideCreatedByName}
                 billingOverrideCreatedByEmail={client.billingOverrideCreatedByEmail}
-                currentPlan={client.planType}
+                weeklyHours={client.weeklyHours}
+                hourlyRateCents={client.hourlyRateCents}
                 subscriptionStatus={client.subscriptionStatus}
                 stripeCustomerId={client.stripeCustomerId}
                 stripeSubscriptionId={client.stripeSubscriptionId}

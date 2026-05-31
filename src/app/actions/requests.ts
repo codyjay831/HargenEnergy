@@ -42,6 +42,7 @@ import {
 } from "@/lib/client-work-eligibility-guard";
 import { resolveWorkLaneForTask } from "@/lib/client-service-model";
 import { logRequestPricingEvent } from "@/lib/request-pricing-events";
+import { createOverageInvoiceDraft, sendOverageInvoice } from "@/app/actions/stripe";
 
 export type DiscoverySubmissionSummary = {
   requestId: string;
@@ -195,6 +196,8 @@ export async function updateRequest(
     sendEmailUpdate?: boolean;
     sendOverflowEmail?: boolean;
     sendDeferredEmail?: boolean;
+    sendOverageInvoice?: boolean;
+    overageInvoiceMinutes?: number | null;
   },
 ) {
   const authResult = await authorizeStaffAction("ops.full");
@@ -214,8 +217,14 @@ export async function updateRequest(
     return { error: "Invalid overflow status." };
   }
 
-  const { sendEmailUpdate, sendOverflowEmail, sendDeferredEmail, ...updateData } =
-    data;
+  const {
+    sendEmailUpdate,
+    sendOverflowEmail,
+    sendDeferredEmail,
+    sendOverageInvoice: shouldSendOverageInvoice,
+    overageInvoiceMinutes,
+    ...updateData
+  } = data;
 
   if (updateData.overflowStatus === OverflowStatus.APPROVED) {
     updateData.overflowApprovedAt = new Date();
@@ -379,6 +388,29 @@ export async function updateRequest(
           success: true,
           request,
           warning: "Update saved, but one or more email notifications failed.",
+        };
+      }
+    }
+
+    if (shouldSendOverageInvoice) {
+      const minutes = Math.round(overageInvoiceMinutes ?? 0);
+      if (!Number.isFinite(minutes) || minutes <= 0) {
+        return { error: "Enter overflow minutes to invoice." };
+      }
+
+      try {
+        const draft = await createOverageInvoiceDraft({
+          requestId: request.id,
+          minutes,
+          note: request.overflowReason ?? request.clientVisibleUpdate ?? undefined,
+        });
+        await sendOverageInvoice(draft.invoiceId);
+      } catch (invoiceError) {
+        console.error("Failed to create/send overage invoice:", invoiceError);
+        return {
+          success: true,
+          request,
+          warning: "Update saved, but overage invoice creation failed.",
         };
       }
     }

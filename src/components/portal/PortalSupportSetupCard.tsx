@@ -96,9 +96,9 @@ export function PortalSupportSetupCard({
             <div className="flex items-center justify-between">
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Current block
+                  Prepaid support block
                 </span>
-                <span className="text-lg font-bold">{setup.planType} Support Block</span>
+                <span className="text-lg font-bold">{setup.weeklyHours} reserved hours/week</span>
               </div>
               <Badge variant={getBillingBadgeVariant(billing)}>
                 {billing.customerStatusLabel}
