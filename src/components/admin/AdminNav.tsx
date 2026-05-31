@@ -35,7 +35,11 @@ const ICONS: Record<AdminNavIconKey, LucideIcon> = {
   account: UserCog,
 };
 
-export function AdminNav() {
+interface AdminNavProps {
+  attentionUnreadCount?: number;
+}
+
+export function AdminNav({ attentionUnreadCount = 0 }: AdminNavProps) {
   const pathname = usePathname();
 
   return (
@@ -46,6 +50,7 @@ export function AdminNav() {
             ? pathname === "/admin"
             : pathname.startsWith(item.href);
         const Icon = ICONS[item.icon];
+        const showBadge = item.icon === "requests" && attentionUnreadCount > 0;
 
         return (
           <Link
@@ -64,7 +69,12 @@ export function AdminNav() {
                 isActive ? "text-slate-700" : "text-slate-400",
               )}
             />
-            {item.name}
+            <span className="flex-1">{item.name}</span>
+            {showBadge && (
+              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                {attentionUnreadCount > 99 ? "99+" : attentionUnreadCount}
+              </span>
+            )}
           </Link>
         );
       })}

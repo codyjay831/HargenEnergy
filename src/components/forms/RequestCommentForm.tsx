@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -13,6 +14,7 @@ interface RequestCommentFormProps {
 }
 
 export function RequestCommentForm({ requestId, onSuccess }: RequestCommentFormProps) {
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [body, setBody] = useState("");
 
@@ -30,6 +32,7 @@ export function RequestCommentForm({ requestId, onSuccess }: RequestCommentFormP
 
       if (result.success) {
         setBody("");
+        router.refresh();
         if (onSuccess) onSuccess();
       } else {
         alert(result.error || "Failed to add comment.");

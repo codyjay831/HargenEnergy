@@ -1,3 +1,5 @@
+import { TERMS_VERSION } from "@/lib/legal-versions";
+
 export const metadata = {
   title: "Terms of Service | Hargen Energy",
 };
@@ -6,7 +8,9 @@ export default function TermsPage() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-12 space-y-6">
       <h1 className="text-3xl font-bold tracking-tight">Terms of Service</h1>
-      <p className="text-sm text-muted-foreground">Last updated: May 2026</p>
+      <p className="text-sm text-muted-foreground">
+        Last updated: {TERMS_VERSION} (Version: {TERMS_VERSION})
+      </p>
       <p>
         Hargen Energy provides business-to-business solar operations support services under
         separate client agreements and scoped statements of work.

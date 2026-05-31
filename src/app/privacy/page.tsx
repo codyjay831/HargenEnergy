@@ -1,3 +1,5 @@
+import { PRIVACY_VERSION } from "@/lib/legal-versions";
+
 export const metadata = {
   title: "Privacy Policy | Hargen Energy",
 };
@@ -6,7 +8,9 @@ export default function PrivacyPage() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-12 space-y-6">
       <h1 className="text-3xl font-bold tracking-tight">Privacy Policy</h1>
-      <p className="text-sm text-muted-foreground">Last updated: May 2026</p>
+      <p className="text-sm text-muted-foreground">
+        Last updated: {PRIVACY_VERSION} (Version: {PRIVACY_VERSION})
+      </p>
       <p>
         Hargen Energy collects business contact and project-support information required to
         operate client support services. We use this information to deliver requested work,

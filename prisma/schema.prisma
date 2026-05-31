@@ -65,6 +65,11 @@ enum RequestStatus {
   CANCELLED
 }
 
+enum AdminNotificationType {
+  CLIENT_COMMENT
+  CLIENT_INFO_RESPONSE
+}
+
 enum SupportRequestKind {
   PROSPECT_INTAKE
   CLIENT_OPS
@@ -112,6 +117,11 @@ enum AgreementStatus {
   SENT
   SIGNED
   WAIVED
+}
+
+enum AgreementType {
+  PORTAL_TERMS
+  PRIVACY
 }
 
 enum HandoffTier {
@@ -280,6 +290,7 @@ model User {
   billingOverridesCreated Client[] @relation("ClientBillingOverrideCreatedBy")
   googleCalendarConnection GoogleCalendarConnection?
   discoverySchedulingLinksCreated DiscoverySchedulingLink[] @relation("DiscoverySchedulingLinkCreator")
+  agreementAcceptances AgreementAcceptance[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -358,10 +369,29 @@ model Client {
   serviceModels      ClientServiceModel[]
   discoverySchedulingLinks DiscoverySchedulingLink[]
   discoveryAppointments DiscoveryAppointment[]
+  adminNotifications AdminNotification[]
+  agreementAcceptances AgreementAcceptance[]
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
   @@index([billingMode])
+}
+
+model AgreementAcceptance {
+  id                String        @id @default(cuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId          String?
+  client            Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  type              AgreementType
+  version           String
+  acceptedAt        DateTime      @default(now())
+  acceptedIp        String?
+  acceptedUserAgent String?
+  createdAt         DateTime      @default(now())
+
+  @@index([userId, type])
+  @@index([clientId, type])
 }
 
 model ClientServiceModel {
@@ -432,6 +462,7 @@ model SupportRequest {
   disbursements       DisbursementRequest[]
   discoverySchedulingLink DiscoverySchedulingLink?
   discoveryAppointments DiscoveryAppointment[]
+  adminNotifications AdminNotification[]
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
@@ -618,6 +649,23 @@ model DisbursementRequest {
   @@index([clientId])
   @@index([supportRequestId])
   @@index([status])
+}
+
+model AdminNotification {
+  id               String                 @id @default(cuid())
+  type             AdminNotificationType
+  supportRequestId String
+  supportRequest   SupportRequest         @relation(fields: [supportRequestId], references: [id], onDelete: Cascade)
+  clientId         String
+  client           Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title            String
+  summary          String
+  attachmentCount  Int                    @default(0)
+  readAt           DateTime?
+  createdAt        DateTime               @default(now())
+
+  @@index([readAt, createdAt])
+  @@index([supportRequestId])
 }
 
 model RequestComment {

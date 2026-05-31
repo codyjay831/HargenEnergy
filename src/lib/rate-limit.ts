@@ -225,28 +225,46 @@ export async function checkRateLimit(
 export async function getRateLimitIdentifier(): Promise<string> {
   try {
     const h = await headers();
-
-    const forwarded = h.get("x-forwarded-for");
-    if (forwarded) {
-      const first = forwarded.split(",")[0]?.trim();
-      if (first) {
-        return `ip:${first}`;
-      }
-    }
-
-    const realIp = h.get("x-real-ip")?.trim();
-    if (realIp) {
-      return `ip:${realIp}`;
-    }
-
-    if (process.env.RATE_LIMIT_TRUST_CF_IP === "1") {
-      const cf = h.get("cf-connecting-ip")?.trim();
-      if (cf) {
-        return `ip:${cf}`;
-      }
+    const ip = getRequestIpFromHeaders(h);
+    if (ip) {
+      return `ip:${ip}`;
     }
   } catch {
     // headers() unavailable (e.g. some static contexts)
   }
   return "ip:unknown";
+}
+
+export function getRequestIpFromHeaders(h: Headers): string | null {
+  const forwarded = h.get("x-forwarded-for");
+  if (forwarded) {
+    const first = forwarded.split(",")[0]?.trim();
+    if (first) {
+      return first;
+    }
+  }
+
+  const realIp = h.get("x-real-ip")?.trim();
+  if (realIp) {
+    return realIp;
+  }
+
+  if (process.env.RATE_LIMIT_TRUST_CF_IP === "1") {
+    const cf = h.get("cf-connecting-ip")?.trim();
+    if (cf) {
+      return cf;
+    }
+  }
+
+  return null;
+}
+
+export async function getRequestIp(): Promise<string | null> {
+  try {
+    const h = await headers();
+    return getRequestIpFromHeaders(h);
+  } catch {
+    // headers() unavailable (e.g. some static contexts)
+  }
+  return null;
 }

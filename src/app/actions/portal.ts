@@ -8,6 +8,7 @@ import {
   AuthorType,
   SupportRequestKind,
   SupportRequestSource,
+  AdminNotificationType,
 } from "@/generated/prisma/client";
 import { canRequestScopeChange } from "@/lib/portal-submit-eligibility";
 import {
@@ -36,11 +37,18 @@ import {
   isNeedsInfoActive,
   resolveStatusAfterInfoResponse,
 } from "@/lib/portal-info-response";
+import { createAdminNotification } from "@/lib/admin-notifications";
 
 const PORTAL_VALIDATION_ERROR =
   "Please shorten your input or fix the required fields and try again.";
 const PORTAL_RATE_LIMIT_ERROR =
   "Too many requests right now. Please wait a few minutes and try again.";
+
+function revalidateAdminAttentionPaths(requestId: string) {
+  revalidatePath("/admin");
+  revalidatePath("/admin/requests");
+  revalidatePath(`/admin/requests/${requestId}`);
+}
 
 export async function getPortalSubmitOptions(clientId: string) {
   const session = await auth();
@@ -420,6 +428,18 @@ export async function addRequestComment(data: {
 
     if (!isAdmin) {
       try {
+        await createAdminNotification({
+          type: AdminNotificationType.CLIENT_COMMENT,
+          supportRequestId: requestId,
+          clientId: request.clientId,
+          title: request.title,
+          summary: body,
+        });
+      } catch (notificationError) {
+        console.error("Failed to create admin notification:", notificationError);
+      }
+
+      try {
         await sendInternalClientCommentAlert({
           companyName: request.client.companyName,
           requestTitle: request.title,
@@ -432,7 +452,7 @@ export async function addRequestComment(data: {
     }
 
     revalidatePath(`/portal/requests/${requestId}`);
-    revalidatePath(`/admin/requests/${requestId}`);
+    revalidateAdminAttentionPaths(requestId);
 
     return { success: true, comment };
   } catch (error) {
@@ -543,6 +563,19 @@ export async function submitInfoResponse(data: {
     }
 
     try {
+      await createAdminNotification({
+        type: AdminNotificationType.CLIENT_INFO_RESPONSE,
+        supportRequestId: requestId,
+        clientId: request.clientId,
+        title: request.title,
+        summary: commentBody,
+        attachmentCount: attachments?.length ?? 0,
+      });
+    } catch (notificationError) {
+      console.error("Failed to create admin notification:", notificationError);
+    }
+
+    try {
       await sendInternalClientCommentAlert({
         companyName: request.client.companyName,
         requestTitle: request.title,
@@ -558,7 +591,7 @@ export async function submitInfoResponse(data: {
     revalidatePath("/portal");
     revalidatePath("/portal/requests");
     revalidatePath(`/portal/requests/${requestId}`);
-    revalidatePath(`/admin/requests/${requestId}`);
+    revalidateAdminAttentionPaths(requestId);
 
     return { success: true };
   } catch (error) {

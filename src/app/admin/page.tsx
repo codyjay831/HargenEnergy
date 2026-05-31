@@ -29,6 +29,16 @@ import {
   type DiscoveryPipelineStage,
 } from "@/lib/discovery-scheduling/pipeline";
 import {
+  getAdminNotificationTypeLabel,
+  isNeedsInfoActive,
+  needsInfoWhereClause,
+} from "@/lib/admin-request-attention";
+import {
+  getAttentionItems,
+  getUnreadNotificationCount,
+  getUnreadNotificationRequestIds,
+} from "@/lib/admin-notifications";
+import {
   adminBrandGlow,
   adminBrandGlowHover,
   adminBtnPrimary,
@@ -138,7 +148,10 @@ export default async function AdminDashboard() {
 
     // Needs info
     prisma.supportRequest.count({
-      where: { kind: SupportRequestKind.CLIENT_OPS, needsInfo: true },
+      where: {
+        kind: SupportRequestKind.CLIENT_OPS,
+        ...needsInfoWhereClause(),
+      },
     }),
 
     // Hours this week — included
@@ -178,11 +191,12 @@ export default async function AdminDashboard() {
             { priorityRank: "asc" },
             { createdAt: "desc" },
           ],
-          take: 1,
+          take: 5,
           select: {
             id: true,
             title: true,
             needsInfo: true,
+            status: true,
             priorityRank: true,
           },
         },
@@ -273,11 +287,20 @@ export default async function AdminDashboard() {
     }),
   ]);
 
+  const [attentionItems, unreadRequestIds, attentionCount] = await Promise.all([
+    getAttentionItems(8),
+    getUnreadNotificationRequestIds(),
+    getUnreadNotificationCount(),
+  ]);
+
   // ── Derived: client health + next step ──────────────────────────────────
   const clientsWithHealth = activeClientsRaw.map((client) => {
     const usage = calculateWeeklyUsage(client.timeEntries, client.weeklyHours);
-    const topRequest = client.requests[0] ?? null;
-    const hasNeedsInfo = topRequest?.needsInfo ?? false;
+    const topRequest =
+      client.requests.find((request) => isNeedsInfoActive(request)) ??
+      client.requests[0] ??
+      null;
+    const hasNeedsInfo = topRequest ? isNeedsInfoActive(topRequest) : false;
     const health = deriveClientHealth({
       weeklyHours: client.weeklyHours,
       hasNeedsInfo,
@@ -310,6 +333,8 @@ export default async function AdminDashboard() {
     statusClass: requestStatusBadgeClass(req.status),
     age: formatAge(req.createdAt),
     statusLabel: req.status.replace(/_/g, " "),
+    hasNeedsInfo: isNeedsInfoActive(req),
+    hasClientReply: unreadRequestIds.has(req.id),
   }));
 
   // ── Derived: leads lane ─────────────────────────────────────────────────
@@ -432,7 +457,7 @@ export default async function AdminDashboard() {
           note={needsInfoCount > 0 ? "Follow up today" : "All clear"}
           noteClass={needsInfoCount > 0 ? "text-amber-600" : "text-slate-400"}
           icon={TriangleAlert}
-          href="/admin/requests"
+          href="/admin/requests?filter=needs_info"
           urgent={needsInfoCount > 0}
         />
         <KpiCard
@@ -514,6 +539,56 @@ export default async function AdminDashboard() {
             </CardContent>
           </Card>
 
+          {/* Attention queue */}
+          <Card className={cn(adminPanelBorder, attentionCount > 0 && "border-blue-200")}>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-base font-semibold text-slate-900">
+                Client responses
+              </CardTitle>
+              <Link href="/admin/requests?filter=attention" className={adminSecondaryLink}>
+                View all
+              </Link>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {attentionItems.length === 0 ? (
+                <p className="text-sm text-slate-500 py-2">
+                  No client responses awaiting review.
+                </p>
+              ) : (
+                attentionItems.map((item) => (
+                  <Link
+                    key={item.id}
+                    href={`/admin/requests/${item.supportRequestId}`}
+                    className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3 transition-colors hover:bg-slate-50"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-900">
+                        {item.title}
+                      </p>
+                      <p className="truncate text-xs text-slate-500">
+                        {item.companyName}
+                      </p>
+                      <p className="mt-1 line-clamp-2 text-xs text-slate-600">
+                        {item.summary}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right space-y-1">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-medium border-blue-200 bg-blue-50 text-blue-800"
+                      >
+                        {getAdminNotificationTypeLabel(item.type)}
+                      </Badge>
+                      <p className="text-[10px] text-slate-400">
+                        {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
+                      </p>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
           {/* Work queue */}
           <Card className={adminPanelBorder}>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -562,6 +637,24 @@ export default async function AdminDashboard() {
                       <p className="truncate text-xs text-slate-500">
                         {item.client.companyName}
                       </p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {item.hasNeedsInfo && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] px-1 py-0 border-amber-200 bg-amber-50 text-amber-800"
+                          >
+                            Needs info
+                          </Badge>
+                        )}
+                        {item.hasClientReply && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] px-1 py-0 border-blue-200 bg-blue-50 text-blue-800"
+                          >
+                            Client replied
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     <p className="text-xs text-slate-500">{item.age}</p>
                     <Badge
@@ -740,11 +833,21 @@ export default async function AdminDashboard() {
               <TodayRow
                 icon={TriangleAlert}
                 tone={needsInfoCount > 0 ? "warning" : "ok"}
-                href="/admin/requests"
+                href="/admin/requests?filter=needs_info"
               >
                 {needsInfoCount > 0
                   ? `${needsInfoCount} request${needsInfoCount === 1 ? "" : "s"} need info`
                   : "No requests need info"}
+              </TodayRow>
+
+              <TodayRow
+                icon={Inbox}
+                tone={attentionCount > 0 ? "warning" : "ok"}
+                href="/admin/requests?filter=attention"
+              >
+                {attentionCount > 0
+                  ? `${attentionCount} client response${attentionCount === 1 ? "" : "s"} awaiting review`
+                  : "No client responses awaiting review"}
               </TodayRow>
 
               <TodayRow

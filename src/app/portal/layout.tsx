@@ -17,6 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveClientLogoUrl } from "@/lib/storage/logo-url";
 import { PORTAL_NAV_ITEMS, type PortalNavIconKey } from "@/lib/portal-nav";
 import { PortalMobileNav } from "@/components/portal/PortalMobileNav";
+import { hasAcceptedCurrentTerms } from "@/lib/legal-acceptance";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,11 @@ export default async function PortalLayout({
   // Client users must have a clientId
   if (!session.user.clientId) {
     redirect("/portal/access");
+  }
+
+  const acceptedCurrentTerms = await hasAcceptedCurrentTerms(session.user.id);
+  if (!acceptedCurrentTerms) {
+    redirect("/accept-terms");
   }
 
   const client = await prisma.client.findUnique({

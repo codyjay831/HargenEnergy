@@ -24,6 +24,13 @@ import { RequestTimer } from "@/components/admin/RequestTimer";
 import { RequestHandoffPricingForm } from "@/components/forms/RequestHandoffPricingForm";
 import { RequestPaymentManager } from "@/components/forms/RequestPaymentManager";
 import { RequestAttachmentsList } from "@/components/requests/RequestAttachmentsList";
+import { RequestAttentionBanner } from "@/components/admin/RequestAttentionBanner";
+import {
+  hasUnreadNotificationsForRequest,
+  markNotificationsReadForRequest,
+} from "@/lib/admin-notifications";
+import { isNeedsInfoActive } from "@/lib/admin-request-attention";
+import { AuthorType } from "@/generated/prisma/client";
 import {
   formatFlatPrice,
   formatHandoffTier,
@@ -113,6 +120,23 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
     pricingIncomplete && request.status === RequestStatus.IN_PROGRESS;
   const listHref = "/admin/requests";
 
+  const needsInfoActive = isNeedsInfoActive(request);
+  const hadUnreadAttention = await hasUnreadNotificationsForRequest(id);
+  let responseAttachmentCount = 0;
+
+  if (hadUnreadAttention) {
+    const latestUnread = await prisma.adminNotification.findFirst({
+      where: { supportRequestId: id, readAt: null },
+      orderBy: { createdAt: "desc" },
+    });
+    responseAttachmentCount = latestUnread?.attachmentCount ?? 0;
+    await markNotificationsReadForRequest(id);
+  }
+
+  const latestClientCommentId = [...request.comments]
+    .reverse()
+    .find((comment) => !comment.isInternal && comment.authorType === AuthorType.CLIENT)?.id;
+
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-4">
@@ -140,6 +164,20 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column: Request Info */}
         <div className="lg:col-span-2 space-y-8">
+          {needsInfoActive && (
+            <RequestAttentionBanner
+              variant="awaiting_client"
+              staffMessage={request.clientVisibleUpdate}
+            />
+          )}
+
+          {hadUnreadAttention && !needsInfoActive && (
+            <RequestAttentionBanner
+              variant="client_responded"
+              attachmentCount={responseAttachmentCount}
+            />
+          )}
+
           {showPricingWarning && (
             <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 flex items-start gap-3 text-amber-900">
               <AlertCircle className="h-5 w-5 mt-0.5" />
@@ -333,7 +371,7 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
             </CardContent>
           </Card>
 
-          <div className="space-y-4">
+          <div className="space-y-4" id="client-communication">
             <h3 className="text-lg font-bold flex items-center gap-2">
               <MessageSquare className="h-5 w-5 text-primary" />
               Client Communication
@@ -350,7 +388,9 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
                       "p-4 rounded-lg border max-w-[90%]",
                       comment.authorType === "ADMIN" 
                         ? "bg-primary/5 border-primary/10 ml-auto" 
-                        : "bg-slate-50 border-slate-200 ml-0"
+                        : "bg-slate-50 border-slate-200 ml-0",
+                      comment.id === latestClientCommentId &&
+                        "ring-2 ring-blue-200 border-blue-300 bg-blue-50/50",
                     )}
                   >
                     <div className="flex items-center justify-between gap-4 mb-2">

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { CatalogHealthBanner } from "@/components/admin/CatalogHealthBanner";
 import { AdminMobileNav } from "@/components/admin/AdminMobileNav";
+import { getUnreadNotificationCount } from "@/lib/admin-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,8 @@ export default async function AdminLayout({
         .toUpperCase()
     : session.user.email?.substring(0, 2).toUpperCase() || "AD";
 
+  const attentionUnreadCount = await getUnreadNotificationCount();
+
   return (
     <div className="flex min-h-screen bg-slate-50">
       {/* Sidebar */}
@@ -42,7 +45,7 @@ export default async function AdminLayout({
           </Link>
         </div>
 
-        <AdminNav />
+        <AdminNav attentionUnreadCount={attentionUnreadCount} />
 
         <div className="border-t border-slate-200 p-3">
           <LogoutButton />
@@ -53,7 +56,7 @@ export default async function AdminLayout({
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-14 items-center justify-between border-b border-slate-200 bg-white px-4 md:px-6">
           <div className="flex items-center gap-2">
-            <AdminMobileNav />
+            <AdminMobileNav attentionUnreadCount={attentionUnreadCount} />
             <p className="text-sm font-semibold text-slate-700">Solar Ops Desk</p>
           </div>
           <div className="flex items-center gap-3">

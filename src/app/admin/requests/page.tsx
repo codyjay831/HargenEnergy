@@ -28,16 +28,28 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { Wrench } from "lucide-react";
 import { getClientServicePaths } from "@/lib/client-service-model";
+import {
+  isNeedsInfoActive,
+  needsInfoWhereClause,
+} from "@/lib/admin-request-attention";
+import {
+  getAttentionFilterRequestIds,
+  getUnreadNotificationCount,
+  getUnreadNotificationRequestIds,
+} from "@/lib/admin-notifications";
 
 export const dynamic = "force-dynamic";
 
-type FilterKey = "all" | "new" | "in_progress" | "needs_info";
+type FilterKey = "all" | "new" | "in_progress" | "needs_info" | "attention";
 
 interface AdminRequestsPageProps {
   searchParams: Promise<{ filter?: string }>;
 }
 
-function buildWhereClause(filter: FilterKey) {
+function buildWhereClause(
+  filter: FilterKey,
+  attentionRequestIds: string[],
+): Record<string, unknown> {
   const base = { kind: SupportRequestKind.CLIENT_OPS };
   switch (filter) {
     case "new":
@@ -45,7 +57,14 @@ function buildWhereClause(filter: FilterKey) {
     case "in_progress":
       return { ...base, status: RequestStatus.IN_PROGRESS };
     case "needs_info":
-      return { ...base, needsInfo: true };
+      return { ...base, ...needsInfoWhereClause() };
+    case "attention":
+      return {
+        ...base,
+        id: {
+          in: attentionRequestIds.length > 0 ? attentionRequestIds : ["__none__"],
+        },
+      };
     default:
       return base;
   }
@@ -71,13 +90,20 @@ export default async function AdminRequests({ searchParams }: AdminRequestsPageP
   const filter: FilterKey =
     filterParam === "new" ||
     filterParam === "in_progress" ||
-    filterParam === "needs_info"
+    filterParam === "needs_info" ||
+    filterParam === "attention"
       ? filterParam
       : "all";
 
+  const [attentionRequestIds, unreadRequestIds, attentionCount] = await Promise.all([
+    getAttentionFilterRequestIds(),
+    getUnreadNotificationRequestIds(),
+    getUnreadNotificationCount(),
+  ]);
+
   const [requests, counts] = await Promise.all([
     prisma.supportRequest.findMany({
-      where: buildWhereClause(filter),
+      where: buildWhereClause(filter, attentionRequestIds),
       include: {
         client: {
           include: {
@@ -103,7 +129,10 @@ export default async function AdminRequests({ searchParams }: AdminRequestsPageP
         },
       }),
       prisma.supportRequest.count({
-        where: { kind: SupportRequestKind.CLIENT_OPS, needsInfo: true },
+        where: {
+          kind: SupportRequestKind.CLIENT_OPS,
+          ...needsInfoWhereClause(),
+        },
       }),
     ]),
   ]);
@@ -113,6 +142,12 @@ export default async function AdminRequests({ searchParams }: AdminRequestsPageP
   const filterTabs: { key: FilterKey; label: string; count: number; href: string }[] =
     [
       { key: "all", label: "All", count: allCount, href: "/admin/requests" },
+      {
+        key: "attention",
+        label: "Attention",
+        count: attentionCount,
+        href: "/admin/requests?filter=attention",
+      },
       {
         key: "new",
         label: "New",
@@ -197,6 +232,8 @@ export default async function AdminRequests({ searchParams }: AdminRequestsPageP
               const priorityClass = priorityRankBadgeClass(request.priorityRank);
               const statusClass = requestStatusBadgeClass(request.status);
               const urg = urgencyBadgeClass(request.urgency);
+              const hasNeedsInfo = isNeedsInfoActive(request);
+              const hasClientReply = unreadRequestIds.has(request.id);
 
               return (
                 <div
@@ -246,6 +283,22 @@ export default async function AdminRequests({ searchParams }: AdminRequestsPageP
                     >
                       {request.status.replace(/_/g, " ")}
                     </Badge>
+                    {hasNeedsInfo && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-medium border-amber-200 bg-amber-50 text-amber-800"
+                      >
+                        Needs info
+                      </Badge>
+                    )}
+                    {hasClientReply && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-medium border-blue-200 bg-blue-50 text-blue-800"
+                      >
+                        Client replied
+                      </Badge>
+                    )}
                   </div>
                   <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
                     <span>{totalMinutes > 0 ? `${totalMinutes}m logged` : "0m logged"}</span>
@@ -300,6 +353,8 @@ export default async function AdminRequests({ searchParams }: AdminRequestsPageP
                   servicePaths.hasFixedFee
                     ? getRequestPricingState(request)
                     : null;
+                const hasNeedsInfo = isNeedsInfoActive(request);
+                const hasClientReply = unreadRequestIds.has(request.id);
 
                 return (
                   <tr
@@ -355,12 +410,20 @@ export default async function AdminRequests({ searchParams }: AdminRequestsPageP
                         >
                           {request.title}
                         </Link>
-                        {request.needsInfo && (
+                        {hasNeedsInfo && (
                           <Badge
                             variant="outline"
                             className="shrink-0 border-amber-200 bg-amber-50 text-[9px] text-amber-900"
                           >
                             Needs Info
+                          </Badge>
+                        )}
+                        {hasClientReply && (
+                          <Badge
+                            variant="outline"
+                            className="shrink-0 border-blue-200 bg-blue-50 text-[9px] text-blue-900"
+                          >
+                            Client replied
                           </Badge>
                         )}
                       </div>
