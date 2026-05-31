@@ -344,6 +344,8 @@ export default async function ClientDetailPage({
             catalogCategories={catalogCategories}
             decryptedSystemAccesses={decryptedSystemAccesses}
             systemAccessLoadError={systemAccessLoadError}
+            canActivate={setupReadiness.canActivate}
+            activationBlockers={setupReadiness.activationBlockers}
           />
         ) : (
           <ActiveClientView

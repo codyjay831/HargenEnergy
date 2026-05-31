@@ -23,6 +23,7 @@ import {
   DiscoveryFitDecision,
   DiscoverySchedulingLinkStatus,
 } from "@/generated/prisma/client";
+import type { ActivationBlocker } from "@/lib/client-activation-readiness";
 import {
   qualifyDiscoveryRequest,
   markDiscoveryNotAFit,
@@ -51,6 +52,8 @@ type ProspectCommandCenterProps = {
   companyName: string;
   clientVisibleUpdate?: string | null;
   showPreActivationTabs: boolean;
+  canActivate: boolean;
+  activationBlockers: ActivationBlocker[];
 };
 
 function ChecklistRow({ done, label }: { done: boolean; label: string }) {
@@ -81,6 +84,8 @@ export function ProspectCommandCenter({
   companyName,
   clientVisibleUpdate,
   showPreActivationTabs,
+  canActivate,
+  activationBlockers,
 }: ProspectCommandCenterProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -242,6 +247,8 @@ export function ProspectCommandCenter({
                   isLoadingLabel="Approving..."
                   successMessage="Approved. Continue client setup below."
                   confirmMessage={approveConfirmMessage}
+                  disabled={!canActivate}
+                  disabledReasons={activationBlockers.map((blocker) => blocker.message)}
                 />
               ) : (
                 <Button onClick={handlePrimary} disabled={primaryDisabled}>

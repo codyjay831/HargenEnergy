@@ -12,6 +12,8 @@ interface ActivateClientButtonProps {
   isLoadingLabel?: string;
   successMessage?: string;
   confirmMessage?: string;
+  disabled?: boolean;
+  disabledReasons?: string[];
 }
 
 export function ActivateClientButton({
@@ -20,6 +22,8 @@ export function ActivateClientButton({
   isLoadingLabel = "Activating...",
   successMessage = "Client marked active. Set up billing and send a portal invite when ready.",
   confirmMessage,
+  disabled = false,
+  disabledReasons = [],
 }: ActivateClientButtonProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -27,6 +31,9 @@ export function ActivateClientButton({
   const [error, setError] = useState<string | null>(null);
 
   const handleActivate = async () => {
+    if (disabled) {
+      return;
+    }
     if (confirmMessage && !window.confirm(confirmMessage)) {
       return;
     }
@@ -56,7 +63,7 @@ export function ActivateClientButton({
 
   return (
     <div className="space-y-2">
-      <Button type="button" onClick={handleActivate} disabled={isLoading}>
+      <Button type="button" onClick={handleActivate} disabled={isLoading || disabled}>
         {isLoading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -66,6 +73,11 @@ export function ActivateClientButton({
           buttonLabel
         )}
       </Button>
+      {disabledReasons.map((reason) => (
+        <p key={reason} className="text-sm text-amber-800">
+          {reason}
+        </p>
+      ))}
       {message && <p className="text-sm text-green-700">{message}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>

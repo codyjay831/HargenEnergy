@@ -154,8 +154,16 @@ function CommandBarBody({
 
       {readiness.clientStatus !== ClientStatus.ACTIVE && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3">
-          <p className="text-sm font-medium text-slate-900">Activate client to unlock setup</p>
-          <ActivateClientButton clientId={readiness.clientId} />
+          <p className="text-sm font-medium text-slate-900">
+            {readiness.canActivate
+              ? "Ready to activate client"
+              : "Activation blocked until readiness requirements are complete"}
+          </p>
+          <ActivateClientButton
+            clientId={readiness.clientId}
+            disabled={!readiness.canActivate}
+            disabledReasons={readiness.activationBlockers.map((blocker) => blocker.message)}
+          />
         </div>
       )}
 

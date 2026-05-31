@@ -42,6 +42,7 @@ import { resolveStaffRole } from "@/lib/permissions";
 import { syncBlockWorkItemsForClient } from "@/lib/block-work";
 import { getWeeklyHoursForPlanType } from "@/lib/support-plan-hours";
 import type { Prisma } from "@/generated/prisma/client";
+import { getClientActivationReadiness } from "@/lib/client-activation-readiness";
 
 export async function updateClientBillingMode(data: {
   clientId: string;
@@ -166,7 +167,10 @@ export async function activateClient(clientId: string) {
 
   const client = await prisma.client.findUnique({
     where: { id: clientId },
-    include: { approvedWorkTasks: { select: { workTaskId: true } } },
+    include: {
+      approvedWorkTasks: { select: { workTaskId: true } },
+      serviceModels: { select: { modelType: true, isActive: true } },
+    },
   });
   if (!client) {
     return { error: "Client not found." };
@@ -174,6 +178,20 @@ export async function activateClient(clientId: string) {
 
   if (client.status === ClientStatus.ACTIVE) {
     return { success: true as const };
+  }
+
+  const activationReadiness = getClientActivationReadiness({
+    agreementStatus: client.agreementStatus,
+    agreementUrl: client.agreementUrl,
+    agreementOverrideReason: client.agreementOverrideReason,
+    engagementType: client.engagementType,
+    activeServiceModels: client.serviceModels
+      .filter((item) => item.isActive)
+      .map((item) => item.modelType),
+    approvedWorkTaskCount: client.approvedWorkTasks.length,
+  });
+  if (!activationReadiness.canActivate) {
+    return { error: activationReadiness.blockers[0]?.message ?? "Client is not ready to activate." };
   }
 
   try {

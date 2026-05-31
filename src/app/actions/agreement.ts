@@ -51,6 +51,7 @@ async function transitionClientAgreement(
       id: true,
       agreementStatus: true,
       agreementNotes: true,
+      agreementUrl: true,
     },
   });
 
@@ -63,7 +64,7 @@ async function transitionClientAgreement(
     to: toStatus,
     note,
     overrideReason,
-    agreementUrl,
+    agreementUrl: agreementUrl ?? client.agreementUrl,
   });
 
   if (!validation.ok) {

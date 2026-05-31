@@ -59,6 +59,22 @@ describe("client agreement", () => {
         note: "Client requested re-sign",
       }).ok,
     ).toBe(true);
+
+    expect(
+      validateAgreementTransition({
+        from: AgreementStatus.SENT,
+        to: AgreementStatus.SIGNED,
+        agreementUrl: null,
+      }).ok,
+    ).toBe(false);
+
+    expect(
+      validateAgreementTransition({
+        from: AgreementStatus.SENT,
+        to: AgreementStatus.SIGNED,
+        agreementUrl: "https://example.com/signed-agreement.pdf",
+      }).ok,
+    ).toBe(true);
   });
 
   it("sets timestamps when marking sent or signed", () => {

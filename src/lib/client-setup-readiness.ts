@@ -37,6 +37,10 @@ import {
 import { countPortalLoggedInUsers } from "@/lib/portal-user-login";
 import { getClientCatalogEligibility } from "@/lib/client-catalog-eligibility";
 import { loadCatalogTaskCounts } from "@/lib/client-catalog-loader";
+import {
+  getClientActivationReadiness,
+  type ActivationBlocker,
+} from "@/lib/client-activation-readiness";
 
 export type SetupStepOwner = "admin" | "customer" | "system" | "stripe";
 export type SetupStepStatus =
@@ -102,6 +106,8 @@ export type ClientSetupReadiness = {
   engagementType: EngagementType;
   planType: PlanType;
   weeklyHours: number;
+  canActivate: boolean;
+  activationBlockers: ActivationBlocker[];
   canInvitePortal: boolean;
   canSubmitPortalWork: boolean;
   primarySubmitBlockReason?: PortalSubmitBlockReason;
@@ -134,6 +140,7 @@ export type DeriveClientSetupReadinessInput = {
   agreementSentAt?: Date | null;
   agreementSignedAt?: Date | null;
   agreementUrl?: string | null;
+  agreementOverrideReason?: string | null;
   engagementType: EngagementType;
   activeServiceModels?: ServiceModelTypeValue[];
   planType: PlanType;
@@ -428,6 +435,14 @@ export function deriveClientSetupReadiness(
   };
 
   const submitBlockers = deriveSubmitBlockerSummary(submitBlockerInput);
+  const activation = getClientActivationReadiness({
+    agreementStatus: input.agreementStatus,
+    agreementUrl: input.agreementUrl,
+    agreementOverrideReason: input.agreementOverrideReason,
+    engagementType: input.engagementType,
+    activeServiceModels: catalogEligibility.activeServiceModels,
+    approvedWorkTaskCount: input.approvedWorkTaskCount,
+  });
 
   const canInvitePortal = lifecycleReady;
   const canSubmitPortalWork = submitBlockers.canSubmit;
@@ -860,6 +875,8 @@ export function deriveClientSetupReadiness(
     engagementType: input.engagementType,
     planType: input.planType,
     weeklyHours: input.weeklyHours,
+    canActivate: activation.canActivate,
+    activationBlockers: activation.blockers,
     canInvitePortal,
     canSubmitPortalWork,
     primarySubmitBlockReason,
@@ -898,6 +915,7 @@ export async function getClientSetupReadiness(
       agreementSentAt: true,
       agreementSignedAt: true,
       agreementUrl: true,
+      agreementOverrideReason: true,
       engagementType: true,
       serviceModels: { select: { modelType: true, isActive: true } },
       planType: true,
@@ -966,6 +984,7 @@ export async function getClientSetupReadiness(
     agreementSentAt: client.agreementSentAt,
     agreementSignedAt: client.agreementSignedAt,
     agreementUrl: client.agreementUrl,
+    agreementOverrideReason: client.agreementOverrideReason,
     engagementType: client.engagementType,
     activeServiceModels: client.serviceModels
       .filter((item) => item.isActive)

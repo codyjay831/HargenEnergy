@@ -21,6 +21,7 @@ import {
 } from "@/generated/prisma/client";
 import type { ServiceModelTypeValue } from "@/lib/client-service-model";
 import { ClientEngagementManager } from "@/components/admin/ClientEngagementManager";
+import type { ActivationBlocker } from "@/lib/client-activation-readiness";
 
 type DiscoveryRequest = {
   id: string;
@@ -80,6 +81,8 @@ type ProspectOnboardingViewProps = {
   catalogCategories: Parameters<typeof ClientEngagementManager>[0]["categories"];
   decryptedSystemAccesses: ClientSystemAccess[];
   systemAccessLoadError: string | null;
+  canActivate: boolean;
+  activationBlockers: ActivationBlocker[];
 };
 
 export function ProspectOnboardingView({
@@ -96,6 +99,8 @@ export function ProspectOnboardingView({
   catalogCategories,
   decryptedSystemAccesses,
   systemAccessLoadError,
+  canActivate,
+  activationBlockers,
 }: ProspectOnboardingViewProps) {
   const engagementPanel = (
     <ClientEngagementManager
@@ -127,6 +132,8 @@ export function ProspectOnboardingView({
           companyName={client.companyName}
           clientVisibleUpdate={latestDiscovery.clientVisibleUpdate}
           showPreActivationTabs={showPreActivationTabs}
+          canActivate={canActivate}
+          activationBlockers={activationBlockers}
         />
       ) : null}
 

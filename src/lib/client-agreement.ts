@@ -41,6 +41,19 @@ export function isAgreementSatisfied(status: AgreementStatus): boolean {
   return status === AgreementStatus.SIGNED || status === AgreementStatus.WAIVED;
 }
 
+export function hasUsableAgreementUrl(value: string | null | undefined): boolean {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return false;
+  }
+  try {
+    new URL(trimmed);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function getAgreementNextAction(
   status: AgreementStatus,
   agreementUrl: string | null | undefined,
@@ -149,6 +162,13 @@ export function validateAgreementTransition(input: {
     return { ok: false, error: "A waiver reason is required." };
   }
 
+  if (to === AgreementStatus.SIGNED && !hasUsableAgreementUrl(agreementUrl)) {
+    return {
+      ok: false,
+      error: "A valid signed agreement URL is required before marking this agreement as signed.",
+    };
+  }
+
   const isBackward =
     (from === AgreementStatus.SIGNED &&
       (to === AgreementStatus.SENT || to === AgreementStatus.NOT_SENT)) ||
@@ -158,12 +178,8 @@ export function validateAgreementTransition(input: {
     return { ok: false, error: "A note is required when reverting agreement status." };
   }
 
-  if (agreementUrl?.trim()) {
-    try {
-      new URL(agreementUrl.trim());
-    } catch {
-      return { ok: false, error: "Agreement URL is not valid." };
-    }
+  if (agreementUrl != null && agreementUrl.trim() && !hasUsableAgreementUrl(agreementUrl)) {
+    return { ok: false, error: "Agreement URL is not valid." };
   }
 
   return { ok: true };

@@ -22,6 +22,7 @@ import { BillingMode } from "@/generated/prisma/client";
 import { PRODUCT_LANGUAGE } from "@/lib/product-language";
 import { cn, safeExternalHref } from "@/lib/utils";
 import { useSetupGuide } from "./SetupGuideProvider";
+import type { ActivationBlocker } from "@/lib/client-activation-readiness";
 
 type CatalogCategory = {
   id: string;
@@ -72,6 +73,8 @@ export type AdminSetupSheetPanelsProps = {
   };
   systemAccessRecords: ClientSystemAccess[];
   adminRequestsHref: string;
+  canActivate?: boolean;
+  activationBlockers?: ActivationBlocker[];
 };
 
 export function AdminSetupSheetPanels({
@@ -79,6 +82,8 @@ export function AdminSetupSheetPanels({
   engagement,
   systemAccessRecords,
   adminRequestsHref,
+  canActivate = true,
+  activationBlockers = [],
 }: AdminSetupSheetPanelsProps) {
   const { activeSheet } = useSetupGuide();
   if (!activeSheet) return null;
@@ -97,7 +102,11 @@ export function AdminSetupSheetPanels({
           {isActive ? (
             <p className="text-sm font-medium text-emerald-700">Client is already active.</p>
           ) : (
-            <ActivateClientButton clientId={client.id} />
+            <ActivateClientButton
+              clientId={client.id}
+              disabled={!canActivate}
+              disabledReasons={activationBlockers.map((blocker) => blocker.message)}
+            />
           )}
         </div>
       );

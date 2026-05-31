@@ -193,6 +193,8 @@ export function ActiveClientView({
         }}
         systemAccessRecords={decryptedSystemAccesses}
         adminRequestsHref={`/admin/requests?clientId=${client.id}`}
+        canActivate={setupReadiness.canActivate}
+        activationBlockers={setupReadiness.activationBlockers}
       />
 
       <Suspense
