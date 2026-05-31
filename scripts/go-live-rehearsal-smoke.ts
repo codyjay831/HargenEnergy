@@ -311,12 +311,12 @@ async function activateStripeSubscription(clientId: string) {
     invoice_settings: { default_payment_method: paymentMethod.id },
   });
 
-  const subscription = await stripe.subscriptions.create({
+  const subscription = (await stripe.subscriptions.create({
     customer: stripeCustomerId,
     items: [{ price: priceId }],
     metadata: { clientId, planType: PlanType.LIGHT },
     default_payment_method: paymentMethod.id,
-  });
+  })) as unknown as Stripe.Subscription & { current_period_end: number };
 
   await prisma.client.update({
     where: { id: clientId },
@@ -399,6 +399,7 @@ async function section1Intake(): Promise<{ clientId: string; requestId: string; 
     companyName: `Smoke Test Co ${RUN_ID}`,
     name: "Smoke Owner",
     email: SMOKE_EMAIL,
+    website: undefined,
     phone: "555-0100",
     bottleneck: "Smoke test intake",
     plan: "light",

@@ -7,6 +7,7 @@ const adminRoutes = [
   "/admin/clients",
   "/admin/requests",
   "/admin/outreach/search",
+  "/admin/outreach/discovery",
   "/admin/billing",
 ];
 

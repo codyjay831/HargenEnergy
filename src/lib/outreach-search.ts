@@ -8,6 +8,7 @@ import {
 } from "@/generated/prisma/client";
 
 export const OUTREACH_SEARCH_RESULT_LIMIT = 20;
+export const GOOGLE_NEXT_PAGE_DELAY_MS = 2000;
 
 export type OutreachSearchReplayPayload = {
   results: unknown[];
@@ -43,6 +44,8 @@ export type OutreachFinderMatch = {
   alreadySaved: boolean;
   matchedCompanyId: string | null;
   matchReason: OutreachDuplicateMatchReason | null;
+  discoveryId?: string | null;
+  discoveryStatus?: string | null;
 };
 
 export type FindExistingOutreachCompanyInput = {
@@ -76,11 +79,23 @@ export function normalizeWebsiteDomain(website?: string | null): string | null {
   }
 }
 
+export function isRealPermitStackContractorId(id?: string | null): boolean {
+  return Boolean(id) && !id!.startsWith("contractor-");
+}
+
 export async function findExistingOutreachCompany(
   input: FindExistingOutreachCompanyInput
 ) {
   if (input.googlePlaceId) {
     const byGooglePlace = await prisma.outreachCompany.findFirst({
+      where: { googlePlaceId: input.googlePlaceId },
+    });
+
+    if (byGooglePlace) {
+      return { company: byGooglePlace, reason: "source_id" as const };
+    }
+
+    const legacyBySourceUrl = await prisma.outreachCompany.findFirst({
       where: {
         sourceUrl: {
           contains: input.googlePlaceId,
@@ -89,19 +104,14 @@ export async function findExistingOutreachCompany(
       },
     });
 
-    if (byGooglePlace) {
-      return { company: byGooglePlace, reason: "source_id" as const };
+    if (legacyBySourceUrl) {
+      return { company: legacyBySourceUrl, reason: "source_id" as const };
     }
   }
 
-  if (input.permitStackContractorId) {
+  if (input.permitStackContractorId && isRealPermitStackContractorId(input.permitStackContractorId)) {
     const byPermitStack = await prisma.outreachCompany.findFirst({
-      where: {
-        sourceUrl: {
-          contains: input.permitStackContractorId,
-          mode: "insensitive",
-        },
-      },
+      where: { permitStackId: input.permitStackContractorId },
     });
 
     if (byPermitStack) {
@@ -125,12 +135,24 @@ export async function findExistingOutreachCompany(
     }
   }
 
-  if (input.name && input.city) {
+  const normalizedName = input.name ? normalizeCompanyName(input.name) : null;
+
+  if (normalizedName && input.city) {
     const byNameCity = await prisma.outreachCompany.findFirst({
       where: {
-        AND: [
-          { name: { equals: input.name, mode: "insensitive" } },
-          { city: { equals: input.city, mode: "insensitive" } },
+        OR: [
+          {
+            AND: [
+              { normalizedName },
+              { city: { equals: input.city, mode: "insensitive" } },
+            ],
+          },
+          {
+            AND: [
+              { name: { equals: input.name!, mode: "insensitive" } },
+              { city: { equals: input.city, mode: "insensitive" } },
+            ],
+          },
         ],
       },
     });
@@ -140,15 +162,143 @@ export async function findExistingOutreachCompany(
     }
   }
 
-  if (input.name) {
+  if (normalizedName) {
     const byName = await prisma.outreachCompany.findFirst({
       where: {
-        name: { equals: input.name, mode: "insensitive" },
+        OR: [
+          { normalizedName },
+          { name: { equals: input.name!, mode: "insensitive" } },
+        ],
       },
     });
 
     if (byName) {
       return { company: byName, reason: "name" as const };
+    }
+  }
+
+  return null;
+}
+
+type BatchCompanyRow = {
+  id: string;
+  name: string;
+  normalizedName: string | null;
+  city: string | null;
+  website: string | null;
+  googlePlaceId: string | null;
+  permitStackId: string | null;
+};
+
+type BatchDiscoveryRow = {
+  id: string;
+  googlePlaceId: string | null;
+  permitStackId: string | null;
+  normalizedName: string;
+  city: string | null;
+  website: string | null;
+  matchedCompanyId: string | null;
+  status: string;
+};
+
+function matchCompanyInBatch(
+  result: {
+    placeId: string;
+    name: string;
+    city?: string | null;
+    website?: string | null;
+  },
+  companies: BatchCompanyRow[]
+): { company: BatchCompanyRow; reason: OutreachDuplicateMatchReason } | null {
+  const byPlace = companies.find((c) => c.googlePlaceId === result.placeId);
+  if (byPlace) {
+    return { company: byPlace, reason: "source_id" };
+  }
+
+  if (isRealPermitStackContractorId(result.placeId)) {
+    const byPermit = companies.find((c) => c.permitStackId === result.placeId);
+    if (byPermit) {
+      return { company: byPermit, reason: "source_id" };
+    }
+  }
+
+  const domain = normalizeWebsiteDomain(result.website);
+  if (domain) {
+    const byWebsite = companies.find((c) =>
+      c.website?.toLowerCase().includes(domain)
+    );
+    if (byWebsite) {
+      return { company: byWebsite, reason: "website" };
+    }
+  }
+
+  const normalizedName = normalizeCompanyName(result.name);
+  if (normalizedName && result.city) {
+    const byNameCity = companies.find(
+      (c) =>
+        (c.normalizedName === normalizedName ||
+          c.name.toLowerCase() === result.name.toLowerCase()) &&
+        c.city?.toLowerCase() === result.city?.toLowerCase()
+    );
+    if (byNameCity) {
+      return { company: byNameCity, reason: "name_city" };
+    }
+  }
+
+  if (normalizedName) {
+    const byName = companies.find(
+      (c) =>
+        c.normalizedName === normalizedName ||
+        c.name.toLowerCase() === result.name.toLowerCase()
+    );
+    if (byName) {
+      return { company: byName, reason: "name" };
+    }
+  }
+
+  return null;
+}
+
+function matchDiscoveryInBatch(
+  result: {
+    placeId: string;
+    name: string;
+    city?: string | null;
+    website?: string | null;
+  },
+  discoveries: BatchDiscoveryRow[]
+): BatchDiscoveryRow | null {
+  const byPlace = discoveries.find((d) => d.googlePlaceId === result.placeId);
+  if (byPlace) {
+    return byPlace;
+  }
+
+  if (isRealPermitStackContractorId(result.placeId)) {
+    const byPermit = discoveries.find((d) => d.permitStackId === result.placeId);
+    if (byPermit) {
+      return byPermit;
+    }
+  }
+
+  const normalizedName = normalizeCompanyName(result.name);
+  if (normalizedName && result.city) {
+    const byNameCity = discoveries.find(
+      (d) =>
+        d.normalizedName === normalizedName &&
+        d.city?.toLowerCase() === result.city?.toLowerCase()
+    );
+    if (byNameCity) {
+      return byNameCity;
+    }
+  }
+
+  const domain = normalizeWebsiteDomain(result.website);
+  if (domain) {
+    const byWebsite = discoveries.find((d) =>
+      d.website?.toLowerCase().includes(domain)
+    );
+    if (byWebsite) {
+      return byWebsite;
     }
   }
 
@@ -162,29 +312,75 @@ export async function annotateFinderResults<
     city?: string | null;
     state?: string | null;
     website?: string | null;
+    phone?: string | null;
   },
 >(results: T[]) {
-  const annotated: Array<T & OutreachFinderMatch> = [];
-
-  for (const result of results.slice(0, OUTREACH_SEARCH_RESULT_LIMIT)) {
-    const match = await findExistingOutreachCompany({
-      name: result.name,
-      city: result.city,
-      state: result.state,
-      website: result.website,
-      googlePlaceId: result.placeId,
-      permitStackContractorId: result.placeId,
-    });
-
-    annotated.push({
-      ...result,
-      alreadySaved: !!match,
-      matchedCompanyId: match?.company.id ?? null,
-      matchReason: match?.reason ?? null,
-    });
+  const sliced = results.slice(0, OUTREACH_SEARCH_RESULT_LIMIT);
+  if (sliced.length === 0) {
+    return [];
   }
 
-  return annotated;
+  const placeIds = sliced.map((r) => r.placeId);
+  const permitStackIds = placeIds.filter((id) => isRealPermitStackContractorId(id));
+  const normalizedNames = [...new Set(sliced.map((r) => normalizeCompanyName(r.name)))];
+
+  const companyOr: Prisma.OutreachCompanyWhereInput[] = [
+    { googlePlaceId: { in: placeIds } },
+    { normalizedName: { in: normalizedNames } },
+  ];
+  if (permitStackIds.length > 0) {
+    companyOr.push({ permitStackId: { in: permitStackIds } });
+  }
+
+  const discoveryOr: Prisma.OutreachDiscoveryWhereInput[] = [
+    { googlePlaceId: { in: placeIds } },
+    { normalizedName: { in: normalizedNames } },
+  ];
+  if (permitStackIds.length > 0) {
+    discoveryOr.push({ permitStackId: { in: permitStackIds } });
+  }
+
+  const [companies, discoveries] = await Promise.all([
+    prisma.outreachCompany.findMany({
+      where: { OR: companyOr },
+      select: {
+        id: true,
+        name: true,
+        normalizedName: true,
+        city: true,
+        website: true,
+        googlePlaceId: true,
+        permitStackId: true,
+      },
+    }),
+    prisma.outreachDiscovery.findMany({
+      where: { OR: discoveryOr },
+      select: {
+        id: true,
+        googlePlaceId: true,
+        permitStackId: true,
+        normalizedName: true,
+        city: true,
+        website: true,
+        matchedCompanyId: true,
+        status: true,
+      },
+    }),
+  ]);
+
+  return sliced.map((result) => {
+    const match = matchCompanyInBatch(result, companies);
+    const discovery = matchDiscoveryInBatch(result, discoveries);
+
+    return {
+      ...result,
+      alreadySaved: !!match,
+      matchedCompanyId: match?.company.id ?? discovery?.matchedCompanyId ?? null,
+      matchReason: match?.reason ?? null,
+      discoveryId: discovery?.id ?? null,
+      discoveryStatus: discovery?.status ?? null,
+    };
+  });
 }
 
 export async function logOutreachSearchRun(data: {
@@ -244,4 +440,15 @@ export async function getOutreachSearchRunById(runId: string) {
       },
     },
   });
+}
+
+export function parseAddress(formattedAddress: string) {
+  const parts = formattedAddress.split(", ");
+  if (parts.length >= 3) {
+    const city = parts[parts.length - 3];
+    const stateZip = parts[parts.length - 2].split(" ");
+    const state = stateZip[0];
+    return { city, state };
+  }
+  return { city: null, state: null };
 }

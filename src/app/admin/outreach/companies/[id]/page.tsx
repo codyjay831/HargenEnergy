@@ -59,6 +59,14 @@ export default async function OutreachCompanyDetailPage({ params }: OutreachComp
         (value): value is string => typeof value === "string" && value.trim().length > 0
       )
     : [];
+  const enrichmentSummary =
+    enrichmentData && typeof enrichmentData.summary === "string"
+      ? enrichmentData.summary
+      : null;
+  const topPainPoint =
+    enrichmentData && typeof enrichmentData.topPainPoint === "string"
+      ? enrichmentData.topPainPoint
+      : company.painTags[0] ?? null;
   const looksLikePermitDescription =
     !permitStackEvidence &&
     company.leadSource?.toLowerCase() === "permitstack" &&
@@ -77,11 +85,21 @@ export default async function OutreachCompanyDetailPage({ params }: OutreachComp
           </Link>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{company.name}</h1>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               <Badge variant="secondary" className="capitalize">
                 {company.status.toLowerCase().replace(/_/g, " ")}
               </Badge>
-              <p className="text-xs text-muted-foreground">Added {format(new Date(company.createdAt), "MMM d, yyyy")}</p>
+              {company.fitScore != null && company.fitScore > 0 && (
+                <Badge variant="outline">Fit {company.fitScore}/5</Badge>
+              )}
+              {company.enrichmentStatus === "pending" && (
+                <Badge variant="outline" className="text-amber-700 bg-amber-50">
+                  Enriching...
+                </Badge>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Added {format(new Date(company.createdAt), "MMM d, yyyy")}
+              </p>
             </div>
           </div>
         </div>
@@ -110,6 +128,22 @@ export default async function OutreachCompanyDetailPage({ params }: OutreachComp
                   This saved prospect name looks like permit description text rather than a named
                   contractor. Review the record before outreach.
                 </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {(enrichmentSummary || topPainPoint) && (
+            <Card className="border-primary/20 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="text-base">AI Insights</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {enrichmentSummary && <p>{enrichmentSummary}</p>}
+                {topPainPoint && (
+                  <p className="text-xs text-muted-foreground">
+                    Top outreach angle: <span className="font-medium text-foreground">{topPainPoint}</span>
+                  </p>
+                )}
               </CardContent>
             </Card>
           )}

@@ -10,6 +10,7 @@ import {
   CreditCard,
   LayoutDashboard,
   Megaphone,
+  Inbox,
   Menu,
   Settings2,
   Shield,
@@ -26,6 +27,7 @@ import { ADMIN_NAV_ITEMS, type AdminNavIconKey } from "@/lib/admin-nav";
 const ICONS: Record<AdminNavIconKey, LucideIcon> = {
   dashboard: LayoutDashboard,
   outreach: Megaphone,
+  discovery: Inbox,
   clients: Users,
   requests: ClipboardList,
   time: Clock,

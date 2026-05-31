@@ -220,6 +220,11 @@ export const outreachCompanySchema = z.object({
   painTags: z.array(z.string()).optional(),
   doNotContact: z.boolean().optional(),
   enrichmentData: z.record(z.string(), z.unknown()).optional().nullable(),
+  googlePlaceId: trimmedString.max(200).optional().nullable(),
+  permitStackId: trimmedString.max(200).optional().nullable(),
+  primaryContactPhone: trimmedString.max(40).optional().nullable(),
+  primaryContactName: trimmedString.max(200).optional().nullable(),
+  primaryContactEmail: trimmedString.max(320).optional().nullable(),
 });
 
 export type OutreachCompanyInput = z.infer<typeof outreachCompanySchema>;

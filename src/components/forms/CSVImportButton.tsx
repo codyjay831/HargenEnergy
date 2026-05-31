@@ -1,13 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FileUp, Loader2 } from "lucide-react";
-import { importOutreachCSV } from "@/app/actions/outreach";
+import { importOutreachCSV, type OutreachCsvImportTarget } from "@/app/actions/outreach";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export function CSVImportButton() {
   const [isUploading, setIsUploading] = useState(false);
+  const [target, setTarget] = useState<OutreachCsvImportTarget>("discovery");
+  const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -18,36 +28,51 @@ export function CSVImportButton() {
     const reader = new FileReader();
     reader.onload = async (e) => {
       const text = e.target?.result as string;
-      const result = await importOutreachCSV(text);
-      
+      const result = await importOutreachCSV(text, target);
+
       if (result.success) {
-        alert(`Import successful!\nCreated: ${result.stats?.createdCount}\nUpdated: ${result.stats?.updatedCount}\nSkipped: ${result.stats?.skippedCount}`);
+        toast.success(
+          `Import complete — Created: ${result.stats?.createdCount}, Updated: ${result.stats?.updatedCount}, Inbox: ${result.stats?.discoveryCount}, Skipped: ${result.stats?.skippedCount}`
+        );
         router.refresh();
       } else {
-        alert(`Import failed: ${result.error}`);
+        toast.error(result.error || "Import failed");
       }
       setIsUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
     };
     reader.readAsText(file);
   };
 
   return (
-    <div className="relative">
-      <input
-        type="file"
-        accept=".csv"
-        onChange={handleFileUpload}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-        disabled={isUploading}
-      />
-      <Button variant="outline" size="sm" disabled={isUploading}>
-        {isUploading ? (
-          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-        ) : (
-          <FileUp className="h-4 w-4 mr-2" />
-        )}
-        Import CSV
-      </Button>
+    <div className="flex items-center gap-2">
+      <Select value={target} onValueChange={(val) => val && setTarget(val as OutreachCsvImportTarget)}>
+        <SelectTrigger className="h-8 w-[130px] text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="discovery">To inbox</SelectItem>
+          <SelectItem value="save">Save direct</SelectItem>
+        </SelectContent>
+      </Select>
+      <div className="relative">
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".csv"
+          onChange={handleFileUpload}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          disabled={isUploading}
+        />
+        <Button variant="outline" size="sm" disabled={isUploading}>
+          {isUploading ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <FileUp className="h-4 w-4 mr-2" />
+          )}
+          Import CSV
+        </Button>
+      </div>
     </div>
   );
 }

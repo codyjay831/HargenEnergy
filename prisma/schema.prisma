@@ -814,34 +814,41 @@ enum BusinessType {
 }
 
 model OutreachCompany {
-  id                 String                @id @default(cuid())
-  name               String
-  website            String?
-  city               String?
-  county             String?
-  state              String?
-  serviceArea        String?
-  businessType       BusinessType?         @default(OTHER)
+  id                  String                @id @default(cuid())
+  name                String
+  normalizedName      String?
+  website             String?
+  city                String?
+  county              String?
+  state               String?
+  serviceArea         String?
+  businessType        BusinessType?         @default(OTHER)
   companySizeEstimate String?
-  leadSource         String?
-  sourceQuery        String?
-  sourceUrl          String?
-  status             OutreachCompanyStatus @default(LEAD_FOUND)
-  interestLevel      Int?                  @default(0) // 1-5 scale
-  fitScore           Int?                  @default(0) // 1-5 scale
-  notes              String?
-  painTags           String[]              @default([])
-  doNotContact       Boolean               @default(false)
-  enrichmentData     Json?                 // For AI findings
-  contacts           OutreachContact[]
-  activities         OutreachActivity[]
-  lastContactedAt    DateTime?
-  nextFollowUpAt     DateTime?
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
+  leadSource          String?
+  sourceQuery         String?
+  sourceUrl           String?
+  googlePlaceId       String?               @unique
+  permitStackId       String?
+  status              OutreachCompanyStatus @default(LEAD_FOUND)
+  interestLevel       Int?                  @default(0) // 1-5 scale
+  fitScore            Int?                  @default(0) // 1-5 scale
+  notes               String?
+  painTags            String[]              @default([])
+  doNotContact        Boolean               @default(false)
+  enrichmentData      Json?                 // For AI findings
+  enrichmentStatus    String?               // pending | complete | failed
+  enrichmentQueuedAt  DateTime?
+  contacts            OutreachContact[]
+  activities          OutreachActivity[]
+  discoveries         OutreachDiscovery[]
+  lastContactedAt     DateTime?
+  nextFollowUpAt      DateTime?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
 
   @@index([status])
   @@index([state, city])
+  @@index([normalizedName, city])
 }
 
 model OutreachContact {
@@ -901,6 +908,13 @@ model OutreachTemplate {
   updatedAt    DateTime        @updatedAt
 }
 
+enum OutreachDiscoveryStatus {
+  NEW
+  REVIEWING
+  SAVED
+  DISMISSED
+}
+
 enum OutreachSearchSource {
   GOOGLE
   PERMITSTACK
@@ -925,7 +939,41 @@ model OutreachSearchRun {
   errorMessage   String?
   resultSnapshot Json?
   createdAt      DateTime             @default(now())
+  discoveries    OutreachDiscovery[]
 
   @@index([createdAt])
   @@index([source, createdAt])
+}
+
+model OutreachDiscovery {
+  id               String                  @id @default(cuid())
+  googlePlaceId    String?                 @unique
+  permitStackId    String?
+  normalizedName   String
+  name             String
+  city             String?
+  state            String?
+  address          String?
+  website          String?
+  phone            String?
+  rating           Float?
+  userRatingsTotal Int?
+  detailsFetchedAt DateTime?
+  status           OutreachDiscoveryStatus @default(NEW)
+  source           OutreachSearchSource?
+  leadSource       String?
+  sourceQuery      String?
+  lastRunId        String?
+  lastRun          OutreachSearchRun?      @relation(fields: [lastRunId], references: [id], onDelete: SetNull)
+  matchedCompanyId String?
+  matchedCompany   OutreachCompany?        @relation(fields: [matchedCompanyId], references: [id], onDelete: SetNull)
+  fitScore         Int?
+  painTags         String[]                @default([])
+  firstSeenAt      DateTime                @default(now())
+  lastSeenAt       DateTime                @updatedAt
+
+  @@index([normalizedName, city])
+  @@index([status])
+  @@index([matchedCompanyId])
+  @@index([lastRunId])
 }

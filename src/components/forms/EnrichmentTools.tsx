@@ -17,6 +17,7 @@ import {
   enrichCompanyWithAI,
 } from "@/app/actions/outreach";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import type { YelpBusinessCandidate } from "@/lib/outreach-yelp";
 
 interface EnrichmentToolsProps {
@@ -36,9 +37,12 @@ export function EnrichmentTools({ companyId }: EnrichmentToolsProps) {
     setLoading(source);
     const result = await action(companyId);
     if (result.success) {
+      toast.success(
+        "message" in result && result.message ? String(result.message) : "Enrichment complete"
+      );
       router.refresh();
     } else {
-      alert(result.error);
+      toast.error(result.error || "Enrichment failed");
     }
     setLoading(null);
   };
@@ -59,10 +63,11 @@ export function EnrichmentTools({ companyId }: EnrichmentToolsProps) {
     if ("success" in result && result.success) {
       setYelpCandidates([]);
       setYelpMessage(null);
+      toast.success("Yelp enrichment complete");
       router.refresh();
     } else {
       const errorMessage = "error" in result ? (result.error as string) : "An unknown error occurred";
-      alert(errorMessage);
+      toast.error(errorMessage);
     }
 
     setLoading(null);

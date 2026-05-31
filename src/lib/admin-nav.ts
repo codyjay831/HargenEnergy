@@ -3,6 +3,7 @@ import { NAV_LABELS } from "@/lib/product-language";
 export type AdminNavIconKey =
   | "dashboard"
   | "outreach"
+  | "discovery"
   | "clients"
   | "requests"
   | "time"
@@ -22,6 +23,7 @@ export type AdminNavItem = {
 export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { name: "Dashboard", href: "/admin", icon: "dashboard" },
   { name: "Outreach", href: "/admin/outreach", icon: "outreach" },
+  { name: "Discovery Inbox", href: "/admin/outreach/discovery", icon: "discovery" },
   { name: NAV_LABELS.adminClients, href: "/admin/clients", icon: "clients" },
   {
     name: NAV_LABELS.adminWorkRequests,

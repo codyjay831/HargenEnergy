@@ -32,6 +32,7 @@ export type RateLimitBucket =
   | "outreach-permitstack-search"
   | "outreach-yelp-enrich"
   | "outreach-gemini-assist"
+  | "outreach-auto-enrich"
   | "discovery-book"
   | "discovery-scheduling";
 
@@ -67,6 +68,8 @@ const BUCKET_CONFIG: Record<
   "outreach-yelp-enrich": { max: 30, windowSec: 60 * 60 },
   /** Admin outreach: Gemini PermitStack query assist. */
   "outreach-gemini-assist": { max: 10, windowSec: 60 * 60 },
+  /** Admin outreach: async AI enrichment per company. */
+  "outreach-auto-enrich": { max: 20, windowSec: 60 * 60 },
   /** Public discovery booking page. */
   "discovery-book": { max: 20, windowSec: 60 * 60 },
   /** Public discovery scheduling page loads. */

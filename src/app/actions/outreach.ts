@@ -1,5 +1,6 @@
 "use server";
 
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { outreachCompanySchema, OutreachCompanyInput } from "@/lib/validations";
 import { authorizeStaffAction, requireStaff } from "@/lib/auth-guards";
@@ -8,6 +9,7 @@ import {
   OutreachActivityType,
   OutreachChannel,
   OutreachCompanyStatus,
+  OutreachDiscoveryStatus,
   OutreachSearchSource,
   OutreachSearchStatus,
   Prisma,
@@ -22,10 +24,28 @@ import {
   findExistingOutreachCompany,
   getOutreachSearchRunById,
   getRecentOutreachSearchRuns,
+  GOOGLE_NEXT_PAGE_DELAY_MS,
   logOutreachSearchRun,
+  normalizeCompanyName,
   OUTREACH_SEARCH_RESULT_LIMIT,
+  parseAddress,
   type OutreachSearchReplayPayload,
 } from "@/lib/outreach-search";
+import {
+  ingestSearchResultsIntoDiscoveryPool,
+  placeDetailsAreFresh,
+  pruneStaleDiscoveries,
+} from "@/lib/outreach-discovery";
+import {
+  buildOutreachCsvTemplate,
+  getCsvField,
+  OUTREACH_CSV_COLUMNS,
+  parseFitScore,
+  parseOutreachStatus,
+  parsePainTags,
+  serializePainTags,
+} from "@/lib/outreach-csv";
+import { runCompanyEnrichment } from "@/lib/outreach-enrichment";
 import {
   type PermitStackSearchInput,
   loadPermitStackCoverage,
@@ -39,12 +59,15 @@ import {
   type YelpBusinessCandidate,
 } from "@/lib/outreach-yelp";
 
+export type OutreachCsvImportTarget = "discovery" | "save";
+
 async function enforceOutreachRateLimit(
   bucket:
     | "outreach-google-search"
     | "outreach-permitstack-search"
     | "outreach-yelp-enrich"
-    | "outreach-gemini-assist",
+    | "outreach-gemini-assist"
+    | "outreach-auto-enrich",
   userId: string
 ) {
   const result = await checkRateLimit(bucket, `user:${userId}`);
@@ -55,7 +78,69 @@ async function enforceOutreachRateLimit(
   return null;
 }
 
-export async function createOutreachCompany(data: OutreachCompanyInput) {
+function scheduleCompanyEnrichment(companyId: string) {
+  after(async () => {
+    try {
+      await runCompanyEnrichment(companyId);
+    } catch (error) {
+      console.error("Background enrichment failed:", error);
+    }
+  });
+}
+
+async function upsertPrimaryContact(
+  companyId: string,
+  input: {
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  }
+) {
+  if (!input.name && !input.email && !input.phone) {
+    return;
+  }
+
+  const existingPrimary = await prisma.outreachContact.findFirst({
+    where: { companyId, isPrimary: true },
+  });
+
+  if (existingPrimary) {
+    await prisma.outreachContact.update({
+      where: { id: existingPrimary.id },
+      data: {
+        name: input.name || existingPrimary.name,
+        email: input.email || existingPrimary.email,
+        phone: input.phone || existingPrimary.phone,
+      },
+    });
+    return;
+  }
+
+  await prisma.outreachContact.create({
+    data: {
+      companyId,
+      name: input.name || "Primary Contact",
+      email: input.email || undefined,
+      phone: input.phone || undefined,
+      isPrimary: true,
+    },
+  });
+}
+
+async function markDiscoverySaved(discoveryId: string, companyId: string) {
+  await prisma.outreachDiscovery.update({
+    where: { id: discoveryId },
+    data: {
+      status: OutreachDiscoveryStatus.SAVED,
+      matchedCompanyId: companyId,
+    },
+  });
+}
+
+export async function createOutreachCompany(
+  data: OutreachCompanyInput,
+  options?: { discoveryId?: string; scheduleEnrichment?: boolean }
+) {
   await requireStaff("ops.full");
 
   const validatedFields = outreachCompanySchema.safeParse(data);
@@ -72,6 +157,8 @@ export async function createOutreachCompany(data: OutreachCompanyInput) {
       city: validatedFields.data.city,
       state: validatedFields.data.state,
       website: validatedFields.data.website,
+      googlePlaceId: validatedFields.data.googlePlaceId,
+      permitStackContractorId: validatedFields.data.permitStackId,
     });
 
     if (duplicate) {
@@ -82,18 +169,57 @@ export async function createOutreachCompany(data: OutreachCompanyInput) {
       };
     }
 
-    const { enrichmentData, ...companyFields } = validatedFields.data;
+    const {
+      enrichmentData,
+      primaryContactPhone,
+      primaryContactName,
+      primaryContactEmail,
+      googlePlaceId,
+      permitStackId,
+      ...companyFields
+    } = validatedFields.data;
 
     const company = await prisma.outreachCompany.create({
       data: {
         ...companyFields,
+        normalizedName: normalizeCompanyName(validatedFields.data.name),
+        googlePlaceId: googlePlaceId ?? undefined,
+        permitStackId: permitStackId ?? undefined,
         enrichmentData: (enrichmentData ?? undefined) as Prisma.InputJsonValue | undefined,
-        status: (validatedFields.data.status as OutreachCompanyStatus) || OutreachCompanyStatus.LEAD_FOUND,
-        businessType: (validatedFields.data.businessType as BusinessType) || BusinessType.OTHER,
+        enrichmentStatus: options?.scheduleEnrichment === false ? undefined : "pending",
+        enrichmentQueuedAt: options?.scheduleEnrichment === false ? undefined : new Date(),
+        status:
+          (validatedFields.data.status as OutreachCompanyStatus) ||
+          OutreachCompanyStatus.LEAD_FOUND,
+        businessType:
+          (validatedFields.data.businessType as BusinessType) || BusinessType.OTHER,
       },
     });
 
+    await upsertPrimaryContact(company.id, {
+      name: primaryContactName,
+      email: primaryContactEmail,
+      phone: primaryContactPhone,
+    });
+
+    if (options?.discoveryId) {
+      await markDiscoverySaved(options.discoveryId, company.id);
+    } else if (googlePlaceId) {
+      const discovery = await prisma.outreachDiscovery.findUnique({
+        where: { googlePlaceId },
+      });
+      if (discovery) {
+        await markDiscoverySaved(discovery.id, company.id);
+      }
+    }
+
+    if (options?.scheduleEnrichment !== false) {
+      scheduleCompanyEnrichment(company.id);
+    }
+
     revalidatePath("/admin/outreach/companies");
+    revalidatePath("/admin/outreach/discovery");
+    revalidatePath("/admin/outreach");
     return { success: true, company };
   } catch (error) {
     console.error("Error creating outreach company:", error);
@@ -113,6 +239,7 @@ export async function updateOutreachCompany(id: string, data: Partial<OutreachCo
       where: { id },
       data: {
         ...companyFields,
+        normalizedName: data.name ? normalizeCompanyName(data.name) : undefined,
         enrichmentData:
           enrichmentData === undefined
             ? undefined
@@ -149,7 +276,10 @@ export async function deleteOutreachCompany(id: string) {
   }
 }
 
-export async function importOutreachCSV(csvContent: string) {
+export async function importOutreachCSV(
+  csvContent: string,
+  target: OutreachCsvImportTarget = "save"
+) {
   const authResult = await authorizeStaffAction("ops.full");
   if (!authResult.ok) {
     return { error: authResult.error };
@@ -167,16 +297,24 @@ export async function importOutreachCSV(csvContent: string) {
   let createdCount = 0;
   let updatedCount = 0;
   let skippedCount = 0;
+  let discoveryCount = 0;
 
   for (const row of rows) {
-    const name = row["Company Name"] || row["name"] || row["Company"];
-    const website = row["Website"] || row["website"] || row["URL"];
-    const email = row["Email"] || row["email"] || row["Contact Email"];
-    const phone = row["Phone"] || row["phone"] || row["Contact Phone"];
-    const contactName = row["Contact Name"] || row["contact_name"] || row["Person"];
-    const city = row["City"] || row["city"];
-    const state = row["State"] || row["state"];
-    const notes = row["Notes"] || row["notes"] || row["Description"];
+    const name =
+      getCsvField(row, "Company Name", "name", "Company");
+    const website = getCsvField(row, "Website", "website", "URL");
+    const email = getCsvField(row, "Email", "email", "Contact Email");
+    const phone = getCsvField(row, "Phone", "phone", "Contact Phone");
+    const contactName = getCsvField(row, "Contact Name", "contact_name", "Person");
+    const city = getCsvField(row, "City", "city");
+    const state = getCsvField(row, "State", "state");
+    const notes = getCsvField(row, "Notes", "notes", "Description");
+    const rowId = getCsvField(row, "id");
+    const googlePlaceId = getCsvField(row, "googlePlaceId");
+    const leadSource = getCsvField(row, "leadSource");
+    const fitScore = parseFitScore(getCsvField(row, "fitScore"));
+    const painTags = parsePainTags(getCsvField(row, "painTags"));
+    const status = parseOutreachStatus(getCsvField(row, "Status"));
 
     if (!name) {
       skippedCount++;
@@ -184,72 +322,123 @@ export async function importOutreachCSV(csvContent: string) {
     }
 
     try {
-      // Duplicate detection
-      const conditions: Prisma.OutreachCompanyWhereInput[] = [];
-      
-      if (website) {
-        conditions.push({ 
-          website: { 
-            contains: website.replace(/^https?:\/\/(www\.)?/, ""), 
-            mode: "insensitive" 
-          } 
-        });
-      }
-      
-      if (name && city) {
-        conditions.push({
-          AND: [
-            { name: { equals: name, mode: "insensitive" } },
-            { city: { equals: city, mode: "insensitive" } }
-          ]
-        });
-      } else if (name) {
-        conditions.push({ name: { equals: name, mode: "insensitive" } });
+      let existing = null;
+
+      if (rowId) {
+        existing = await prisma.outreachCompany.findUnique({ where: { id: rowId } });
       }
 
-      let existing = null;
-      if (conditions.length > 0) {
-        existing = await prisma.outreachCompany.findFirst({
-          where: { OR: conditions }
-        });
+      if (!existing) {
+        existing = (
+          await findExistingOutreachCompany({
+            name,
+            city,
+            state,
+            website,
+            googlePlaceId,
+          })
+        )?.company;
+      }
+
+      if (target === "discovery") {
+        const normalizedName = normalizeCompanyName(name);
+        const existingDiscovery = googlePlaceId
+          ? await prisma.outreachDiscovery.findUnique({ where: { googlePlaceId } })
+          : await prisma.outreachDiscovery.findFirst({
+              where: {
+                normalizedName,
+                city: city ? { equals: city, mode: "insensitive" } : undefined,
+              },
+            });
+
+        if (existingDiscovery) {
+          await prisma.outreachDiscovery.update({
+            where: { id: existingDiscovery.id },
+            data: {
+              name,
+              city: city || existingDiscovery.city,
+              state: state || existingDiscovery.state,
+              website: website || existingDiscovery.website,
+              phone: phone || existingDiscovery.phone,
+              leadSource: leadSource || existingDiscovery.leadSource,
+              fitScore: fitScore ?? existingDiscovery.fitScore,
+              painTags: painTags.length > 0 ? painTags : existingDiscovery.painTags,
+              matchedCompanyId: existing?.id ?? existingDiscovery.matchedCompanyId,
+              status: existing
+                ? OutreachDiscoveryStatus.SAVED
+                : existingDiscovery.status === OutreachDiscoveryStatus.SAVED
+                  ? OutreachDiscoveryStatus.SAVED
+                  : OutreachDiscoveryStatus.NEW,
+              lastSeenAt: new Date(),
+            },
+          });
+        } else {
+          await prisma.outreachDiscovery.create({
+            data: {
+              googlePlaceId: googlePlaceId || undefined,
+              normalizedName,
+              name,
+              city,
+              state,
+              website,
+              phone,
+              leadSource,
+              fitScore,
+              painTags,
+              matchedCompanyId: existing?.id ?? undefined,
+              status: existing ? OutreachDiscoveryStatus.SAVED : OutreachDiscoveryStatus.NEW,
+            },
+          });
+        }
+        discoveryCount++;
+        continue;
       }
 
       if (existing) {
-        // Update existing
         await prisma.outreachCompany.update({
           where: { id: existing.id },
           data: {
             website: website || existing.website,
             city: city || existing.city,
             state: state || existing.state,
-            notes: notes ? `${existing.notes || ""}\n\nImported Note: ${notes}` : existing.notes,
-          }
+            googlePlaceId: googlePlaceId || existing.googlePlaceId,
+            normalizedName: normalizeCompanyName(name),
+            notes: notes ?? existing.notes,
+            fitScore: fitScore ?? existing.fitScore,
+            painTags: painTags.length > 0 ? painTags : existing.painTags,
+            status: status ?? existing.status,
+            leadSource: leadSource || existing.leadSource,
+          },
+        });
+
+        await upsertPrimaryContact(existing.id, {
+          name: contactName,
+          email,
+          phone,
         });
         updatedCount++;
       } else {
-        // Create new
         const company = await prisma.outreachCompany.create({
           data: {
             name,
+            normalizedName: normalizeCompanyName(name),
             website,
             city,
             state,
             notes,
-            status: OutreachCompanyStatus.LEAD_FOUND,
-          }
+            googlePlaceId: googlePlaceId || undefined,
+            leadSource,
+            fitScore,
+            painTags,
+            status: status || OutreachCompanyStatus.LEAD_FOUND,
+          },
         });
 
-        if (contactName || email || phone) {
-          await prisma.outreachContact.create({
-            data: {
-              companyId: company.id,
-              name: contactName || "Primary Contact",
-              email,
-              phone,
-              isPrimary: true,
-            }
-          });
-        }
+        await upsertPrimaryContact(company.id, {
+          name: contactName,
+          email,
+          phone,
+        });
         createdCount++;
       }
     } catch (err) {
@@ -259,40 +448,118 @@ export async function importOutreachCSV(csvContent: string) {
   }
 
   revalidatePath("/admin/outreach/companies");
-  return { 
-    success: true, 
-    stats: { createdCount, updatedCount, skippedCount } 
+  revalidatePath("/admin/outreach/discovery");
+  revalidatePath("/admin/outreach");
+  return {
+    success: true,
+    stats: { createdCount, updatedCount, skippedCount, discoveryCount },
   };
 }
 
-export async function exportOutreachCSV() {
+export type OutreachCsvExportMode = "saved" | "discovery" | "run";
+
+export async function exportOutreachCSV(mode: OutreachCsvExportMode = "saved", runId?: string) {
   const authResult = await authorizeStaffAction("ops.full");
   if (!authResult.ok) {
     return { error: authResult.error };
   }
   try {
+    if (mode === "discovery") {
+      const discoveries = await prisma.outreachDiscovery.findMany({
+        where: {
+          status: { in: [OutreachDiscoveryStatus.NEW, OutreachDiscoveryStatus.REVIEWING] },
+        },
+        orderBy: { lastSeenAt: "desc" },
+      });
+
+      const data = discoveries.map((d) => ({
+        id: "",
+        googlePlaceId: d.googlePlaceId || "",
+        "Company Name": d.name,
+        City: d.city || "",
+        State: d.state || "",
+        Website: d.website || "",
+        Status: "LEAD_FOUND",
+        "Contact Name": "",
+        "Contact Email": "",
+        "Contact Phone": d.phone || "",
+        Notes: d.address || "",
+        fitScore: d.fitScore?.toString() || "",
+        painTags: serializePainTags(d.painTags),
+        leadSource: d.leadSource || d.source || "",
+      }));
+
+      return { success: true, csv: Papa.unparse(data, { columns: [...OUTREACH_CSV_COLUMNS] }) };
+    }
+
+    if (mode === "run") {
+      if (!runId) {
+        return { error: "Select a search run to export." };
+      }
+      const run = await getOutreachSearchRunById(runId);
+      if (!run) {
+        return { error: "Search run not found." };
+      }
+      const snapshot = run.resultSnapshot as OutreachSearchReplayPayload | null;
+      const results = (snapshot?.results || []) as Array<{
+        placeId: string;
+        name: string;
+        city?: string | null;
+        state?: string | null;
+        website?: string | null;
+        phone?: string | null;
+        address?: string | null;
+        rating?: number | null;
+      }>;
+
+      const data = results.map((result) => ({
+        id: "",
+        googlePlaceId: result.placeId.startsWith("contractor-") ? "" : result.placeId,
+        "Company Name": result.name,
+        City: result.city || "",
+        State: result.state || "",
+        Website: result.website || "",
+        Status: "LEAD_FOUND",
+        "Contact Name": "",
+        "Contact Email": "",
+        "Contact Phone": result.phone || "",
+        Notes: result.address || "",
+        fitScore: "",
+        painTags: "",
+        leadSource: run.source || "",
+      }));
+
+      return { success: true, csv: Papa.unparse(data, { columns: [...OUTREACH_CSV_COLUMNS] }) };
+    }
+
     const companies = await prisma.outreachCompany.findMany({
       include: {
         contacts: {
           where: { isPrimary: true },
-          take: 1
-        }
-      }
+          take: 1,
+        },
+      },
+      orderBy: { updatedAt: "desc" },
     });
 
-    const data = companies.map(c => ({
+    const data = companies.map((c) => ({
+      id: c.id,
+      googlePlaceId: c.googlePlaceId || "",
       "Company Name": c.name,
-      "Website": c.website || "",
-      "City": c.city || "",
-      "State": c.state || "",
-      "Status": c.status,
+      Website: c.website || "",
+      City: c.city || "",
+      State: c.state || "",
+      Status: c.status,
       "Contact Name": c.contacts[0]?.name || "",
       "Contact Email": c.contacts[0]?.email || "",
       "Contact Phone": c.contacts[0]?.phone || "",
-      "Notes": c.notes || "",
+      Notes: c.notes || "",
+      fitScore: c.fitScore?.toString() || "",
+      painTags: serializePainTags(c.painTags),
+      leadSource: c.leadSource || "",
     }));
 
-    const csv = Papa.unparse(data);
+    const csv = Papa.unparse(data, { columns: [...OUTREACH_CSV_COLUMNS] });
     return { success: true, csv };
   } catch (error) {
     console.error("Error exporting outreach CSV:", error);
@@ -300,7 +567,26 @@ export async function exportOutreachCSV() {
   }
 }
 
-export async function searchContractors(query: string) {
+export async function getOutreachCsvTemplate() {
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
+  }
+  return { success: true, csv: buildOutreachCsvTemplate() };
+}
+
+async function fetchGooglePlaceDetailsFromApi(placeId: string, apiKey: string) {
+  const response = await fetch(
+    `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_phone_number,website,formatted_address,geometry,rating,user_ratings_total&key=${apiKey}`
+  );
+  const data = await response.json();
+  if (data.status !== "OK") {
+    return { error: `Google API error: ${data.status}` as const };
+  }
+  return { success: true as const, place: data.result };
+}
+
+export async function searchContractors(query: string, pageToken?: string) {
   const authResult = await authorizeStaffAction("ops.full");
   if (!authResult.ok) {
     return { error: authResult.error };
@@ -321,30 +607,51 @@ export async function searchContractors(query: string) {
   }
 
   const trimmedQuery = query.trim();
-  if (!trimmedQuery) {
+  if (!trimmedQuery && !pageToken) {
     return { error: "Enter a search query." };
   }
 
   try {
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(trimmedQuery)}&key=${apiKey}`
-    );
+    if (pageToken) {
+      await new Promise((resolve) => setTimeout(resolve, GOOGLE_NEXT_PAGE_DELAY_MS));
+    }
+
+    const url = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
+    if (pageToken) {
+      url.searchParams.set("pagetoken", pageToken);
+    } else {
+      url.searchParams.set("query", trimmedQuery);
+    }
+    url.searchParams.set("key", apiKey);
+
+    const response = await fetch(url.toString());
     const data = await response.json();
 
     if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-      await logOutreachSearchRun({
-        source: OutreachSearchSource.GOOGLE,
-        createdById: session.user.id,
-        queryText: trimmedQuery,
-        params: { query: trimmedQuery },
-        resultCount: 0,
-        status: OutreachSearchStatus.ERROR,
-        errorMessage: data.status,
-      });
+      if (!pageToken) {
+        await logOutreachSearchRun({
+          source: OutreachSearchSource.GOOGLE,
+          createdById: session.user.id,
+          queryText: trimmedQuery,
+          params: { query: trimmedQuery },
+          resultCount: 0,
+          status: OutreachSearchStatus.ERROR,
+          errorMessage: data.status,
+        });
+      }
       return { error: `Google API error: ${data.status}` };
     }
 
-    const rawResults = (data.results || []).slice(0, OUTREACH_SEARCH_RESULT_LIMIT).map((place: {
+    const rawResults: Array<{
+      placeId: string;
+      name: string;
+      address?: string;
+      rating?: number;
+      userRatingsTotal?: number;
+      types?: string[];
+      city: string | null;
+      state: string | null;
+    }> = (data.results || []).slice(0, OUTREACH_SEARCH_RESULT_LIMIT).map((place: {
       place_id: string;
       name: string;
       formatted_address?: string;
@@ -365,30 +672,54 @@ export async function searchContractors(query: string) {
     const status =
       results.length > 0 ? OutreachSearchStatus.SUCCESS : OutreachSearchStatus.EMPTY;
 
-    await logOutreachSearchRun({
+    const run = await logOutreachSearchRun({
       source: OutreachSearchSource.GOOGLE,
       createdById: session.user.id,
       queryText: trimmedQuery,
-      params: { query: trimmedQuery },
+      params: { query: trimmedQuery, pageToken: pageToken || null },
       resultCount: results.length,
       status,
-      resultSnapshot: buildOutreachSearchReplaySnapshot({
-        results,
-      }),
+      resultSnapshot: buildOutreachSearchReplaySnapshot({ results }),
     });
 
-    return { success: true, results, count: results.length };
+    await ingestSearchResultsIntoDiscoveryPool(
+      rawResults.map((result) => ({
+        placeId: result.placeId,
+        name: result.name,
+        city: result.city,
+        state: result.state,
+        address: result.address,
+        rating: result.rating,
+        userRatingsTotal: result.userRatingsTotal,
+        source: OutreachSearchSource.GOOGLE,
+        leadSource: "Google",
+        sourceQuery: trimmedQuery,
+      })),
+      run.id
+    );
+
+    revalidatePath("/admin/outreach/discovery");
+
+    return {
+      success: true,
+      results,
+      count: results.length,
+      nextPageToken: data.next_page_token || null,
+      runId: run.id,
+    };
   } catch (error) {
     console.error("Error searching contractors:", error);
-    await logOutreachSearchRun({
-      source: OutreachSearchSource.GOOGLE,
-      createdById: session.user.id,
-      queryText: trimmedQuery,
-      params: { query: trimmedQuery },
-      resultCount: 0,
-      status: OutreachSearchStatus.ERROR,
-      errorMessage: error instanceof Error ? error.message : "Unknown error",
-    });
+    if (!pageToken) {
+      await logOutreachSearchRun({
+        source: OutreachSearchSource.GOOGLE,
+        createdById: session.user.id,
+        queryText: trimmedQuery,
+        params: { query: trimmedQuery },
+        resultCount: 0,
+        status: OutreachSearchStatus.ERROR,
+        errorMessage: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
     return { error: "Failed to search contractors." };
   }
 }
@@ -489,7 +820,7 @@ export async function searchPermitStack(input: PermitStackSearchInput) {
     const status =
       annotated.length > 0 ? OutreachSearchStatus.SUCCESS : OutreachSearchStatus.EMPTY;
 
-    await logOutreachSearchRun({
+    const run = await logOutreachSearchRun({
       source: OutreachSearchSource.PERMITSTACK,
       createdById: session.user.id,
       queryText: input.contractorName || input.city || null,
@@ -507,6 +838,24 @@ export async function searchPermitStack(input: PermitStackSearchInput) {
       }),
     });
 
+    await ingestSearchResultsIntoDiscoveryPool(
+      (searchResult.results ?? []).map((result) => ({
+        placeId: result.placeId,
+        name: result.name,
+        city: result.city,
+        state: result.state,
+        address: result.address,
+        rating: result.rating,
+        userRatingsTotal: result.userRatingsTotal,
+        source: OutreachSearchSource.PERMITSTACK,
+        leadSource: "PermitStack",
+        sourceQuery: JSON.stringify(input),
+      })),
+      run.id
+    );
+
+    revalidatePath("/admin/outreach/discovery");
+
     return {
       success: true,
       results: annotated,
@@ -515,6 +864,7 @@ export async function searchPermitStack(input: PermitStackSearchInput) {
       message: searchResult.message,
       resolvedJurisdiction: searchResult.resolvedJurisdiction,
       attemptDiagnostics: searchResult.attemptDiagnostics,
+      runId: run.id,
     };
   } catch (error) {
     console.error("Error searching PermitStack:", error);
@@ -621,27 +971,87 @@ export async function normalizePermitStackQueryWithAI(text: string) {
   }
 }
 
-export async function getPlaceDetails(placeId: string) {
+export async function getPlaceDetails(placeId: string, discoveryId?: string) {
   const authResult = await authorizeStaffAction("ops.full");
   if (!authResult.ok) {
     return { error: authResult.error };
   }
+
+  const discovery = discoveryId
+    ? await prisma.outreachDiscovery.findUnique({ where: { id: discoveryId } })
+    : await prisma.outreachDiscovery.findUnique({ where: { googlePlaceId: placeId } });
+
+  if (
+    discovery &&
+    placeDetailsAreFresh(discovery.detailsFetchedAt) &&
+    (discovery.website || discovery.phone)
+  ) {
+    return {
+      success: true,
+      place: {
+        website: discovery.website,
+        formatted_phone_number: discovery.phone,
+        formatted_address: discovery.address,
+        name: discovery.name,
+        rating: discovery.rating,
+        user_ratings_total: discovery.userRatingsTotal,
+      },
+      cached: true,
+    };
+  }
+
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
     return { error: "Google Maps API key not configured." };
   }
 
   try {
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_phone_number,website,formatted_address,geometry&key=${apiKey}`
-    );
-    const data = await response.json();
-
-    if (data.status !== "OK") {
-      return { error: `Google API error: ${data.status}` };
+    const details = await fetchGooglePlaceDetailsFromApi(placeId, apiKey);
+    if ("error" in details) {
+      return { error: details.error };
     }
 
-    return { success: true, place: data.result };
+    const place = details.place;
+    const website = place.website as string | undefined;
+    const phone = place.formatted_phone_number as string | undefined;
+    const address = place.formatted_address as string | undefined;
+    const now = new Date();
+
+    if (discovery) {
+      await prisma.outreachDiscovery.update({
+        where: { id: discovery.id },
+        data: {
+          website: website || discovery.website,
+          phone: phone || discovery.phone,
+          address: address || discovery.address,
+          detailsFetchedAt: now,
+        },
+      });
+    } else {
+      await prisma.outreachDiscovery.upsert({
+        where: { googlePlaceId: placeId },
+        create: {
+          googlePlaceId: placeId,
+          normalizedName: normalizeCompanyName((place.name as string) || "Unknown"),
+          name: (place.name as string) || "Unknown",
+          website,
+          phone,
+          address,
+          detailsFetchedAt: now,
+          source: OutreachSearchSource.GOOGLE,
+          leadSource: "Google",
+        },
+        update: {
+          website,
+          phone,
+          address,
+          detailsFetchedAt: now,
+          lastSeenAt: now,
+        },
+      });
+    }
+
+    return { success: true, place, cached: false };
   } catch (error) {
     console.error("Error getting place details:", error);
     return { error: "Failed to get place details." };
@@ -654,126 +1064,29 @@ export async function enrichCompanyWithAI(companyId: string) {
     return { error: authResult.error };
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return { error: "Gemini API key not configured." };
+  const rateLimitError = await enforceOutreachRateLimit(
+    "outreach-auto-enrich",
+    authResult.session.user.id
+  );
+  if (rateLimitError) {
+    return { error: rateLimitError };
   }
 
-  try {
-    const company = await prisma.outreachCompany.findUnique({
-      where: { id: companyId },
-      include: { contacts: true }
-    });
+  await prisma.outreachCompany.update({
+    where: { id: companyId },
+    data: {
+      enrichmentStatus: "pending",
+      enrichmentQueuedAt: new Date(),
+    },
+  });
 
-    if (!company) return { error: "Company not found." };
+  scheduleCompanyEnrichment(companyId);
+  revalidatePath(`/admin/outreach/companies/${companyId}`);
 
-    let websiteContent = "";
-    if (company.website && (company.website.startsWith("http://") || company.website.startsWith("https://"))) {
-      try {
-        const res = await fetch(company.website, { 
-          signal: AbortSignal.timeout(8000),
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-          }
-        });
-        if (res.ok) {
-          const html = await res.text();
-          // Simple HTML to text (strip tags)
-          websiteContent = html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "")
-                               .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, "")
-                               .replace(/<[^>]*>?/gm, ' ')
-                               .replace(/\s+/g, ' ')
-                               .trim()
-                               .slice(0, 8000);
-        }
-      } catch (e) {
-        console.warn(`Could not fetch website ${company.website}:`, e);
-      }
-    }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    // Using gemini-2.5-flash as gemini-3-flash returned a 404
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-    const prompt = `
-      Analyze the following information about a solar company and extract contact info and potential business pain points.
-      
-      Company Name: ${company.name}
-      Website: ${company.website || "N/A"}
-      Location: ${company.city}, ${company.state}
-      
-      Website Content Snippet:
-      ${websiteContent}
-      
-      Return a JSON object with:
-      - contacts: array of { name, role, email, phone, linkedinUrl }
-      - painPoints: array of strings (e.g., "slow response times", "backlog", "needs admin help")
-      - fitScore: 1-5 (how well they fit Hargen Energy's services)
-      - summary: brief 1-2 sentence summary of the company
-      
-      IMPORTANT: Only return the JSON object. Do not include any other text or markdown formatting.
-    `;
-
-    let result;
-    try {
-      result = await model.generateContent(prompt);
-    } catch (apiError: unknown) {
-      console.error("Gemini API Error:", apiError);
-      const message =
-        apiError instanceof Error ? apiError.message : "Unknown error";
-      return { error: `Gemini API Error: ${message}` };
-    }
-    
-    const response = await result.response;
-    const text = response.text();
-    
-    // Robust JSON extraction
-    let enrichment;
-    try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("No JSON found in response");
-      enrichment = JSON.parse(jsonMatch[0]);
-    } catch {
-      console.error("Failed to parse AI response:", text);
-      return { error: "AI returned invalid data format. Please try again." };
-    }
-
-    // Update company with enrichment data
-    await prisma.outreachCompany.update({
-      where: { id: companyId },
-      data: {
-        enrichmentData: enrichment,
-        fitScore: enrichment.fitScore || company.fitScore,
-        painTags: {
-          set: [...new Set([...(company.painTags || []), ...(enrichment.painPoints || [])])]
-        },
-        notes: company.notes ? `${company.notes}\n\nAI Summary: ${enrichment.summary}` : enrichment.summary
-      }
-    });
-
-    // Add new contacts if found
-    for (const contact of (enrichment.contacts || [])) {
-      const exists = company.contacts.some(c => c.email === contact.email || c.name === contact.name);
-      if (!exists && (contact.email || contact.phone || contact.name)) {
-        await prisma.outreachContact.create({
-          data: {
-            companyId,
-            name: contact.name || "Unknown",
-            roleTitle: contact.role,
-            email: contact.email,
-            phone: contact.phone,
-            linkedinUrl: contact.linkedinUrl,
-          }
-        });
-      }
-    }
-
-    revalidatePath(`/admin/outreach/companies/${companyId}`);
-    return { success: true, enrichment };
-  } catch (error) {
-    console.error("Error enriching company with AI:", error);
-    return { error: "Failed to enrich company." };
-  }
+  return {
+    success: true,
+    message: "Enrichment queued. Refresh in a moment to see results.",
+  };
 }
 
 export async function enrichWithApollo(companyId: string) {
@@ -1091,17 +1404,158 @@ export async function checkLicenseStatus(companyId: string) {
   }
 }
 
-function parseAddress(formattedAddress: string) {
-  // Simple regex-based address parsing for US addresses
-  // Format: "123 Main St, City, ST 12345, USA"
-  const parts = formattedAddress.split(", ");
-  if (parts.length >= 3) {
-    const city = parts[parts.length - 3];
-    const stateZip = parts[parts.length - 2].split(" ");
-    const state = stateZip[0];
-    return { city, state };
+export async function listOutreachDiscoveries(filters?: {
+  status?: OutreachDiscoveryStatus;
+  state?: string;
+  query?: string;
+}) {
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
   }
-  return { city: null, state: null };
+
+  const where: Prisma.OutreachDiscoveryWhereInput = {};
+  if (filters?.status) {
+    where.status = filters.status;
+  }
+  if (filters?.state) {
+    where.state = { equals: filters.state, mode: "insensitive" };
+  }
+  if (filters?.query?.trim()) {
+    where.OR = [
+      { name: { contains: filters.query.trim(), mode: "insensitive" } },
+      { city: { contains: filters.query.trim(), mode: "insensitive" } },
+      { address: { contains: filters.query.trim(), mode: "insensitive" } },
+    ];
+  }
+
+  const discoveries = await prisma.outreachDiscovery.findMany({
+    where,
+    orderBy: [{ status: "asc" }, { lastSeenAt: "desc" }],
+    include: {
+      matchedCompany: {
+        select: { id: true, name: true },
+      },
+    },
+  });
+
+  return { success: true, discoveries };
+}
+
+export async function updateDiscoveryStatus(
+  discoveryId: string,
+  status: OutreachDiscoveryStatus
+) {
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
+  }
+
+  await prisma.outreachDiscovery.update({
+    where: { id: discoveryId },
+    data: { status },
+  });
+
+  revalidatePath("/admin/outreach/discovery");
+  revalidatePath("/admin/outreach");
+  return { success: true };
+}
+
+export async function saveDiscoveryToCompany(discoveryId: string) {
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
+  }
+
+  const discovery = await prisma.outreachDiscovery.findUnique({
+    where: { id: discoveryId },
+  });
+  if (!discovery) {
+    return { error: "Discovery not found." };
+  }
+
+  if (discovery.matchedCompanyId) {
+    return { success: true, companyId: discovery.matchedCompanyId, existing: true };
+  }
+
+  let website = discovery.website;
+  let phone = discovery.phone;
+  let address = discovery.address;
+
+  if (discovery.googlePlaceId && (!website || !phone)) {
+    const details = await getPlaceDetails(discovery.googlePlaceId, discovery.id);
+    if (details.success && details.place) {
+      website = details.place.website || website;
+      phone = details.place.formatted_phone_number || phone;
+      address = details.place.formatted_address || address;
+    }
+  }
+
+  const result = await createOutreachCompany(
+    {
+      name: discovery.name,
+      city: discovery.city,
+      state: discovery.state,
+      website,
+      googlePlaceId: discovery.googlePlaceId,
+      permitStackId: discovery.permitStackId,
+      leadSource: discovery.leadSource || discovery.source || undefined,
+      sourceQuery: discovery.sourceQuery || undefined,
+      sourceUrl: discovery.googlePlaceId
+        ? `https://www.google.com/maps/place/?q=place_id:${discovery.googlePlaceId}`
+        : undefined,
+      notes: [
+        discovery.rating
+          ? `Google Rating: ${discovery.rating} (${discovery.userRatingsTotal || 0} reviews)`
+          : null,
+        address ? `Address: ${address}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      primaryContactPhone: phone,
+      fitScore: discovery.fitScore ?? undefined,
+      painTags: discovery.painTags,
+    },
+    { discoveryId, scheduleEnrichment: true }
+  );
+
+  if (result.success) {
+    return { success: true, companyId: result.company.id };
+  }
+
+  if ("existingCompanyId" in result && result.existingCompanyId) {
+    await markDiscoverySaved(discoveryId, result.existingCompanyId);
+    return { success: true, companyId: result.existingCompanyId, existing: true };
+  }
+
+  return result;
+}
+
+export async function batchSaveDiscoveries(discoveryIds: string[]) {
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
+  }
+
+  let saved = 0;
+  let skipped = 0;
+  for (const id of discoveryIds) {
+    const result = await saveDiscoveryToCompany(id);
+    if (result.success) {
+      saved += 1;
+    } else {
+      skipped += 1;
+    }
+  }
+
+  revalidatePath("/admin/outreach/discovery");
+  revalidatePath("/admin/outreach/companies");
+  return { success: true, saved, skipped };
+}
+
+export async function runOutreachDiscoveryCleanup() {
+  const deleted = await pruneStaleDiscoveries();
+  return { success: true, deleted };
 }
 
 export async function logOutreachActivity(data: {
