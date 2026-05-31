@@ -18,6 +18,10 @@ import { OutreachActivityForm } from "@/components/forms/OutreachActivityForm";
 import { OutreachContactList } from "@/components/forms/OutreachContactList";
 import { OutreachTemplateList } from "@/components/forms/OutreachTemplateList";
 import { EnrichmentTools } from "@/components/forms/EnrichmentTools";
+import {
+  formatBusinessStatusLabel,
+  getOutreachSignalsSummary,
+} from "@/lib/outreach-ui-signals";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +71,7 @@ export default async function OutreachCompanyDetailPage({ params }: OutreachComp
     enrichmentData && typeof enrichmentData.topPainPoint === "string"
       ? enrichmentData.topPainPoint
       : company.painTags[0] ?? null;
+  const signalsSummary = getOutreachSignalsSummary(company.enrichmentData);
   const looksLikePermitDescription =
     !permitStackEvidence &&
     company.leadSource?.toLowerCase() === "permitstack" &&
@@ -147,6 +152,84 @@ export default async function OutreachCompanyDetailPage({ params }: OutreachComp
               </CardContent>
             </Card>
           )}
+
+          {signalsSummary &&
+            (signalsSummary.googleRating ||
+              signalsSummary.yelpRating ||
+              signalsSummary.licenseNumber ||
+              signalsSummary.reviewSummary ||
+              signalsSummary.businessStatus !== "unknown") && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Research Signals</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-muted-foreground">
+                      Business status
+                    </p>
+                    <p className="font-medium">
+                      {formatBusinessStatusLabel(signalsSummary.businessStatus)}
+                    </p>
+                  </div>
+                  {signalsSummary.googleRating != null && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-muted-foreground">
+                        Google rating
+                      </p>
+                      <p className="font-medium">
+                        {signalsSummary.googleRating}
+                        {signalsSummary.googleReviewCount != null
+                          ? ` (${signalsSummary.googleReviewCount} reviews)`
+                          : ""}
+                      </p>
+                    </div>
+                  )}
+                  {signalsSummary.yelpRating != null && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-muted-foreground">
+                        Yelp rating
+                      </p>
+                      <p className="font-medium">
+                        {signalsSummary.yelpRating}
+                        {signalsSummary.yelpReviewCount != null
+                          ? ` (${signalsSummary.yelpReviewCount} reviews)`
+                          : ""}
+                      </p>
+                    </div>
+                  )}
+                  {signalsSummary.licenseNumber && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-muted-foreground">
+                        License
+                      </p>
+                      <p className="font-medium">
+                        {signalsSummary.licenseNumber}
+                        {signalsSummary.licenseStatus
+                          ? ` (${signalsSummary.licenseStatus})`
+                          : ""}
+                      </p>
+                    </div>
+                  )}
+                  {signalsSummary.reviewSummary && (
+                    <div className="md:col-span-2">
+                      <p className="text-xs font-semibold uppercase text-muted-foreground">
+                        Review summary
+                      </p>
+                      <p className="font-medium">{signalsSummary.reviewSummary}</p>
+                    </div>
+                  )}
+                  {signalsSummary.outreachAngle && (
+                    <div className="md:col-span-2">
+                      <p className="text-xs font-semibold uppercase text-muted-foreground">
+                        Outreach angle
+                      </p>
+                      <p className="font-medium">{signalsSummary.outreachAngle}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
           {permitStackEvidence && (
             <Card>

@@ -165,7 +165,7 @@ export function EnrichmentTools({ companyId }: EnrichmentToolsProps) {
           ) : (
             <Sparkles className="h-3 w-3 mr-2" />
           )}
-          Full AI Analysis
+          Full AI Analysis (Web + Reviews + License)
         </Button>
       </CardContent>
     </Card>

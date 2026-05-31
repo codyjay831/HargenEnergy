@@ -3,7 +3,17 @@ import "server-only";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma/client";
+import { OutreachCompanyStatus, Prisma } from "@/generated/prisma/client";
+import { fetchGooglePlaceSignals } from "@/lib/outreach-google";
+import { fetchLicenseSignals } from "@/lib/outreach-license";
+import { fetchYelpSignalsForCompany } from "@/lib/outreach-yelp";
+import {
+  applyBusinessStatusSignals,
+  deriveBusinessStatus,
+  mergeEnrichmentSnapshots,
+  parseEnrichmentSnapshot,
+  type OutreachEnrichmentSnapshot,
+} from "@/lib/outreach-signals";
 
 const SCRAPE_TIMEOUT_MS = 8000;
 const SCRAPE_TOTAL_BUDGET_MS = 20000;
@@ -21,7 +31,13 @@ export type EnrichmentResult = {
   fitScore: number;
   summary: string;
   topPainPoint?: string;
+  reviewThemes?: string[];
+  outreachAngle?: string;
+  reviewSummary?: string;
+  businessStatusAssessment?: string;
 };
+
+export type EnrichmentMode = "light" | "full";
 
 function stripHtml(html: string): string {
   return html
@@ -88,7 +104,7 @@ async function scrapeWebsitePages(website: string): Promise<string> {
   return chunks.join("\n\n").slice(0, MAX_PAGE_CHARS * 3);
 }
 
-function buildEnrichmentPrompt(input: {
+function buildLightEnrichmentPrompt(input: {
   name: string;
   website?: string | null;
   city?: string | null;
@@ -124,11 +140,105 @@ Only include contacts with evidence. fitScore 4-5 = strong fit for Hargen ops su
 `.trim();
 }
 
-export async function runCompanyEnrichment(companyId: string): Promise<{
+function buildFullEnrichmentPrompt(input: {
+  name: string;
+  website?: string | null;
+  city?: string | null;
+  state?: string | null;
+  websiteContent: string;
+  signalBundle: OutreachEnrichmentSnapshot;
+}) {
+  const signals = JSON.stringify(input.signalBundle, null, 2);
+  return `
+You analyze solar contractors for Hargen Energy, which sells remote admin/ops support to solar installers (permitting backlog, CRM cleanup, customer comms, scheduling).
+
+Company: ${input.name}
+Website: ${input.website || "N/A"}
+Location: ${input.city || ""}, ${input.state || ""}
+
+External signals (Google, Yelp, license, reviews):
+${signals}
+
+Website content:
+${input.websiteContent || "No website content available."}
+
+Return JSON only:
+{
+  "contacts": [{ "name": "", "role": "", "email": "", "phone": "", "linkedinUrl": "" }],
+  "painPoints": ["specific operational pain points for solar installers"],
+  "fitScore": 1-5,
+  "summary": "1-2 sentence company summary",
+  "topPainPoint": "single strongest outreach angle for Hargen",
+  "reviewThemes": ["themes from customer reviews if available"],
+  "reviewSummary": "1-2 sentence summary of review sentiment",
+  "outreachAngle": "best personalized outreach hook for Hargen",
+  "businessStatusAssessment": "active | closed | temp_closed | unknown with brief reason"
+}
+
+Use review excerpts to infer operational pain. If business appears closed, note it clearly.
+Only include contacts with evidence. fitScore 4-5 = strong fit for Hargen ops support.
+`.trim();
+}
+
+async function gatherExternalSignals(company: {
+  id: string;
+  name: string;
+  city: string | null;
+  state: string | null;
+  notes: string | null;
+  googlePlaceId: string | null;
+  enrichmentData: unknown;
+}): Promise<OutreachEnrichmentSnapshot> {
+  const existing = parseEnrichmentSnapshot(company.enrichmentData) || {};
+  let snapshot = { ...existing };
+
+  if (company.googlePlaceId) {
+    const google = await fetchGooglePlaceSignals(company.googlePlaceId);
+    if (google.snapshot) {
+      snapshot = mergeEnrichmentSnapshots(snapshot, google.snapshot);
+    }
+  }
+
+  const yelp = await fetchYelpSignalsForCompany({
+    name: company.name,
+    city: company.city,
+    state: company.state,
+    notes: company.notes,
+  });
+  if (yelp.snapshot && Object.keys(yelp.snapshot).length > 0) {
+    snapshot = mergeEnrichmentSnapshots(snapshot, yelp.snapshot);
+  }
+
+  const license = await fetchLicenseSignals({
+    name: company.name,
+    state: company.state,
+  });
+  if (license.snapshot && Object.keys(license.snapshot).length > 0) {
+    snapshot = mergeEnrichmentSnapshots(snapshot, license.snapshot);
+  }
+
+  const businessStatus = deriveBusinessStatus({
+    googleBusinessStatus: snapshot.google?.businessStatus,
+    yelpIsClosed: snapshot.yelp?.isClosed,
+  });
+
+  snapshot.signals = {
+    ...snapshot.signals,
+    businessStatus,
+  };
+
+  return snapshot;
+}
+
+export async function runCompanyEnrichment(
+  companyId: string,
+  options?: { mode?: EnrichmentMode }
+): Promise<{
   success?: boolean;
   error?: string;
   enrichment?: EnrichmentResult;
 }> {
+  const mode = options?.mode ?? "light";
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return { error: "Gemini API key not configured." };
@@ -169,23 +279,39 @@ export async function runCompanyEnrichment(companyId: string): Promise<{
       })
     : null;
 
+  let signalBundle: OutreachEnrichmentSnapshot =
+    parseEnrichmentSnapshot(company.enrichmentData) || {};
+
+  if (mode === "full") {
+    signalBundle = await gatherExternalSignals(company);
+  }
+
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   try {
-    const result = await model.generateContent(
-      buildEnrichmentPrompt({
-        name: company.name,
-        website: company.website,
-        city: company.city,
-        state: company.state,
-        phone: discovery?.phone ?? company.contacts.find((c) => c.isPrimary)?.phone,
-        rating: discovery?.rating,
-        address: discovery?.address,
-        websiteContent,
-      })
-    );
+    const prompt =
+      mode === "full"
+        ? buildFullEnrichmentPrompt({
+            name: company.name,
+            website: company.website,
+            city: company.city,
+            state: company.state,
+            websiteContent,
+            signalBundle,
+          })
+        : buildLightEnrichmentPrompt({
+            name: company.name,
+            website: company.website,
+            city: company.city,
+            state: company.state,
+            phone: discovery?.phone ?? company.contacts.find((c) => c.isPrimary)?.phone,
+            rating: discovery?.rating,
+            address: discovery?.address,
+            websiteContent,
+          });
 
+    const result = await model.generateContent(prompt);
     const text = result.response.text();
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
@@ -194,24 +320,72 @@ export async function runCompanyEnrichment(companyId: string): Promise<{
 
     const enrichment = JSON.parse(jsonMatch[0]) as EnrichmentResult;
 
+    const businessStatus =
+      mode === "full"
+        ? deriveBusinessStatus({
+            googleBusinessStatus: signalBundle.google?.businessStatus,
+            yelpIsClosed: signalBundle.yelp?.isClosed,
+          })
+        : parseBusinessStatusFromAi(enrichment.businessStatusAssessment);
+
+    const statusSignals = applyBusinessStatusSignals({
+      businessStatus,
+      doNotContactReason:
+        businessStatus === "closed"
+          ? "Detected as closed via external signals or AI assessment"
+          : null,
+    });
+
+    const mergedSnapshot = mergeEnrichmentSnapshots(signalBundle, {
+      ai: {
+        summary: enrichment.summary,
+        topPainPoint: enrichment.topPainPoint || null,
+        reviewThemes: enrichment.reviewThemes || [],
+        outreachAngle: enrichment.outreachAngle || enrichment.topPainPoint || null,
+        fitScore: enrichment.fitScore || null,
+        reviewSummary: enrichment.reviewSummary || null,
+      },
+      summary: enrichment.summary,
+      topPainPoint: enrichment.topPainPoint,
+      fitScore: enrichment.fitScore,
+      painPoints: enrichment.painPoints,
+      contacts: enrichment.contacts,
+      signals: statusSignals.signals,
+    });
+
     await prisma.outreachCompany.update({
       where: { id: companyId },
       data: {
-        enrichmentData: enrichment as unknown as Prisma.InputJsonValue,
+        enrichmentData: mergedSnapshot as unknown as Prisma.InputJsonValue,
         enrichmentStatus: "complete",
         fitScore: enrichment.fitScore || company.fitScore,
         painTags: {
-          set: [...new Set([...(company.painTags || []), ...(enrichment.painPoints || [])])],
+          set: [
+            ...new Set([
+              ...(company.painTags || []),
+              ...(enrichment.painPoints || []),
+              ...(enrichment.reviewThemes || []),
+            ]),
+          ],
         },
         notes: company.notes
           ? `${company.notes}\n\nAI Summary: ${enrichment.summary}`
           : enrichment.summary,
+        ...(mode === "full" && businessStatus === "closed"
+          ? {
+              doNotContact: true,
+              status: OutreachCompanyStatus.BAD_FIT,
+              interestLevel: 0,
+            }
+          : {}),
       },
     });
 
     for (const contact of enrichment.contacts || []) {
       const exists = company.contacts.some(
-        (c) => c.email === contact.email || c.name === contact.name
+        (c) =>
+          (contact.email && c.email?.toLowerCase() === contact.email.toLowerCase()) ||
+          (contact.name && c.name === contact.name)
       );
       if (!exists && (contact.email || contact.phone || contact.name)) {
         await prisma.outreachContact.create({
@@ -244,6 +418,20 @@ export async function runCompanyEnrichment(companyId: string): Promise<{
   }
 }
 
+function parseBusinessStatusFromAi(value?: string) {
+  const normalized = (value || "").toLowerCase();
+  if (normalized.includes("closed") && normalized.includes("temp")) {
+    return "temp_closed" as const;
+  }
+  if (normalized.includes("closed")) {
+    return "closed" as const;
+  }
+  if (normalized.includes("active") || normalized.includes("operational")) {
+    return "active" as const;
+  }
+  return "unknown" as const;
+}
+
 export async function processPendingEnrichmentQueue(limit = 5) {
   const pending = await prisma.outreachCompany.findMany({
     where: { enrichmentStatus: "pending" },
@@ -254,7 +442,7 @@ export async function processPendingEnrichmentQueue(limit = 5) {
 
   let processed = 0;
   for (const row of pending) {
-    const result = await runCompanyEnrichment(row.id);
+    const result = await runCompanyEnrichment(row.id, { mode: "light" });
     if (result.success) {
       processed += 1;
     }

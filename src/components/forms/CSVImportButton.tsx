@@ -45,7 +45,12 @@ export function CSVImportButton() {
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
+      <p className="text-[11px] text-muted-foreground max-w-[220px] text-right sm:text-left">
+        Repeat the same company <span className="font-medium">id</span> on multiple rows to import
+        multiple contacts.
+      </p>
+      <div className="flex items-center gap-2">
       <Select value={target} onValueChange={(val) => val && setTarget(val as OutreachCsvImportTarget)}>
         <SelectTrigger className="h-8 w-[130px] text-xs">
           <SelectValue />
@@ -72,6 +77,7 @@ export function CSVImportButton() {
           )}
           Import CSV
         </Button>
+      </div>
       </div>
     </div>
   );

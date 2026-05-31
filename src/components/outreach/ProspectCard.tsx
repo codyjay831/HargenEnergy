@@ -22,6 +22,7 @@ export type ProspectCardData = {
   nextFollowUpAt?: Date | null;
   primaryPhone?: string | null;
   topPainTag?: string | null;
+  signalBadges?: Array<{ label: string; variant: "closed" | "licensed" | "closed_temp" }>;
 };
 
 export function ProspectCard({ company }: { company: ProspectCardData }) {
@@ -44,6 +45,21 @@ export function ProspectCard({ company }: { company: ProspectCardData }) {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {company.signalBadges?.map((badge) => (
+            <Badge
+              key={badge.label}
+              variant="outline"
+              className={
+                badge.variant === "closed"
+                  ? "text-[10px] bg-red-50 text-red-700 border-red-200"
+                  : badge.variant === "closed_temp"
+                    ? "text-[10px] bg-orange-50 text-orange-700 border-orange-200"
+                    : "text-[10px] bg-green-50 text-green-700 border-green-200"
+              }
+            >
+              {badge.label}
+            </Badge>
+          ))}
           {company.fitScore != null && company.fitScore > 0 && (
             <Badge variant="outline" className="text-[10px]">
               Fit {company.fitScore}/5

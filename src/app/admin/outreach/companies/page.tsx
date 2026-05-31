@@ -15,6 +15,7 @@ import { Search } from "lucide-react";
 import { CSVImportButton } from "@/components/forms/CSVImportButton";
 import { CSVExportButton } from "@/components/forms/CSVExportButton";
 import { ProspectCardGrid } from "@/components/outreach/ProspectCard";
+import { getOutreachSignalBadges } from "@/lib/outreach-ui-signals";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,7 @@ export default async function OutreachCompaniesPage() {
     nextFollowUpAt: company.nextFollowUpAt,
     primaryPhone: company.contacts[0]?.phone,
     topPainTag: company.painTags[0] ?? null,
+    signalBadges: getOutreachSignalBadges(company.enrichmentData),
   }));
 
   return (
