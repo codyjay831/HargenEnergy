@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { AGREEMENT_STATUS_LABELS } from "@/lib/client-agreement";
+import { AGREEMENT_STATUS_LABELS, hasUsableAgreementUrl } from "@/lib/client-agreement";
 import { Loader2 } from "lucide-react";
 
 type ClientAgreementManagerProps = {
@@ -43,6 +43,8 @@ export function ClientAgreementManager({
   const [waiverReason, setWaiverReason] = useState(agreementOverrideReason ?? "");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const urlRequiredForSigning = agreementStatus === AgreementStatus.SENT;
+  const hasSignedLink = hasUsableAgreementUrl(url || agreementUrl);
 
   const runAction = (action: () => Promise<{ error?: string; success?: boolean }>) => {
     setError(null);
@@ -79,7 +81,11 @@ export function ClientAgreementManager({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="agreement-url">Agreement URL (optional)</Label>
+        <Label htmlFor="agreement-url">
+          {urlRequiredForSigning
+            ? "Signed agreement URL (required)"
+            : "Agreement URL (optional when sending)"}
+        </Label>
         <Input
           id="agreement-url"
           type="url"
@@ -88,6 +94,11 @@ export function ClientAgreementManager({
           onChange={(e) => setUrl(e.target.value)}
           disabled={isPending}
         />
+        {urlRequiredForSigning && (
+          <p className="text-xs text-muted-foreground">
+            Paste the signed DocuSign envelope or PDF link, then click Mark as signed.
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -124,11 +135,12 @@ export function ClientAgreementManager({
         {agreementStatus === AgreementStatus.SENT && (
           <Button
             size="sm"
-            disabled={isPending}
+            disabled={isPending || !hasSignedLink}
             onClick={() =>
               runAction(() =>
                 markAgreementSigned({
                   clientId,
+                  agreementUrl: url.trim() || null,
                   agreementNotes: notes || null,
                 }),
               )

@@ -59,12 +59,15 @@ async function transitionClientAgreement(
     return { error: "Client not found." };
   }
 
+  const effectiveAgreementUrl =
+    agreementUrl?.trim() || client.agreementUrl?.trim() || null;
+
   const validation = validateAgreementTransition({
     from: client.agreementStatus,
     to: toStatus,
     note,
     overrideReason,
-    agreementUrl: agreementUrl ?? client.agreementUrl,
+    agreementUrl: effectiveAgreementUrl,
   });
 
   if (!validation.ok) {
@@ -81,7 +84,10 @@ async function transitionClientAgreement(
   const updateData = buildAgreementUpdateData({
     from: client.agreementStatus,
     to: toStatus,
-    agreementUrl,
+    agreementUrl:
+      toStatus === AgreementStatus.SIGNED
+        ? effectiveAgreementUrl
+        : agreementUrl,
     agreementNotes: mergedNotes,
     overrideReason,
     signedAt: signedAt ? new Date(signedAt) : undefined,
@@ -145,12 +151,14 @@ export async function markAgreementSigned(data: {
   clientId: string;
   signedAt?: string | null;
   agreementNotes?: string | null;
+  agreementUrl?: string | null;
 }) {
   return transitionClientAgreement({
     clientId: data.clientId,
     toStatus: AgreementStatus.SIGNED,
     signedAt: data.signedAt ?? null,
     agreementNotes: data.agreementNotes ?? null,
+    agreementUrl: data.agreementUrl ?? null,
   });
 }
 
