@@ -128,6 +128,29 @@ enum AgreementType {
   PRIVACY
 }
 
+enum LegalTemplateType {
+  CLIENT_SERVICES_AGREEMENT
+  WORK_AUTHORIZATION
+}
+
+enum AgreementPacketStatus {
+  DRAFT
+  READY
+  SENT
+  VIEWED
+  SIGNED
+  ACTIVE
+  VOIDED
+  SUPERSEDED
+  EXPIRED
+}
+
+enum AgreementServiceType {
+  SUPPORT_BLOCK
+  REQUEST_BASED
+  CUSTOM
+}
+
 enum HandoffTier {
   CLEAN
   MESSY
@@ -303,6 +326,7 @@ model User {
   googleCalendarConnection GoogleCalendarConnection?
   discoverySchedulingLinksCreated DiscoverySchedulingLink[] @relation("DiscoverySchedulingLinkCreator")
   agreementAcceptances AgreementAcceptance[]
+  createdAgreementPackets AgreementPacket[] @relation("AgreementPacketCreator")
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -386,6 +410,7 @@ model Client {
   discoveryAppointments DiscoveryAppointment[]
   adminNotifications AdminNotification[]
   agreementAcceptances AgreementAcceptance[]
+  agreementPackets     AgreementPacket[]
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
@@ -1011,6 +1036,94 @@ model OutreachSearchRun {
 
   @@index([createdAt])
   @@index([source, createdAt])
+}
+
+model LegalTemplate {
+  id           String            @id @default(cuid())
+  type         LegalTemplateType
+  version      String
+  title        String
+  bodyMarkdown String            @db.Text
+  effectiveAt  DateTime
+  isActive     Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  clientServicesPackets    AgreementPacket[] @relation("ClientServicesTemplate")
+  workAuthorizationPackets AgreementPacket[] @relation("WorkAuthorizationTemplate")
+
+  @@unique([type, version])
+  @@index([type, isActive])
+}
+
+model AgreementFile {
+  id          String   @id @default(cuid())
+  storageKey  String
+  storageUrl  String
+  fileName    String
+  contentType String
+  sizeBytes   Int
+  sha256Hash  String
+  createdAt   DateTime @default(now())
+
+  unsignedForPackets AgreementPacket[] @relation("UnsignedPdf")
+  signedForPackets   AgreementPacket[] @relation("SignedPdf")
+}
+
+model AgreementPacket {
+  id                          String                @id @default(cuid())
+  clientId                    String
+  client                      Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  status                      AgreementPacketStatus @default(DRAFT)
+  clientServicesTemplateId    String
+  clientServicesTemplate      LegalTemplate         @relation("ClientServicesTemplate", fields: [clientServicesTemplateId], references: [id])
+  workAuthorizationTemplateId String
+  workAuthorizationTemplate   LegalTemplate         @relation("WorkAuthorizationTemplate", fields: [workAuthorizationTemplateId], references: [id])
+  companyLegalName            String
+  companyDba                  String?
+  companyAddress              String?
+  signerName                  String
+  signerTitle                 String
+  signerEmail                 String
+  serviceType                 AgreementServiceType
+  selectedScopeJson           Json?
+  pricingJson                 Json?
+  billingJson                 Json?
+  acceptanceSnapshotJson      Json?
+  snapshotAt                  DateTime?
+  unsignedPdfFileId           String?
+  unsignedPdfFile             AgreementFile?        @relation("UnsignedPdf", fields: [unsignedPdfFileId], references: [id], onDelete: SetNull)
+  signedPdfFileId             String?
+  signedPdfFile               AgreementFile?        @relation("SignedPdf", fields: [signedPdfFileId], references: [id], onDelete: SetNull)
+  sentAt                      DateTime?
+  viewedAt                    DateTime?
+  signedAt                    DateTime?
+  voidedAt                    DateTime?
+  supersededById              String?
+  supersededBy                AgreementPacket?      @relation("Supersession", fields: [supersededById], references: [id], onDelete: SetNull)
+  supersededPackets           AgreementPacket[]     @relation("Supersession")
+  createdByUserId             String
+  createdBy                   User                  @relation("AgreementPacketCreator", fields: [createdByUserId], references: [id])
+  events                      AgreementPacketEvent[]
+  createdAt                   DateTime              @default(now())
+  updatedAt                   DateTime              @updatedAt
+
+  @@index([clientId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AgreementPacketEvent {
+  id                String          @id @default(cuid())
+  agreementPacketId String
+  agreementPacket   AgreementPacket @relation(fields: [agreementPacketId], references: [id], onDelete: Cascade)
+  eventType         String
+  actorUserId       String?
+  actorEmail        String?
+  metadataJson      Json?
+  createdAt         DateTime        @default(now())
+
+  @@index([agreementPacketId, createdAt])
 }
 
 model OutreachDiscovery {

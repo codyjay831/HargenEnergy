@@ -22,6 +22,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@react-pdf/renderer": "^4.5.1",
     "@sentry/nextjs": "^10.53.1",
     "@stripe/stripe-js": "^9.4.0",
     "@upstash/redis": "^1.38.0",
@@ -52,8 +53,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
     "@playwright/test": "^1.55.0",
+    "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/papaparse": "^5.5.2",

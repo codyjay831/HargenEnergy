@@ -114,15 +114,34 @@ export function AdminSetupSheetPanels({
 
     case "agreement":
       return (
-        <ClientAgreementManager
-          clientId={client.id}
-          agreementStatus={client.agreementStatus}
-          agreementSentAt={client.agreementSentAt ?? null}
-          agreementSignedAt={client.agreementSignedAt ?? null}
-          agreementUrl={client.agreementUrl ?? null}
-          agreementNotes={client.agreementNotes ?? null}
-          agreementOverrideReason={client.agreementOverrideReason ?? null}
-        />
+        <div className="space-y-6">
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
+            <p className="font-medium text-slate-900">Agreement packets</p>
+            <p className="mt-1 text-muted-foreground">
+              Generate CSA + Work Authorization PDFs with a frozen legal snapshot.
+            </p>
+            <Link
+              href={`/admin/agreements?clientId=${client.id}`}
+              className="mt-2 inline-block text-emerald-700 font-medium hover:underline"
+            >
+              Open agreement packets →
+            </Link>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">
+              Legacy agreement tracking
+            </p>
+            <ClientAgreementManager
+              clientId={client.id}
+              agreementStatus={client.agreementStatus}
+              agreementSentAt={client.agreementSentAt ?? null}
+              agreementSignedAt={client.agreementSignedAt ?? null}
+              agreementUrl={client.agreementUrl ?? null}
+              agreementNotes={client.agreementNotes ?? null}
+              agreementOverrideReason={client.agreementOverrideReason ?? null}
+            />
+          </div>
+        </div>
       );
 
     case "engagement":

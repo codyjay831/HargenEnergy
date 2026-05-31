@@ -12,7 +12,8 @@ export type AdminNavIconKey =
   | "services"
   | "calendar"
   | "discoveryHours"
-  | "account";
+  | "account"
+  | "agreements";
 
 export type AdminNavItem = {
   name: string;
@@ -25,6 +26,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { name: "Outreach", href: "/admin/outreach", icon: "outreach" },
   { name: "Discovery Inbox", href: "/admin/outreach/discovery", icon: "discovery" },
   { name: NAV_LABELS.adminClients, href: "/admin/clients", icon: "clients" },
+  { name: "Agreement Packets", href: "/admin/agreements", icon: "agreements" },
   {
     name: NAV_LABELS.adminWorkRequests,
     href: "/admin/requests",

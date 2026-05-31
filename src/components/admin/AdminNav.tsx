@@ -16,6 +16,7 @@ import {
   Shield,
   CalendarDays,
   CalendarClock,
+  FileText,
   type LucideIcon,
 } from "lucide-react";
 import { ADMIN_NAV_ITEMS, type AdminNavIconKey } from "@/lib/admin-nav";
@@ -33,6 +34,7 @@ const ICONS: Record<AdminNavIconKey, LucideIcon> = {
   calendar: CalendarDays,
   discoveryHours: CalendarClock,
   account: UserCog,
+  agreements: FileText,
 };
 
 interface AdminNavProps {

@@ -16,6 +16,7 @@ import {
   Shield,
   UserCog,
   Users,
+  FileText,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ const ICONS: Record<AdminNavIconKey, LucideIcon> = {
   calendar: CalendarDays,
   discoveryHours: CalendarClock,
   account: UserCog,
+  agreements: FileText,
 };
 
 interface AdminMobileNavProps {

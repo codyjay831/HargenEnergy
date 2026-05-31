@@ -64,6 +64,25 @@ export function portalAccessUrl(): string {
   return `${baseUrl()}/portal/access`;
 }
 
+export function adminAgreementsUrl(clientId?: string): string {
+  const base = `${baseUrl()}/admin/agreements`;
+  if (clientId) {
+    return `${base}?clientId=${encodeURIComponent(clientId)}`;
+  }
+  return base;
+}
+
+export function adminAgreementPacketUrl(packetId: string): string {
+  return `${baseUrl()}/admin/agreements/${encodeURIComponent(packetId)}`;
+}
+
+export function adminAgreementPdfDownloadUrl(
+  packetId: string,
+  variant: "unsigned" | "signed" = "unsigned",
+): string {
+  return `${baseUrl()}/api/admin/agreements/${encodeURIComponent(packetId)}/pdf?variant=${variant}`;
+}
+
 export function loginUrl(): string {
   return `${baseUrl()}/login`;
 }
