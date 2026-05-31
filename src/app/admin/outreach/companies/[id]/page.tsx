@@ -17,6 +17,7 @@ import { cn, safeExternalHref } from "@/lib/utils";
 import { OutreachActivityForm } from "@/components/forms/OutreachActivityForm";
 import { OutreachContactList } from "@/components/forms/OutreachContactList";
 import { OutreachTemplateList } from "@/components/forms/OutreachTemplateList";
+import { OutreachEmailDraft } from "@/components/forms/OutreachEmailDraft";
 import { EnrichmentTools } from "@/components/forms/EnrichmentTools";
 import {
   formatBusinessStatusLabel,
@@ -373,7 +374,11 @@ export default async function OutreachCompanyDetailPage({ params }: OutreachComp
               <CardTitle>Contacts</CardTitle>
             </CardHeader>
             <CardContent>
-              <OutreachContactList companyId={company.id} initialContacts={company.contacts} />
+              <OutreachContactList
+                companyId={company.id}
+                companyName={company.name}
+                initialContacts={company.contacts}
+              />
             </CardContent>
           </Card>
 
@@ -423,6 +428,14 @@ export default async function OutreachCompanyDetailPage({ params }: OutreachComp
         <div className="space-y-8">
           <EnrichmentTools companyId={company.id} />
 
+          <OutreachEmailDraft
+            companyId={company.id}
+            contactEmail={
+              company.contacts.find((contact) => contact.isPrimary)?.email ||
+              company.contacts[0]?.email
+            }
+          />
+
           <Card className="border-primary/20 bg-primary/5">
             <CardHeader>
               <CardTitle className="text-base">Log New Activity</CardTitle>
@@ -437,7 +450,19 @@ export default async function OutreachCompanyDetailPage({ params }: OutreachComp
               <CardTitle className="text-base">Message Templates</CardTitle>
             </CardHeader>
             <CardContent>
-              <OutreachTemplateList company={company} />
+              <OutreachTemplateList
+                company={{
+                  name: company.name,
+                  city: company.city,
+                  state: company.state,
+                  contacts: company.contacts.map((contact) => ({
+                    name: contact.name,
+                    email: contact.email,
+                    isPrimary: contact.isPrimary,
+                  })),
+                  outreachAngle: signalsSummary?.outreachAngle ?? null,
+                }}
+              />
             </CardContent>
           </Card>
         </div>

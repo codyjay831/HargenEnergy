@@ -1284,6 +1284,108 @@ export async function enrichCompanyWithAI(companyId: string) {
   };
 }
 
+export type OutreachEmailDraftType = "initial" | "follow_up";
+
+export async function generateOutreachEmailDraft(
+  companyId: string,
+  templateType: OutreachEmailDraftType = "initial"
+) {
+  const authResult = await authorizeStaffAction("ops.full");
+  if (!authResult.ok) {
+    return { error: authResult.error };
+  }
+  const session = authResult.session;
+
+  const rateLimitError = await enforceOutreachRateLimit(
+    "outreach-gemini-assist",
+    session.user.id
+  );
+  if (rateLimitError) {
+    return { error: rateLimitError };
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return { error: "Gemini API key not configured." };
+  }
+
+  const company = await prisma.outreachCompany.findUnique({
+    where: { id: companyId },
+    include: {
+      contacts: { orderBy: { isPrimary: "desc" } },
+    },
+  });
+
+  if (!company) {
+    return { error: "Company not found." };
+  }
+
+  const snapshot = parseEnrichmentSnapshot(company.enrichmentData);
+  const primaryContact =
+    company.contacts.find((contact) => contact.isPrimary) || company.contacts[0];
+  const contactFirstName = primaryContact?.name?.trim().split(/\s+/)[0] || "there";
+  const location = [company.city, company.state].filter(Boolean).join(", ") || "unknown";
+  const outreachAngle =
+    snapshot?.ai?.outreachAngle ||
+    snapshot?.topPainPoint ||
+    company.painTags[0] ||
+    "back-office solar operations";
+  const painPoints = [
+    ...(snapshot?.painPoints || []),
+    ...company.painTags,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const reviewThemes = (snapshot?.ai?.reviewThemes || []).filter(Boolean).join(", ");
+
+  const prompt = `
+Write a ${templateType === "follow_up" ? "brief follow-up" : "first-touch"} B2B outreach email for Hargen Energy.
+Hargen helps solar contractors with back-office ops: permits, utility apps, quote building, and backlog clearance.
+
+Company: ${company.name}
+Location: ${location}
+Contact first name: ${contactFirstName}
+Company summary: ${snapshot?.summary || snapshot?.ai?.summary || "N/A"}
+Outreach angle: ${outreachAngle}
+Pain points: ${painPoints || "N/A"}
+Review themes: ${reviewThemes || "N/A"}
+
+Return JSON only:
+{
+  "subject": "string",
+  "body": "string (plain text, use \\n for line breaks, sign off with Best,\\n[Your Name])"
+}
+
+Keep under 150 words. Professional, direct, no hype.
+`;
+
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return { error: "AI could not generate an email draft." };
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]) as { subject?: string; body?: string };
+    if (!parsed.subject?.trim() || !parsed.body?.trim()) {
+      return { error: "AI returned an incomplete draft." };
+    }
+
+    return {
+      success: true as const,
+      subject: parsed.subject.trim(),
+      body: parsed.body.trim(),
+      contactEmail: primaryContact?.email || null,
+    };
+  } catch (error) {
+    console.error("Error generating outreach email draft:", error);
+    return { error: "Failed to generate email draft." };
+  }
+}
+
 export async function enrichWithApollo(companyId: string) {
   const authResult = await authorizeStaffAction("ops.full");
   if (!authResult.ok) {

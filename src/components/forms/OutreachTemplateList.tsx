@@ -2,8 +2,14 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import {
+  openGmailCompose,
+  replaceTemplateVariables,
+  type OutreachTemplateContext,
+} from "@/lib/outreach-compose";
 
 interface OutreachTemplateCompany {
   name: string;
@@ -11,8 +17,10 @@ interface OutreachTemplateCompany {
   state: string | null;
   contacts: Array<{
     name: string | null;
+    email: string | null;
     isPrimary: boolean;
   }>;
+  outreachAngle?: string | null;
 }
 
 interface OutreachTemplateListProps {
@@ -44,8 +52,8 @@ const DEFAULT_TEMPLATES = [
     name: "Follow-up (3 days)",
     channel: "EMAIL",
     subject: "Quick follow up / {{companyName}}",
-    body: "Hi {{contactName}}, just following up on my previous note. I'd love to show you how we can take the permit and utility backlog off your plate. Do you have 10 minutes on Tuesday?",
-  }
+    body: "Hi {{contactName}}, just following up on my previous note. I'd love to show you how we can take {{outreachAngle}} off your plate. Do you have 10 minutes on Tuesday?",
+  },
 ];
 
 export function OutreachTemplateList({ company }: OutreachTemplateListProps) {
@@ -53,58 +61,100 @@ export function OutreachTemplateList({ company }: OutreachTemplateListProps) {
 
   const primaryContact =
     company.contacts.find((contact) => contact.isPrimary) || company.contacts[0];
-  const contactName = primaryContact?.name?.split(" ")[0] || "there";
 
-  const replaceVariables = (text: string) => {
-    return text
-      .replace(/{{companyName}}/g, company.name)
-      .replace(/{{contactName}}/g, contactName)
-      .replace(/{{city}}/g, company.city || "your area")
-      .replace(/{{state}}/g, company.state || "your state");
+  const templateContext: OutreachTemplateContext = {
+    companyName: company.name,
+    city: company.city,
+    state: company.state,
+    contactName: primaryContact?.name,
+    contactEmail: primaryContact?.email,
+    outreachAngle: company.outreachAngle,
   };
 
+  const resolveTemplate = (subject?: string, body?: string) => ({
+    subject: subject ? replaceTemplateVariables(subject, templateContext) : "",
+    body: body ? replaceTemplateVariables(body, templateContext) : "",
+  });
+
   const handleCopy = (id: string, text: string) => {
-    navigator.clipboard.writeText(replaceVariables(text));
+    navigator.clipboard.writeText(replaceTemplateVariables(text, templateContext));
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const handleOpenGmail = (subject: string, body: string) => {
+    const { truncated, fullBody } = openGmailCompose({
+      to: primaryContact?.email,
+      subject,
+      body,
+    });
+
+    if (truncated) {
+      navigator.clipboard.writeText(fullBody);
+      toast.info("Full message copied — paste in Gmail if the body was truncated.");
+    } else {
+      toast.success(
+        primaryContact?.email
+          ? "Opening Gmail compose…"
+          : "Opening Gmail compose — add a recipient if needed."
+      );
+    }
+  };
+
   return (
     <div className="space-y-4">
-      {DEFAULT_TEMPLATES.map((template) => (
-        <div key={template.id} className="p-3 border rounded-lg space-y-3 bg-white">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <p className="text-xs font-bold">{template.name}</p>
-              <Badge variant="outline" className="text-[10px] px-1 py-0">
-                {template.channel}
-              </Badge>
+      {DEFAULT_TEMPLATES.map((template) => {
+        const resolved = resolveTemplate(template.subject, template.body);
+        const isEmail = template.channel === "EMAIL";
+
+        return (
+          <div key={template.id} className="p-3 border rounded-lg space-y-3 bg-white">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <p className="text-xs font-bold truncate">{template.name}</p>
+                <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0">
+                  {template.channel}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {isEmail && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-[10px] px-2"
+                    onClick={() => handleOpenGmail(resolved.subject, resolved.body)}
+                  >
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    Gmail
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => handleCopy(template.id, template.body)}
+                >
+                  {copiedId === template.id ? (
+                    <Check className="h-3 w-3 text-green-600" />
+                  ) : (
+                    <Copy className="h-3 w-3" />
+                  )}
+                </Button>
+              </div>
             </div>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-7 w-7"
-              onClick={() => handleCopy(template.id, template.body)}
-            >
-              {copiedId === template.id ? (
-                <Check className="h-3 w-3 text-green-600" />
-              ) : (
-                <Copy className="h-3 w-3" />
-              )}
-            </Button>
+
+            {template.subject && (
+              <div className="text-[10px] text-muted-foreground border-b pb-1">
+                <span className="font-semibold">Subject:</span> {resolved.subject}
+              </div>
+            )}
+
+            <p className="text-[11px] text-slate-600 line-clamp-3 whitespace-pre-wrap italic">
+              {resolved.body}
+            </p>
           </div>
-          
-          {template.subject && (
-            <div className="text-[10px] text-muted-foreground border-b pb-1">
-              <span className="font-semibold">Subject:</span> {replaceVariables(template.subject)}
-            </div>
-          )}
-          
-          <p className="text-[11px] text-slate-600 line-clamp-3 whitespace-pre-wrap italic">
-            {replaceVariables(template.body)}
-          </p>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
