@@ -15,6 +15,53 @@ export interface OutreachTemplateContext {
   outreachAngle?: string | null;
 }
 
+/** Returns the first token of a name, or null if empty/unknown. */
+export function getFirstName(name?: string | null): string | null {
+  const first = name?.trim().split(/\s+/)[0];
+  if (!first || first.toLowerCase() === "unknown") return null;
+  return first;
+}
+
+/** Safe greeting — "Hi {firstName}," when known, "Hi team," otherwise. */
+export function getGreeting(contact?: { name?: string | null } | null): string {
+  const firstName = getFirstName(contact?.name);
+  return firstName ? `Hi ${firstName},` : "Hi team,";
+}
+
+/** Fixed sender signature for all outreach. */
+export function getSignature(): string {
+  return "Best,\nCody Barbour\nHargen Energy";
+}
+
+/**
+ * Resolves single-brace merge variables used in new message templates.
+ *
+ * Supported variables:
+ *   {companyName}  — company name, fallback "your company"
+ *   {firstName}    — first token of contact name, fallback ""
+ *   {greeting}     — getGreeting(contact)
+ *   {signature}    — getSignature()
+ */
+export function renderOutreachTemplate(
+  text: string,
+  context: OutreachTemplateContext
+): string {
+  const firstName = getFirstName(context.contactName) ?? "";
+  const greeting = getGreeting({ name: context.contactName });
+  const signature = getSignature();
+  const companyName = context.companyName || "your company";
+
+  return text
+    .replace(/\{companyName\}/g, companyName)
+    .replace(/\{firstName\}/g, firstName)
+    .replace(/\{greeting\}/g, greeting)
+    .replace(/\{signature\}/g, signature);
+}
+
+/**
+ * Legacy variable replacer for old double-brace templates.
+ * Kept for backward compatibility; new templates use renderOutreachTemplate.
+ */
 export function getContactFirstName(name?: string | null): string {
   if (!name?.trim()) return "there";
   return name.trim().split(/\s+/)[0] || "there";
@@ -103,5 +150,5 @@ export function openGmailCompose(options: {
 }
 
 export function buildMinimalContactGreeting(contactName?: string | null): string {
-  return `Hi ${getContactFirstName(contactName)},\n\n`;
+  return `${getGreeting({ name: contactName })}\n\n`;
 }
