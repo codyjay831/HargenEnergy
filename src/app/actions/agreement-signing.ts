@@ -24,7 +24,7 @@ import {
 } from "@/lib/agreements/signing-links";
 import { storeAgreementPdf } from "@/lib/agreements/storage";
 import { canAcceptOnline } from "@/lib/agreements/status";
-import { getRequestIpFromHeaders, rateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getRequestIpFromHeaders } from "@/lib/rate-limit";
 
 export async function recordAgreementSigningPageView(rawToken: string) {
   const resolved = await resolveSigningLinkByRawToken(rawToken);
@@ -51,7 +51,7 @@ export async function acceptAgreementPacketOnline(input: {
   const h = await headers();
   const ip = getRequestIpFromHeaders(h);
   const rateKey = `agreement-sign:${ip ?? "unknown"}`;
-  const limited = await rateLimit("agreement-signing", rateKey);
+  const limited = await checkRateLimit("agreement-signing", rateKey);
   if (!limited.allowed) {
     return { error: "Too many attempts. Please try again later." };
   }

@@ -34,10 +34,7 @@ import {
   isPacketImmutable,
 } from "@/lib/agreements/status";
 import { createAgreementSigningLink } from "@/lib/agreements/signing-links";
-import {
-  acceptanceKindForIndex,
-  buildSignedAcceptanceRecordsFromSnapshot,
-} from "@/lib/agreements/acceptance-records";
+import { acceptanceKindForIndex } from "@/lib/agreements/acceptance-records";
 import { AgreementSigningLinkStatus } from "@/generated/prisma/client";
 import { getPrivateBlobErrorMessage } from "@/lib/agreements/blob-guard";
 import { getDefaultTemplatePair } from "@/lib/agreements/ensure-templates";
@@ -692,7 +689,7 @@ export async function createAgreementPacketSigningLink(input: {
 
   const loaded = await loadPacketOrError(input.packetId);
   if ("error" in loaded) {
-    return loaded;
+    return { error: loaded.error };
   }
 
   const { packet } = loaded;
