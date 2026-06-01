@@ -5,6 +5,8 @@ import { AgreementPacketStatus } from "@/generated/prisma/client";
 import {
   createAgreementPacketSigningLink,
   markAgreementPacketManuallySigned,
+  resendAgreementPacketSigningLinkEmail,
+  sendAgreementPacketSigningLinkEmail,
 } from "@/app/actions/agreement-packet";
 import { adminAgreementPdfDownloadUrl } from "@/lib/app-url";
 import { canCreateSigningLink, canMarkManuallySigned } from "@/lib/agreements/status";
@@ -23,6 +25,7 @@ export type SigningLinkRow = {
   openedAt: Date | null;
   usedAt: Date | null;
   revokedAt: Date | null;
+  sentAt: Date | null;
   createdAt: Date;
 };
 
@@ -85,6 +88,42 @@ export function AgreementPacketSigningPanel({
     });
   };
 
+  const sendLinkEmail = (regenerate: boolean) => {
+    setError(null);
+    startTransition(async () => {
+      const result = await sendAgreementPacketSigningLinkEmail({ packetId, regenerate });
+      if (result.error) {
+        setError(result.error);
+        if (result.signingUrl) {
+          setSigningUrl(result.signingUrl);
+        }
+        return;
+      }
+      if (result.signingUrl) {
+        setSigningUrl(result.signingUrl);
+      }
+      window.location.reload();
+    });
+  };
+
+  const resendLinkEmail = () => {
+    setError(null);
+    startTransition(async () => {
+      const result = await resendAgreementPacketSigningLinkEmail({ packetId });
+      if (result.error) {
+        setError(result.error);
+        if (result.signingUrl) {
+          setSigningUrl(result.signingUrl);
+        }
+        return;
+      }
+      if (result.signingUrl) {
+        setSigningUrl(result.signingUrl);
+      }
+      window.location.reload();
+    });
+  };
+
   const submitManual = (formData: FormData) => {
     setError(null);
     formData.set("packetId", packetId);
@@ -108,17 +147,32 @@ export function AgreementPacketSigningPanel({
             <Button
               variant="outline"
               disabled={isPending}
+              onClick={() => sendLinkEmail(false)}
+            >
+              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Send signing link email
+            </Button>
+            {signingLinks.some((l) => l.status === "ACTIVE") && (
+              <Button variant="outline" disabled={isPending} onClick={resendLinkEmail}>
+                Resend email
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              disabled={isPending}
               onClick={() => createLink(false)}
             >
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {signingLinks.some((l) => l.status === "ACTIVE") ? "Copy signing URL" : "Create signing link"}
+              {signingLinks.some((l) => l.status === "ACTIVE")
+                ? "Copy signing URL"
+                : "Create signing link"}
             </Button>
             <Button
               variant="outline"
               disabled={isPending}
-              onClick={() => createLink(true)}
+              onClick={() => sendLinkEmail(true)}
             >
-              Regenerate link
+              Regenerate and send
             </Button>
           </div>
           {signingUrl && (
@@ -197,6 +251,8 @@ export function AgreementPacketSigningPanel({
                 <span className="text-slate-800">{link.status}</span>
                 <span className="text-xs text-muted-foreground w-full">
                   Expires {format(new Date(link.expiresAt), "MMM d, yyyy")}
+                  {link.sentAt &&
+                    ` · Emailed ${format(new Date(link.sentAt), "MMM d, yyyy h:mm a")}`}
                   {link.openedAt &&
                     ` · Opened ${format(new Date(link.openedAt), "MMM d, yyyy h:mm a")}`}
                   {link.usedAt &&

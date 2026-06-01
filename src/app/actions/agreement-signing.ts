@@ -25,6 +25,10 @@ import {
 import { storeAgreementPdf } from "@/lib/agreements/storage";
 import { canAcceptOnline } from "@/lib/agreements/status";
 import { checkRateLimit, getRequestIpFromHeaders } from "@/lib/rate-limit";
+import {
+  sendAgreementSignedAdminAlert,
+  sendAgreementSignedConfirmationEmail,
+} from "@/lib/email";
 
 export async function recordAgreementSigningPageView(rawToken: string) {
   const resolved = await resolveSigningLinkByRawToken(rawToken);
@@ -167,6 +171,26 @@ export async function acceptAgreementPacketOnline(input: {
       entityId: packet.id,
       metadata: { linkId: link.id, signerEmail: snapshot.signerEmail },
     });
+
+    const confirmationResult = await sendAgreementSignedConfirmationEmail({
+      to: snapshot.signerEmail,
+      signerName: snapshot.signerName,
+      companyName: snapshot.companyLegalName,
+      rawToken: input.rawToken,
+    });
+    if ("error" in confirmationResult) {
+      console.warn("Agreement signed confirmation email failed:", confirmationResult.error);
+    }
+
+    const adminAlertResult = await sendAgreementSignedAdminAlert({
+      companyName: snapshot.companyLegalName,
+      packetId: packet.id,
+      signerName: snapshot.signerName,
+      signerEmail: snapshot.signerEmail,
+    });
+    if ("error" in adminAlertResult) {
+      console.warn("Agreement signed admin alert failed:", adminAlertResult.error);
+    }
 
     revalidatePath(`/admin/agreements/${packet.id}`);
     revalidatePath("/admin/agreements");

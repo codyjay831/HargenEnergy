@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
+  AgreementSigningLinkStatus,
   AgreementPacketStatus,
   AgreementServiceType,
   Prisma,
@@ -35,9 +36,14 @@ import {
 } from "@/lib/agreements/status";
 import { createAgreementSigningLink } from "@/lib/agreements/signing-links";
 import { acceptanceKindForIndex } from "@/lib/agreements/acceptance-records";
-import { AgreementSigningLinkStatus } from "@/generated/prisma/client";
 import { getPrivateBlobErrorMessage } from "@/lib/agreements/blob-guard";
 import { getDefaultTemplatePair } from "@/lib/agreements/ensure-templates";
+import { decryptFieldValue } from "@/lib/crypto/field-encryption";
+import { sendAgreementSigningLinkEmail } from "@/lib/email";
+import {
+  buildAgreementSigningUrl,
+  isSigningLinkExpired,
+} from "@/lib/agreements/tokens";
 import type {
   CustomScope,
   RequestBasedScope,
@@ -721,6 +727,223 @@ export async function createAgreementPacketSigningLink(input: {
     signingUrl: result.signingUrl,
     linkId: result.linkId,
     expiresAt: result.expiresAt.toISOString(),
+  };
+}
+
+async function markPacketSentViaEmail(input: {
+  packetId: string;
+  currentStatus: AgreementPacketStatus;
+  sentAt: Date;
+}) {
+  if (input.currentStatus === AgreementPacketStatus.READY) {
+    await prisma.agreementPacket.update({
+      where: { id: input.packetId },
+      data: { status: AgreementPacketStatus.SENT, sentAt: input.sentAt },
+    });
+    return;
+  }
+
+  await prisma.agreementPacket.update({
+    where: { id: input.packetId },
+    data: { sentAt: input.sentAt },
+  });
+}
+
+export async function sendAgreementPacketSigningLinkEmail(input: {
+  packetId: string;
+  regenerate?: boolean;
+}) {
+  const session = await requireStaff("clients.manage");
+
+  const loaded = await loadPacketOrError(input.packetId);
+  if ("error" in loaded) {
+    return { error: loaded.error };
+  }
+
+  const { packet } = loaded;
+  if (!canCreateSigningLink(packet.status)) {
+    return { error: "A signing link cannot be created for this packet status." };
+  }
+  if (!packet.signerEmail?.trim()) {
+    return { error: "Signer email is required before sending." };
+  }
+
+  const result = await createAgreementSigningLink({
+    agreementPacketId: packet.id,
+    createdByUserId: session.user.id,
+    regenerate: input.regenerate ?? false,
+  });
+
+  if ("error" in result) {
+    return { error: result.error };
+  }
+
+  const sentAt = new Date();
+  const emailResult = await sendAgreementSigningLinkEmail({
+    to: packet.signerEmail,
+    signerName: packet.signerName,
+    companyName: packet.companyLegalName,
+    signingUrl: result.signingUrl,
+    expiresAt: result.expiresAt,
+    replyTo: session.user.email ?? null,
+  });
+  if ("error" in emailResult) {
+    return {
+      error: `${emailResult.error} Signing URL is available to copy manually.`,
+      signingUrl: result.signingUrl,
+    };
+  }
+
+  await prisma.agreementSigningLink.update({
+    where: { id: result.linkId },
+    data: { sentAt },
+  });
+
+  await markPacketSentViaEmail({
+    packetId: packet.id,
+    currentStatus: packet.status,
+    sentAt,
+  });
+
+  await writeAgreementPacketEvent({
+    agreementPacketId: packet.id,
+    eventType: AGREEMENT_EVENT_TYPES.SENT_VIA_EMAIL,
+    actorUserId: session.user.id,
+    actorEmail: session.user.email ?? null,
+    metadata: {
+      label: "Sent via app email",
+      to: packet.signerEmail,
+      linkId: result.linkId,
+      messageId: emailResult.messageId,
+      deliveryVerified: true,
+      regenerate: Boolean(input.regenerate),
+    },
+  });
+
+  await writeAuditLog({
+    actorUserId: session.user.id,
+    action: input.regenerate
+      ? "agreement_packet.signing_link_regenerated_and_sent"
+      : "agreement_packet.signing_link_sent",
+    entityType: "AgreementPacket",
+    entityId: packet.id,
+    metadata: { linkId: result.linkId, to: packet.signerEmail },
+  });
+
+  revalidateAgreementSurfaces(packet.clientId, packet.id);
+  return {
+    success: true,
+    signingUrl: result.signingUrl,
+    linkId: result.linkId,
+    expiresAt: result.expiresAt.toISOString(),
+  };
+}
+
+export async function resendAgreementPacketSigningLinkEmail(input: {
+  packetId: string;
+}) {
+  const session = await requireStaff("clients.manage");
+
+  const loaded = await loadPacketOrError(input.packetId);
+  if ("error" in loaded) {
+    return { error: loaded.error };
+  }
+
+  const { packet } = loaded;
+  if (!canCreateSigningLink(packet.status)) {
+    return { error: "This packet cannot resend signing email in its current status." };
+  }
+  if (!packet.signerEmail?.trim()) {
+    return { error: "Signer email is required before resending." };
+  }
+
+  const link = await prisma.agreementSigningLink.findFirst({
+    where: {
+      agreementPacketId: packet.id,
+      status: AgreementSigningLinkStatus.ACTIVE,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!link) {
+    return { error: "No active signing link exists. Create and send one first." };
+  }
+  if (isSigningLinkExpired(link.expiresAt)) {
+    await prisma.agreementSigningLink.update({
+      where: { id: link.id },
+      data: { status: AgreementSigningLinkStatus.EXPIRED },
+    });
+    await writeAgreementPacketEvent({
+      agreementPacketId: packet.id,
+      eventType: AGREEMENT_EVENT_TYPES.SIGNING_LINK_EXPIRED,
+      actorUserId: session.user.id,
+      actorEmail: session.user.email ?? null,
+      metadata: { linkId: link.id },
+    });
+    return { error: "This signing link has expired. Regenerate and send a new link." };
+  }
+
+  const rawToken = decryptFieldValue(link.encryptedToken);
+  if (!rawToken) {
+    return { error: "Active link URL is unavailable. Regenerate and send a new link." };
+  }
+
+  const signingUrl = buildAgreementSigningUrl(rawToken);
+  const sentAt = new Date();
+  const emailResult = await sendAgreementSigningLinkEmail({
+    to: packet.signerEmail,
+    signerName: packet.signerName,
+    companyName: packet.companyLegalName,
+    signingUrl,
+    expiresAt: link.expiresAt,
+    replyTo: session.user.email ?? null,
+  });
+  if ("error" in emailResult) {
+    return {
+      error: `${emailResult.error} Signing URL is available to copy manually.`,
+      signingUrl,
+    };
+  }
+
+  await prisma.agreementSigningLink.update({
+    where: { id: link.id },
+    data: { sentAt },
+  });
+
+  await markPacketSentViaEmail({
+    packetId: packet.id,
+    currentStatus: packet.status,
+    sentAt,
+  });
+
+  await writeAgreementPacketEvent({
+    agreementPacketId: packet.id,
+    eventType: AGREEMENT_EVENT_TYPES.SIGNING_LINK_EMAIL_RESENT,
+    actorUserId: session.user.id,
+    actorEmail: session.user.email ?? null,
+    metadata: {
+      label: "Signing link email resent",
+      to: packet.signerEmail,
+      linkId: link.id,
+      messageId: emailResult.messageId,
+      deliveryVerified: true,
+      resend: true,
+    },
+  });
+
+  await writeAuditLog({
+    actorUserId: session.user.id,
+    action: "agreement_packet.signing_link_resent",
+    entityType: "AgreementPacket",
+    entityId: packet.id,
+    metadata: { linkId: link.id, to: packet.signerEmail },
+  });
+
+  revalidateAgreementSurfaces(packet.clientId, packet.id);
+  return {
+    success: true,
+    signingUrl,
+    linkId: link.id,
+    expiresAt: link.expiresAt.toISOString(),
   };
 }
 

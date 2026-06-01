@@ -27,8 +27,12 @@ function formatEventLabel(eventType: string): string {
       return "Agreement signed";
     case "packet.manually_signed":
       return "Manually signed (outside app)";
+    case "packet.sent_via_email":
+      return "Sent via app email";
     case "signing_link.created":
       return "Signing link created";
+    case "signing_link.email_resent":
+      return "Signing link email resent";
     case "signing_link.revoked":
       return "Signing link revoked";
     case "signing_link.opened":
@@ -81,6 +85,11 @@ export function AgreementPacketEventTimeline({
             {event.eventType === "packet.sent_manually" && (
               <p className="text-xs text-purple-800 mt-1">
                 Not verified in-app email delivery
+              </p>
+            )}
+            {event.eventType === "packet.sent_via_email" && (
+              <p className="text-xs text-emerald-800 mt-1">
+                Delivery attempted via in-app email
               </p>
             )}
             {note && (

@@ -160,6 +160,12 @@ export const EMAIL_SUBJECTS = {
   discoveryRecap: (companyName: string) => `Discovery call recap — ${companyName}`,
   discoveryNeedsInfo: (companyName: string) =>
     `More information needed — ${companyName} discovery call request`,
+  agreementSigningLink: (companyName: string) =>
+    `Review and sign your Hargen agreement — ${companyName}`,
+  agreementSignedConfirmation: (companyName: string) =>
+    `Agreement signed — ${companyName}`,
+  agreementSignedAdminAlert: (companyName: string) =>
+    `Agreement signed: ${companyName}`,
 } as const;
 
 // Form copy

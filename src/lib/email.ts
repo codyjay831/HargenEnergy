@@ -3,8 +3,10 @@ import "server-only";
 import { Resend } from "resend";
 
 import {
+  adminAgreementPacketUrl,
   adminDiscoveryUrl,
   adminRequestUrl,
+  agreementSigningPdfDownloadUrl,
   portalRequestUrl,
   discoveryCalendarIcsUrl,
   discoverySchedulingUrl,
@@ -1033,6 +1035,122 @@ export async function sendDiscoverySchedulingLinkEmail(input: {
   } catch (error) {
     console.error("Error sending discovery scheduling link email:", error);
     return { error: "Failed to send scheduling link email." };
+  }
+}
+
+export async function sendAgreementSigningLinkEmail(input: {
+  to: string;
+  signerName: string;
+  companyName: string;
+  signingUrl: string;
+  expiresAt: Date;
+  replyTo?: string | null;
+}) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  const { resend, fromEmail } = config;
+  const expiresDate = new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(input.expiresAt);
+
+  try {
+    const result = await resend.emails.send({
+      from: fromEmail,
+      to: input.to,
+      replyTo: input.replyTo || undefined,
+      subject: EMAIL_SUBJECTS.agreementSigningLink(input.companyName),
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          <h2 style="color: #0f172a;">Review and sign your agreement</h2>
+          <p>Hi ${escapeHtml(input.signerName)},</p>
+          <p>Please review and sign the Hargen Energy agreement packet for <strong>${escapeHtml(input.companyName)}</strong>.</p>
+          <p style="margin: 24px 0;">
+            <a href="${escapeHtml(input.signingUrl)}" style="background: #0f172a; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;">Open agreement</a>
+          </p>
+          <p style="font-size: 14px; color: #64748b;">This signing link expires on ${escapeHtml(expiresDate)}.</p>
+          <p style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 14px; color: #64748b;">
+            Hargen Energy Solar Ops Desk<br />
+            Flexible Solar Operations Support
+          </p>
+        </div>
+      `,
+    });
+    return { success: true, messageId: result.data?.id ?? null };
+  } catch (error) {
+    console.error("Error sending agreement signing email:", error);
+    return { error: "Failed to send agreement signing email." };
+  }
+}
+
+export async function sendAgreementSignedConfirmationEmail(input: {
+  to: string;
+  signerName: string;
+  companyName: string;
+  rawToken: string;
+}) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  const { resend, fromEmail } = config;
+  const pdfUrl = agreementSigningPdfDownloadUrl(input.rawToken);
+
+  try {
+    const result = await resend.emails.send({
+      from: fromEmail,
+      to: input.to,
+      subject: EMAIL_SUBJECTS.agreementSignedConfirmation(input.companyName),
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          <h2 style="color: #0f172a;">Agreement signed</h2>
+          <p>Hi ${escapeHtml(input.signerName)},</p>
+          <p>Thank you. Your Hargen agreement for <strong>${escapeHtml(input.companyName)}</strong> has been signed.</p>
+          <p style="margin: 24px 0;">
+            <a href="${escapeHtml(pdfUrl)}" style="background: #0f172a; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;">Download signed PDF</a>
+          </p>
+        </div>
+      `,
+    });
+    return { success: true, messageId: result.data?.id ?? null };
+  } catch (error) {
+    console.error("Error sending agreement signed confirmation email:", error);
+    return { error: "Failed to send signed confirmation email." };
+  }
+}
+
+export async function sendAgreementSignedAdminAlert(input: {
+  companyName: string;
+  packetId: string;
+  signerName: string;
+  signerEmail: string;
+}) {
+  const config = validateEmailConfig();
+  if ("error" in config) return { error: config.error };
+  if (!ADMIN_EMAIL) {
+    return { error: "Internal notification email not configured." };
+  }
+  const { resend, fromEmail } = config;
+  const adminUrl = adminAgreementPacketUrl(input.packetId);
+
+  try {
+    const result = await resend.emails.send({
+      from: fromEmail,
+      to: ADMIN_EMAIL,
+      subject: EMAIL_SUBJECTS.agreementSignedAdminAlert(input.companyName),
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #334155;">
+          <h2 style="color: #0f172a;">Agreement packet signed</h2>
+          <p><strong>Company:</strong> ${escapeHtml(input.companyName)}</p>
+          <p><strong>Signer:</strong> ${escapeHtml(input.signerName)} (${escapeHtml(input.signerEmail)})</p>
+          <p style="margin-top: 20px;">
+            <a href="${escapeHtml(adminUrl)}" style="background: #0f172a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">View packet in admin</a>
+          </p>
+        </div>
+      `,
+    });
+    return { success: true, messageId: result.data?.id ?? null };
+  } catch (error) {
+    console.error("Error sending agreement signed admin alert:", error);
+    return { error: "Failed to send internal signed alert." };
   }
 }
 

@@ -4,7 +4,7 @@ import { IMMUTABLE_STATUSES } from "@/lib/agreements/types";
 export const PACKET_STATUS_LABELS: Record<AgreementPacketStatus, string> = {
   DRAFT: "Draft",
   READY: "Ready to send",
-  SENT: "Sent Manually / Outside App",
+  SENT: "Sent",
   VIEWED: "Viewed",
   SIGNED: "Signed",
   ACTIVE: "Active",
