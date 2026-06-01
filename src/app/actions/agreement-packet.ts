@@ -44,6 +44,11 @@ import {
   buildAgreementSigningUrl,
   isSigningLinkExpired,
 } from "@/lib/agreements/tokens";
+import {
+  buildPersistenceFailureMessage,
+  buildProviderFailureMessage,
+  decideSigningEmailDispatch,
+} from "@/lib/agreements/signing-email-delivery";
 import type {
   CustomScope,
   RequestBasedScope,
@@ -730,34 +735,84 @@ export async function createAgreementPacketSigningLink(input: {
   };
 }
 
-async function markPacketSentViaEmail(input: {
-  packetId: string;
-  currentStatus: AgreementPacketStatus;
-  sentAt: Date;
-}) {
-  if (input.currentStatus === AgreementPacketStatus.READY) {
-    await prisma.agreementPacket.update({
-      where: { id: input.packetId },
-      data: { status: AgreementPacketStatus.SENT, sentAt: input.sentAt },
-    });
-    return;
-  }
+type SigningEmailFailureType = "provider" | "persistence";
 
-  await prisma.agreementPacket.update({
-    where: { id: input.packetId },
-    data: { sentAt: input.sentAt },
-  });
+type AgreementSigningEmailResult =
+  | {
+      success: true;
+      signingUrl: string;
+      linkId: string;
+      expiresAt: string;
+      warning?: string;
+    }
+  | {
+      error: string;
+      errorType?: SigningEmailFailureType;
+      signingUrl?: string;
+      linkId?: string;
+      expiresAt?: string;
+      warning?: string;
+    };
+
+async function persistAgreementSigningEmailDelivery(input: {
+  packetId: string;
+  packetStatus: AgreementPacketStatus;
+  linkId: string;
+  sentAt: Date;
+  eventType: string;
+  actorUserId?: string | null;
+  actorEmail?: string | null;
+  eventMetadata: Record<string, unknown>;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const metadata = input.eventMetadata as Prisma.InputJsonValue;
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.agreementSigningLink.update({
+        where: { id: input.linkId },
+        data: { sentAt: input.sentAt },
+      });
+
+      if (input.packetStatus === AgreementPacketStatus.READY) {
+        await tx.agreementPacket.update({
+          where: { id: input.packetId },
+          data: { status: AgreementPacketStatus.SENT, sentAt: input.sentAt },
+        });
+      } else {
+        await tx.agreementPacket.update({
+          where: { id: input.packetId },
+          data: { sentAt: input.sentAt },
+        });
+      }
+
+      await tx.agreementPacketEvent.create({
+        data: {
+          agreementPacketId: input.packetId,
+          eventType: input.eventType,
+          actorUserId: input.actorUserId ?? null,
+          actorEmail: input.actorEmail ?? null,
+          metadataJson: metadata,
+        },
+      });
+    });
+    return { ok: true };
+  } catch (error) {
+    console.error("persistAgreementSigningEmailDelivery:", error);
+    return {
+      ok: false,
+      error: buildPersistenceFailureMessage(),
+    };
+  }
 }
 
 export async function sendAgreementPacketSigningLinkEmail(input: {
   packetId: string;
   regenerate?: boolean;
-}) {
+}): Promise<AgreementSigningEmailResult> {
   const session = await requireStaff("clients.manage");
 
   const loaded = await loadPacketOrError(input.packetId);
   if ("error" in loaded) {
-    return { error: loaded.error };
+    return { error: "Agreement packet not found." };
   }
 
   const { packet } = loaded;
@@ -789,28 +844,25 @@ export async function sendAgreementPacketSigningLinkEmail(input: {
   });
   if ("error" in emailResult) {
     return {
-      error: `${emailResult.error} Signing URL is available to copy manually.`,
+      error: buildProviderFailureMessage(
+        emailResult.error ?? "Failed to send agreement signing email.",
+      ),
+      errorType: "provider",
       signingUrl: result.signingUrl,
+      linkId: result.linkId,
+      expiresAt: result.expiresAt.toISOString(),
     };
   }
 
-  await prisma.agreementSigningLink.update({
-    where: { id: result.linkId },
-    data: { sentAt },
-  });
-
-  await markPacketSentViaEmail({
+  const persisted = await persistAgreementSigningEmailDelivery({
     packetId: packet.id,
-    currentStatus: packet.status,
+    packetStatus: packet.status,
+    linkId: result.linkId,
     sentAt,
-  });
-
-  await writeAgreementPacketEvent({
-    agreementPacketId: packet.id,
     eventType: AGREEMENT_EVENT_TYPES.SENT_VIA_EMAIL,
     actorUserId: session.user.id,
     actorEmail: session.user.email ?? null,
-    metadata: {
+    eventMetadata: {
       label: "Sent via app email",
       to: packet.signerEmail,
       linkId: result.linkId,
@@ -819,6 +871,16 @@ export async function sendAgreementPacketSigningLinkEmail(input: {
       regenerate: Boolean(input.regenerate),
     },
   });
+  if (!persisted.ok) {
+    return {
+      error: persisted.error,
+      errorType: "persistence",
+      warning: persisted.error,
+      signingUrl: result.signingUrl,
+      linkId: result.linkId,
+      expiresAt: result.expiresAt.toISOString(),
+    };
+  }
 
   await writeAuditLog({
     actorUserId: session.user.id,
@@ -841,12 +903,12 @@ export async function sendAgreementPacketSigningLinkEmail(input: {
 
 export async function resendAgreementPacketSigningLinkEmail(input: {
   packetId: string;
-}) {
+}): Promise<AgreementSigningEmailResult> {
   const session = await requireStaff("clients.manage");
 
   const loaded = await loadPacketOrError(input.packetId);
   if ("error" in loaded) {
-    return { error: loaded.error };
+    return { error: "Agreement packet not found." };
   }
 
   const { packet } = loaded;
@@ -899,40 +961,55 @@ export async function resendAgreementPacketSigningLinkEmail(input: {
   });
   if ("error" in emailResult) {
     return {
-      error: `${emailResult.error} Signing URL is available to copy manually.`,
+      error: buildProviderFailureMessage(
+        emailResult.error ?? "Failed to send agreement signing email.",
+      ),
+      errorType: "provider",
       signingUrl,
+      linkId: link.id,
+      expiresAt: link.expiresAt.toISOString(),
     };
   }
 
-  await prisma.agreementSigningLink.update({
-    where: { id: link.id },
-    data: { sentAt },
+  const dispatch = decideSigningEmailDispatch({
+    resendAttempt: true,
+    hadPriorSentAt: Boolean(link.sentAt),
   });
-
-  await markPacketSentViaEmail({
+  const eventType =
+    dispatch.eventType === "signing_link.email_resent"
+      ? AGREEMENT_EVENT_TYPES.SIGNING_LINK_EMAIL_RESENT
+      : AGREEMENT_EVENT_TYPES.SENT_VIA_EMAIL;
+  const persisted = await persistAgreementSigningEmailDelivery({
     packetId: packet.id,
-    currentStatus: packet.status,
+    packetStatus: packet.status,
+    linkId: link.id,
     sentAt,
-  });
-
-  await writeAgreementPacketEvent({
-    agreementPacketId: packet.id,
-    eventType: AGREEMENT_EVENT_TYPES.SIGNING_LINK_EMAIL_RESENT,
+    eventType,
     actorUserId: session.user.id,
     actorEmail: session.user.email ?? null,
-    metadata: {
-      label: "Signing link email resent",
+    eventMetadata: {
+      label: dispatch.label,
       to: packet.signerEmail,
       linkId: link.id,
       messageId: emailResult.messageId,
       deliveryVerified: true,
-      resend: true,
+      resend: dispatch.resend,
     },
   });
+  if (!persisted.ok) {
+    return {
+      error: persisted.error,
+      errorType: "persistence",
+      warning: persisted.error,
+      signingUrl,
+      linkId: link.id,
+      expiresAt: link.expiresAt.toISOString(),
+    };
+  }
 
   await writeAuditLog({
     actorUserId: session.user.id,
-    action: "agreement_packet.signing_link_resent",
+    action: dispatch.auditAction,
     entityType: "AgreementPacket",
     entityId: packet.id,
     metadata: { linkId: link.id, to: packet.signerEmail },

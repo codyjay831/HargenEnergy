@@ -132,6 +132,11 @@ export default async function AgreementPacketDetailPage({
   });
 
   const editable = canEditPacketDraft(packet.status);
+  const latestDeliveryEvent = packet.events.find(
+    (event) =>
+      event.eventType === "packet.sent_via_email" ||
+      event.eventType === "packet.sent_manually",
+  );
 
   return (
     <div className="space-y-6">
@@ -162,6 +167,12 @@ export default async function AgreementPacketDetailPage({
           <p className="text-xs text-muted-foreground mt-1">
             Snapshot frozen {format(new Date(packet.snapshotAt), "MMM d, yyyy h:mm a")}
           </p>
+        )}
+        {latestDeliveryEvent?.eventType === "packet.sent_via_email" && (
+          <p className="text-xs text-emerald-700 mt-1">Delivery channel: In-app email</p>
+        )}
+        {latestDeliveryEvent?.eventType === "packet.sent_manually" && (
+          <p className="text-xs text-purple-700 mt-1">Delivery channel: Manual / outside app</p>
         )}
       </div>
 

@@ -62,6 +62,8 @@ export function AgreementPacketEventTimeline({
         const note =
           typeof metadata?.note === "string"
             ? metadata.note
+            : typeof metadata?.label === "string"
+              ? metadata.label
             : typeof metadata?.reason === "string"
               ? metadata.reason
               : null;
@@ -89,11 +91,21 @@ export function AgreementPacketEventTimeline({
             )}
             {event.eventType === "packet.sent_via_email" && (
               <p className="text-xs text-emerald-800 mt-1">
-                Delivery attempted via in-app email
+                Delivery verified by in-app email send
               </p>
             )}
             {note && (
               <p className="text-sm text-slate-700 mt-2 whitespace-pre-wrap">{note}</p>
+            )}
+            {typeof metadata?.to === "string" && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Recipient: {metadata.to}
+              </p>
+            )}
+            {typeof metadata?.messageId === "string" && metadata.messageId.trim() !== "" && (
+              <p className="text-xs text-muted-foreground mt-1 font-mono truncate">
+                Message ID: {metadata.messageId}
+              </p>
             )}
             {typeof metadata?.sha256Hash === "string" && (
               <p className="text-xs text-muted-foreground mt-1 font-mono truncate">

@@ -57,12 +57,17 @@ export function AgreementPacketSigningPanel({
 }: AgreementPacketSigningPanelProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [signingUrl, setSigningUrl] = useState<string | null>(null);
   const [manualNote, setManualNote] = useState("");
   const [copied, setCopied] = useState(false);
 
   const showSigning = canCreateSigningLink(status);
   const showManual = canMarkManuallySigned(status) && acceptances.length === 0;
+  const hasActiveLink = signingLinks.some((l) => l.status === "ACTIVE");
+  const hasResendableLink = signingLinks.some(
+    (l) => l.status === "ACTIVE" && Boolean(l.sentAt),
+  );
 
   const copyUrl = async () => {
     if (!signingUrl) return;
@@ -73,6 +78,7 @@ export function AgreementPacketSigningPanel({
 
   const createLink = (regenerate: boolean) => {
     setError(null);
+    setWarning(null);
     startTransition(async () => {
       const result = await createAgreementPacketSigningLink({ packetId, regenerate });
       if (result.error) {
@@ -90,10 +96,14 @@ export function AgreementPacketSigningPanel({
 
   const sendLinkEmail = (regenerate: boolean) => {
     setError(null);
+    setWarning(null);
     startTransition(async () => {
       const result = await sendAgreementPacketSigningLinkEmail({ packetId, regenerate });
-      if (result.error) {
+      if ("error" in result) {
         setError(result.error);
+        if (result.warning) {
+          setWarning(result.warning);
+        }
         if (result.signingUrl) {
           setSigningUrl(result.signingUrl);
         }
@@ -108,10 +118,14 @@ export function AgreementPacketSigningPanel({
 
   const resendLinkEmail = () => {
     setError(null);
+    setWarning(null);
     startTransition(async () => {
       const result = await resendAgreementPacketSigningLinkEmail({ packetId });
-      if (result.error) {
+      if ("error" in result) {
         setError(result.error);
+        if (result.warning) {
+          setWarning(result.warning);
+        }
         if (result.signingUrl) {
           setSigningUrl(result.signingUrl);
         }
@@ -126,6 +140,7 @@ export function AgreementPacketSigningPanel({
 
   const submitManual = (formData: FormData) => {
     setError(null);
+    setWarning(null);
     formData.set("packetId", packetId);
     formData.set("note", manualNote);
     startTransition(async () => {
@@ -152,7 +167,7 @@ export function AgreementPacketSigningPanel({
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Send signing link email
             </Button>
-            {signingLinks.some((l) => l.status === "ACTIVE") && (
+            {hasResendableLink && (
               <Button variant="outline" disabled={isPending} onClick={resendLinkEmail}>
                 Resend email
               </Button>
@@ -163,7 +178,7 @@ export function AgreementPacketSigningPanel({
               onClick={() => createLink(false)}
             >
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {signingLinks.some((l) => l.status === "ACTIVE")
+              {hasActiveLink
                 ? "Copy signing URL"
                 : "Create signing link"}
             </Button>
@@ -284,6 +299,7 @@ export function AgreementPacketSigningPanel({
         </div>
       )}
 
+      {warning && <p className="text-sm text-amber-700">{warning}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   );
