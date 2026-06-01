@@ -37,6 +37,39 @@ export function canReturnToDraft(status: AgreementPacketStatus): boolean {
   return status === "READY" || status === "SENT";
 }
 
+export function canReturnToDraftWithGuards(input: {
+  status: AgreementPacketStatus;
+  hasViewed: boolean;
+  hasUsedSigningLink: boolean;
+  hasAcceptances: boolean;
+}): boolean {
+  if (!canReturnToDraft(input.status)) {
+    return false;
+  }
+  if (input.hasViewed || input.hasUsedSigningLink || input.hasAcceptances) {
+    return false;
+  }
+  return true;
+}
+
+export function canCreateSigningLink(status: AgreementPacketStatus): boolean {
+  if (isPacketImmutable(status)) {
+    return false;
+  }
+  return status === "READY" || status === "SENT" || status === "VIEWED";
+}
+
+export function canMarkManuallySigned(status: AgreementPacketStatus): boolean {
+  if (isPacketImmutable(status)) {
+    return false;
+  }
+  return status === "READY" || status === "SENT" || status === "VIEWED";
+}
+
+export function canAcceptOnline(status: AgreementPacketStatus): boolean {
+  return status === "READY" || status === "SENT" || status === "VIEWED";
+}
+
 export function canVoidPacket(status: AgreementPacketStatus): boolean {
   return !isPacketImmutable(status);
 }

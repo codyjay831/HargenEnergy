@@ -151,6 +151,18 @@ enum AgreementServiceType {
   CUSTOM
 }
 
+enum AgreementAcceptanceKind {
+  CLIENT_SERVICES_AGREEMENT
+  WORK_AUTHORIZATION
+}
+
+enum AgreementSigningLinkStatus {
+  ACTIVE
+  USED
+  EXPIRED
+  REVOKED
+}
+
 enum HandoffTier {
   CLEAN
   MESSY
@@ -327,6 +339,7 @@ model User {
   discoverySchedulingLinksCreated DiscoverySchedulingLink[] @relation("DiscoverySchedulingLinkCreator")
   agreementAcceptances AgreementAcceptance[]
   createdAgreementPackets AgreementPacket[] @relation("AgreementPacketCreator")
+  createdAgreementSigningLinks AgreementSigningLink[] @relation("AgreementSigningLinkCreator")
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -1105,12 +1118,53 @@ model AgreementPacket {
   createdByUserId             String
   createdBy                   User                  @relation("AgreementPacketCreator", fields: [createdByUserId], references: [id])
   events                      AgreementPacketEvent[]
+  acceptances                 AgreementPacketAcceptance[]
+  signingLinks                AgreementSigningLink[]
   createdAt                   DateTime              @default(now())
   updatedAt                   DateTime              @updatedAt
 
   @@index([clientId])
   @@index([status])
   @@index([createdAt])
+}
+
+model AgreementPacketAcceptance {
+  id                String                   @id @default(cuid())
+  agreementPacketId String
+  agreementPacket   AgreementPacket          @relation(fields: [agreementPacketId], references: [id], onDelete: Cascade)
+  acceptanceType    AgreementAcceptanceKind
+  signerName        String
+  signerTitle       String
+  signerEmail       String
+  checkboxText      String
+  signedAt          DateTime
+  ipAddress         String?
+  userAgent         String?
+  source            String                   @default("online")
+  createdAt         DateTime                 @default(now())
+
+  @@unique([agreementPacketId, acceptanceType])
+  @@index([agreementPacketId])
+}
+
+model AgreementSigningLink {
+  id                String                     @id @default(cuid())
+  agreementPacketId String
+  agreementPacket   AgreementPacket            @relation(fields: [agreementPacketId], references: [id], onDelete: Cascade)
+  tokenHash         String                     @unique
+  encryptedToken    String?
+  status            AgreementSigningLinkStatus @default(ACTIVE)
+  sentAt            DateTime?
+  openedAt          DateTime?
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  usedAt            DateTime?
+  createdByUserId   String?
+  createdBy         User?                      @relation("AgreementSigningLinkCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  @@index([agreementPacketId, status])
 }
 
 model AgreementPacketEvent {

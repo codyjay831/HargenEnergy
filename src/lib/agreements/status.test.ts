@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  canAcceptOnline,
+  canCreateSigningLink,
   canEditPacketDraft,
   canGeneratePacket,
+  canMarkManuallySigned,
   canMarkSentManually,
   canReturnToDraft,
+  canReturnToDraftWithGuards,
   isPacketImmutable,
 } from "@/lib/agreements/status";
 
@@ -37,5 +41,46 @@ describe("agreement packet status", () => {
     expect(canReturnToDraft("READY")).toBe(true);
     expect(canReturnToDraft("SENT")).toBe(true);
     expect(canReturnToDraft("DRAFT")).toBe(false);
+  });
+
+  it("blocks return to draft after view or signing activity", () => {
+    expect(
+      canReturnToDraftWithGuards({
+        status: "READY",
+        hasViewed: true,
+        hasUsedSigningLink: false,
+        hasAcceptances: false,
+      }),
+    ).toBe(false);
+    expect(
+      canReturnToDraftWithGuards({
+        status: "SENT",
+        hasViewed: false,
+        hasUsedSigningLink: true,
+        hasAcceptances: false,
+      }),
+    ).toBe(false);
+    expect(
+      canReturnToDraftWithGuards({
+        status: "READY",
+        hasViewed: false,
+        hasUsedSigningLink: false,
+        hasAcceptances: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("allows signing links for ready, sent, and viewed", () => {
+    expect(canCreateSigningLink("READY")).toBe(true);
+    expect(canCreateSigningLink("SENT")).toBe(true);
+    expect(canCreateSigningLink("VIEWED")).toBe(true);
+    expect(canCreateSigningLink("SIGNED")).toBe(false);
+  });
+
+  it("allows online acceptance and manual sign before signed", () => {
+    expect(canAcceptOnline("VIEWED")).toBe(true);
+    expect(canMarkManuallySigned("SENT")).toBe(true);
+    expect(canAcceptOnline("SIGNED")).toBe(false);
+    expect(canMarkManuallySigned("SIGNED")).toBe(false);
   });
 });

@@ -23,6 +23,20 @@ function formatEventLabel(eventType: string): string {
       return "Voided";
     case "packet.superseded":
       return "Superseded";
+    case "packet.signed":
+      return "Agreement signed";
+    case "packet.manually_signed":
+      return "Manually signed (outside app)";
+    case "signing_link.created":
+      return "Signing link created";
+    case "signing_link.revoked":
+      return "Signing link revoked";
+    case "signing_link.opened":
+      return "Signing link opened";
+    case "signing_link.used":
+      return "Signing link used";
+    case "signing_link.expired":
+      return "Signing link expired";
     default:
       return eventType.replace(/\./g, " · ");
   }

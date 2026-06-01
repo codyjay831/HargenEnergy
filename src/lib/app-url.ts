@@ -83,6 +83,14 @@ export function adminAgreementPdfDownloadUrl(
   return `${baseUrl()}/api/admin/agreements/${encodeURIComponent(packetId)}/pdf?variant=${variant}`;
 }
 
+export function agreementSigningUrl(rawToken: string): string {
+  return `${baseUrl()}/agreements/sign/${encodeURIComponent(rawToken)}`;
+}
+
+export function agreementSigningPdfDownloadUrl(rawToken: string): string {
+  return `${baseUrl()}/api/agreements/sign/${encodeURIComponent(rawToken)}/pdf`;
+}
+
 export function loginUrl(): string {
   return `${baseUrl()}/login`;
 }

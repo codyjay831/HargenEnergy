@@ -35,4 +35,11 @@ export const AGREEMENT_EVENT_TYPES = {
   SENT_MANUALLY: "packet.sent_manually",
   VOIDED: "packet.voided",
   SUPERSEDED: "packet.superseded",
+  SIGNED: "packet.signed",
+  MANUALLY_SIGNED: "packet.manually_signed",
+  SIGNING_LINK_CREATED: "signing_link.created",
+  SIGNING_LINK_REVOKED: "signing_link.revoked",
+  SIGNING_LINK_OPENED: "signing_link.opened",
+  SIGNING_LINK_USED: "signing_link.used",
+  SIGNING_LINK_EXPIRED: "signing_link.expired",
 } as const;

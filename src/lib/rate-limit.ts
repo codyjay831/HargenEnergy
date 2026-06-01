@@ -34,7 +34,8 @@ export type RateLimitBucket =
   | "outreach-gemini-assist"
   | "outreach-auto-enrich"
   | "discovery-book"
-  | "discovery-scheduling";
+  | "discovery-scheduling"
+  | "agreement-signing";
 
 const FAIL_CLOSED_BUCKETS = new Set<RateLimitBucket>([
   "login",
@@ -43,6 +44,7 @@ const FAIL_CLOSED_BUCKETS = new Set<RateLimitBucket>([
   "public-intake",
   "admin-setup",
   "discovery-book",
+  "agreement-signing",
 ]);
 
 const BUCKET_CONFIG: Record<
@@ -74,6 +76,8 @@ const BUCKET_CONFIG: Record<
   "discovery-book": { max: 20, windowSec: 60 * 60 },
   /** Public discovery scheduling page loads. */
   "discovery-scheduling": { max: 30, windowSec: 15 * 60 },
+  /** Public agreement packet signing accept submissions. */
+  "agreement-signing": { max: 15, windowSec: 60 * 60 },
 };
 
 let redisClient: Redis | null = null;

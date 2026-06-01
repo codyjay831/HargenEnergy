@@ -18,16 +18,27 @@ import {
   buildPacketSnapshot,
   parseStoredSnapshot,
 } from "@/lib/agreements/snapshot";
-import { storeAgreementPdf } from "@/lib/agreements/storage";
 import {
+  storeAgreementPdf,
+  storeUploadedAgreementPdf,
+} from "@/lib/agreements/storage";
+import {
+  canCreateSigningLink,
   canEditPacketDraft,
   canGeneratePacket,
+  canMarkManuallySigned,
   canMarkSentManually,
-  canReturnToDraft,
+  canReturnToDraftWithGuards,
   canSupersedePacket,
   canVoidPacket,
   isPacketImmutable,
 } from "@/lib/agreements/status";
+import { createAgreementSigningLink } from "@/lib/agreements/signing-links";
+import {
+  acceptanceKindForIndex,
+  buildSignedAcceptanceRecordsFromSnapshot,
+} from "@/lib/agreements/acceptance-records";
+import { AgreementSigningLinkStatus } from "@/generated/prisma/client";
 import { getPrivateBlobErrorMessage } from "@/lib/agreements/blob-guard";
 import { getDefaultTemplatePair } from "@/lib/agreements/ensure-templates";
 import type {
@@ -336,24 +347,66 @@ export async function returnAgreementPacketToDraft(input: {
   }
 
   const { packet } = loaded;
-  if (!canReturnToDraft(packet.status)) {
-    return { error: "This packet cannot be returned to draft." };
-  }
   if (isPacketImmutable(packet.status)) {
     return { error: "This packet is immutable." };
   }
 
-  try {
-    await prisma.agreementPacket.update({
-      where: { id: packet.id },
-      data: {
-        status: AgreementPacketStatus.DRAFT,
-        acceptanceSnapshotJson: Prisma.JsonNull,
-        snapshotAt: null,
-        unsignedPdfFileId: null,
-        sentAt: null,
+  const [acceptanceCount, usedLinkCount] = await Promise.all([
+    prisma.agreementPacketAcceptance.count({
+      where: { agreementPacketId: packet.id },
+    }),
+    prisma.agreementSigningLink.count({
+      where: {
+        agreementPacketId: packet.id,
+        status: AgreementSigningLinkStatus.USED,
       },
-    });
+    }),
+  ]);
+
+  const hasViewed =
+    packet.status === AgreementPacketStatus.VIEWED || Boolean(packet.viewedAt);
+
+  if (
+    !canReturnToDraftWithGuards({
+      status: packet.status,
+      hasViewed,
+      hasUsedSigningLink: usedLinkCount > 0,
+      hasAcceptances: acceptanceCount > 0,
+    })
+  ) {
+    return {
+      error:
+        "This packet cannot be returned to draft after it has been viewed, signed, or had acceptances recorded.",
+    };
+  }
+
+  try {
+    const now = new Date();
+    await prisma.$transaction([
+      prisma.agreementSigningLink.updateMany({
+        where: {
+          agreementPacketId: packet.id,
+          status: AgreementSigningLinkStatus.ACTIVE,
+        },
+        data: {
+          status: AgreementSigningLinkStatus.REVOKED,
+          revokedAt: now,
+        },
+      }),
+      prisma.agreementPacket.update({
+        where: { id: packet.id },
+        data: {
+          status: AgreementPacketStatus.DRAFT,
+          acceptanceSnapshotJson: Prisma.JsonNull,
+          snapshotAt: null,
+          unsignedPdfFileId: null,
+          signedPdfFileId: null,
+          sentAt: null,
+          viewedAt: null,
+          signedAt: null,
+        },
+      }),
+    ]);
 
     await writeAgreementPacketEvent({
       agreementPacketId: packet.id,
@@ -629,4 +682,186 @@ export async function getClientAgreementAutofill(clientId: string) {
       signerEmail: client.email,
     },
   };
+}
+
+export async function createAgreementPacketSigningLink(input: {
+  packetId: string;
+  regenerate?: boolean;
+}) {
+  const session = await requireStaff("clients.manage");
+
+  const loaded = await loadPacketOrError(input.packetId);
+  if ("error" in loaded) {
+    return loaded;
+  }
+
+  const { packet } = loaded;
+  if (!canCreateSigningLink(packet.status)) {
+    return { error: "A signing link cannot be created for this packet status." };
+  }
+
+  const result = await createAgreementSigningLink({
+    agreementPacketId: packet.id,
+    createdByUserId: session.user.id,
+    regenerate: input.regenerate ?? false,
+  });
+
+  if ("error" in result) {
+    return { error: result.error };
+  }
+
+  await writeAuditLog({
+    actorUserId: session.user.id,
+    action: "agreement_packet.signing_link_created",
+    entityType: "AgreementPacket",
+    entityId: packet.id,
+    metadata: { linkId: result.linkId, regenerate: Boolean(input.regenerate) },
+  });
+
+  revalidateAgreementSurfaces(packet.clientId, packet.id);
+  return {
+    success: true,
+    signingUrl: result.signingUrl,
+    linkId: result.linkId,
+    expiresAt: result.expiresAt.toISOString(),
+  };
+}
+
+const MAX_MANUAL_SIGN_PDF_BYTES = 15 * 1024 * 1024;
+
+export async function markAgreementPacketManuallySigned(formData: FormData) {
+  const session = await requireStaff("clients.manage");
+
+  const packetId = String(formData.get("packetId") ?? "").trim();
+  const note = String(formData.get("note") ?? "").trim();
+  const file = formData.get("pdf");
+
+  if (!packetId) {
+    return { error: "Packet ID is required." };
+  }
+  if (!note) {
+    return { error: "A note is required describing how this was signed outside the app." };
+  }
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "A signed PDF file is required." };
+  }
+  if (file.type !== "application/pdf") {
+    return { error: "Only PDF files are accepted." };
+  }
+  if (file.size > MAX_MANUAL_SIGN_PDF_BYTES) {
+    return { error: "Signed PDF must be 15 MB or smaller." };
+  }
+
+  const loaded = await loadPacketOrError(packetId);
+  if ("error" in loaded) {
+    return loaded;
+  }
+
+  const { packet } = loaded;
+  if (!canMarkManuallySigned(packet.status)) {
+    return { error: "This packet cannot be marked as manually signed." };
+  }
+
+  const snapshot = parseStoredSnapshot(packet.acceptanceSnapshotJson);
+  if (!snapshot) {
+    return {
+      error: "Generate the packet and freeze the legal snapshot before recording a manual signature.",
+    };
+  }
+
+  const existingAcceptances = await prisma.agreementPacketAcceptance.count({
+    where: { agreementPacketId: packet.id },
+  });
+  if (existingAcceptances > 0) {
+    return { error: "Acceptances are already recorded for this packet." };
+  }
+
+  const signedAt = new Date();
+  const acceptanceRows = snapshot.acceptanceBlocks.map((block, index) => ({
+    acceptanceType: acceptanceKindForIndex(index),
+    signerName: snapshot.signerName,
+    signerTitle: snapshot.signerTitle,
+    signerEmail: snapshot.signerEmail,
+    checkboxText: block.checkboxText,
+    signedAt,
+    ipAddress: null,
+    userAgent: null,
+    source: "manual",
+  }));
+
+  try {
+    const pdfBuffer = Buffer.from(await file.arrayBuffer());
+
+    await prisma.$transaction(async (tx) => {
+      for (const row of acceptanceRows) {
+        await tx.agreementPacketAcceptance.create({
+          data: {
+            agreementPacketId: packet.id,
+            ...row,
+          },
+        });
+      }
+
+      await tx.agreementSigningLink.updateMany({
+        where: {
+          agreementPacketId: packet.id,
+          status: AgreementSigningLinkStatus.ACTIVE,
+        },
+        data: {
+          status: AgreementSigningLinkStatus.REVOKED,
+          revokedAt: signedAt,
+        },
+      });
+
+      await tx.agreementPacket.update({
+        where: { id: packet.id },
+        data: {
+          status: AgreementPacketStatus.SIGNED,
+          signedAt,
+          viewedAt: packet.viewedAt ?? signedAt,
+        },
+      });
+    });
+
+    const { fileId, sha256Hash } = await storeUploadedAgreementPdf({
+      packetId: packet.id,
+      pdfBuffer,
+      fileLabel: file.name || `agreement-packet-${packet.id}-signed.pdf`,
+    });
+
+    await prisma.agreementPacket.update({
+      where: { id: packet.id },
+      data: { signedPdfFileId: fileId },
+    });
+
+    await writeAgreementPacketEvent({
+      agreementPacketId: packet.id,
+      eventType: AGREEMENT_EVENT_TYPES.MANUALLY_SIGNED,
+      actorUserId: session.user.id,
+      actorEmail: session.user.email ?? null,
+      metadata: { note, deliveryVerified: false, sha256Hash, fileId },
+    });
+
+    await writeAgreementPacketEvent({
+      agreementPacketId: packet.id,
+      eventType: AGREEMENT_EVENT_TYPES.SIGNED,
+      actorUserId: session.user.id,
+      actorEmail: session.user.email ?? null,
+      metadata: { source: "manual", sha256Hash },
+    });
+
+    await writeAuditLog({
+      actorUserId: session.user.id,
+      action: "agreement_packet.signed_manually",
+      entityType: "AgreementPacket",
+      entityId: packet.id,
+      metadata: { sha256Hash },
+    });
+
+    revalidateAgreementSurfaces(packet.clientId, packet.id);
+    return { success: true };
+  } catch (error) {
+    console.error("markAgreementPacketManuallySigned:", error);
+    return { error: getPrivateBlobErrorMessage(error) };
+  }
 }

@@ -7,7 +7,11 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import type { AgreementPacketSnapshot } from "@/lib/agreements/types";
-import { snapshotToDocumentBlocks } from "@/lib/agreements/sections";
+import {
+  snapshotToDocumentBlocks,
+  snapshotToSignedDocumentBlocks,
+  type SignedAcceptanceRecord,
+} from "@/lib/agreements/sections";
 
 const styles = StyleSheet.create({
   page: {
@@ -74,10 +78,15 @@ function BlockView({
 
 export function AgreementPacketPdfDocument({
   snapshot,
+  acceptances,
 }: {
   snapshot: AgreementPacketSnapshot;
+  acceptances?: SignedAcceptanceRecord[];
 }) {
-  const blocks = snapshotToDocumentBlocks(snapshot);
+  const blocks =
+    acceptances && acceptances.length > 0
+      ? snapshotToSignedDocumentBlocks(snapshot, acceptances)
+      : snapshotToDocumentBlocks(snapshot);
 
   return (
     <Document title={`Agreement Packet ${snapshot.packetId}`}>

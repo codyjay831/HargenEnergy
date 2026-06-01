@@ -30,6 +30,7 @@ type AgreementPacketDetailActionsProps = {
   status: AgreementPacketStatus;
   hasSnapshot: boolean;
   hasUnsignedPdf: boolean;
+  hasSignedPdf: boolean;
 };
 
 export function AgreementPacketDetailActions({
@@ -37,6 +38,7 @@ export function AgreementPacketDetailActions({
   status,
   hasSnapshot,
   hasUnsignedPdf,
+  hasSignedPdf,
 }: AgreementPacketDetailActionsProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +85,15 @@ export function AgreementPacketDetailActions({
             className={buttonVariants({ variant: "outline" })}
           >
             Download unsigned PDF
+          </Link>
+        )}
+
+        {hasSignedPdf && (
+          <Link
+            href={adminAgreementPdfDownloadUrl(packetId, "signed")}
+            className={buttonVariants({ variant: "outline" })}
+          >
+            Download signed PDF
           </Link>
         )}
 

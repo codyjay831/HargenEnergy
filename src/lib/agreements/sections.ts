@@ -1,5 +1,15 @@
 import type { AgreementPacketSnapshot, TemplateSection } from "@/lib/agreements/types";
 
+export type SignedAcceptanceRecord = {
+  acceptanceType: string;
+  title: string;
+  checkboxText: string;
+  signerName: string;
+  signerTitle: string;
+  signerEmail: string;
+  signedAt: Date;
+};
+
 export type RenderSectionBlock = {
   kind: "heading" | "paragraph" | "list";
   level?: 1 | 2 | 3;
@@ -80,6 +90,63 @@ export function snapshotToDocumentBlocks(
       { kind: "paragraph", text: "Date: _________________________________" },
     );
   }
+
+  return blocks;
+}
+
+export function snapshotToSignedDocumentBlocks(
+  snapshot: AgreementPacketSnapshot,
+  acceptances: SignedAcceptanceRecord[],
+): RenderSectionBlock[] {
+  const acceptanceByTitle = new Map(
+    acceptances.map((a) => [a.title, a]),
+  );
+
+  const unsignedBlocks = snapshotToDocumentBlocks(snapshot, {
+    includeAcceptancePage: false,
+  });
+
+  const blocks: RenderSectionBlock[] = [...unsignedBlocks];
+
+  blocks.push({ kind: "heading", level: 1, text: "Signature / Acceptance Page" });
+  blocks.push({
+    kind: "paragraph",
+    text: `Signer: ${snapshot.signerName}, ${snapshot.signerTitle} (${snapshot.signerEmail})`,
+  });
+  blocks.push({
+    kind: "paragraph",
+    text: `Company: ${snapshot.companyLegalName}`,
+  });
+
+  for (const block of snapshot.acceptanceBlocks) {
+    const record = acceptanceByTitle.get(block.title);
+    blocks.push({ kind: "heading", level: 2, text: block.title });
+    blocks.push({ kind: "paragraph", text: block.checkboxText });
+    blocks.push({
+      kind: "paragraph",
+      text: record ? "☑ I agree (electronically signed)" : "☐ I agree (unsigned)",
+    });
+    if (record) {
+      blocks.push({
+        kind: "paragraph",
+        text: `Signed by: ${record.signerName}, ${record.signerTitle} (${record.signerEmail})`,
+      });
+      blocks.push({
+        kind: "paragraph",
+        text: `Signed at: ${record.signedAt.toLocaleString()}`,
+      });
+    }
+  }
+
+  const signedAt = acceptances[0]?.signedAt ?? new Date();
+  blocks.push(
+    {
+      kind: "paragraph",
+      text: `Electronic signature: ${snapshot.signerName}`,
+    },
+    { kind: "paragraph", text: `Title: ${snapshot.signerTitle}` },
+    { kind: "paragraph", text: `Date: ${signedAt.toLocaleString()}` },
+  );
 
   return blocks;
 }

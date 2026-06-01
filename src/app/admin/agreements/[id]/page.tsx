@@ -9,6 +9,7 @@ import {
 import { AgreementPacketPreview } from "@/components/admin/agreements/AgreementPacketPreview";
 import { AgreementPacketDetailActions } from "@/components/admin/agreements/AgreementPacketDetailActions";
 import { AgreementPacketEventTimeline } from "@/components/admin/agreements/AgreementPacketEventTimeline";
+import { AgreementPacketSigningPanel } from "@/components/admin/agreements/AgreementPacketSigningPanel";
 import { AgreementPacketEditorForm } from "@/components/admin/agreements/AgreementPacketEditorForm";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -92,6 +93,9 @@ export default async function AgreementPacketDetailPage({
       workAuthorizationTemplate: true,
       events: { orderBy: { createdAt: "desc" }, take: 50 },
       unsignedPdfFile: true,
+      signedPdfFile: true,
+      signingLinks: { orderBy: { createdAt: "desc" }, take: 20 },
+      acceptances: { orderBy: { signedAt: "desc" } },
     },
   });
 
@@ -171,9 +175,31 @@ export default async function AgreementPacketDetailPage({
             status={packet.status}
             hasSnapshot={Boolean(frozenSnapshot)}
             hasUnsignedPdf={Boolean(packet.unsignedPdfFileId)}
+            hasSignedPdf={Boolean(packet.signedPdfFileId)}
           />
         </CardContent>
       </Card>
+
+      {(packet.status === "READY" ||
+        packet.status === "SENT" ||
+        packet.status === "VIEWED" ||
+        packet.status === "SIGNED" ||
+        packet.status === "ACTIVE") && (
+        <Card className="border-slate-200">
+          <CardHeader>
+            <CardTitle className="text-base">Signing</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AgreementPacketSigningPanel
+              packetId={packet.id}
+              status={packet.status}
+              hasSignedPdf={Boolean(packet.signedPdfFileId)}
+              signingLinks={packet.signingLinks}
+              acceptances={packet.acceptances}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {editable && (
         <Card className="border-slate-200">
